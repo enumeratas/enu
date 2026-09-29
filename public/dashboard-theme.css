@@ -1,0 +1,757 @@
+/* Office chrome shared by every dashboard page */
+:is(.db-body, .bis-dash) {
+    background: #f3f5f8 !important;
+}
+
+:is(.db-body, .bis-dash) .db-sidebar {
+    background: #fff !important;
+    border-right: 1px solid #e2e6ee !important;
+    box-shadow: none !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+}
+
+:is(.db-body, .bis-dash) .db-nav {
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    scrollbar-width: thin;
+    scrollbar-color: #b0b6c3 #f3f5f8;
+}
+
+:is(.db-body, .bis-dash) .db-nav::-webkit-scrollbar {
+    width: 8px;
+}
+
+:is(.db-body, .bis-dash) .db-nav::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+:is(.db-body, .bis-dash) .db-nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+:is(.db-body, .bis-dash) .db-nav::-webkit-scrollbar-thumb {
+    background: #b0b6c3;
+    border-radius: 999px;
+}
+
+:is(.db-body, .bis-dash) .db-nav::-webkit-scrollbar-thumb:hover {
+    background: #8b93a7;
+}
+
+:is(.db-body, .bis-dash) .db-sidebar-brand {
+    height: 64px;
+    background: #fff !important;
+    border-bottom: 1px solid #e2e6ee !important;
+}
+
+:is(.db-body, .bis-dash) .db-brand-logo {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+:is(.db-body, .bis-dash) .db-brand-logo img {
+    width: 26px !important;
+    height: 26px !important;
+    max-width: 26px !important;
+    max-height: 26px !important;
+    object-fit: contain;
+}
+
+:is(.db-body, .bis-dash).db-sidebar-collapsed .db-brand-logo {
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+}
+
+:is(.db-body, .bis-dash).db-sidebar-collapsed .db-brand-logo img {
+    width: 22px !important;
+    height: 22px !important;
+    max-width: 22px !important;
+    max-height: 22px !important;
+}
+
+:is(.db-body, .bis-dash) .db-brand-name,
+:is(.db-body, .bis-dash) .db-nav-item,
+:is(.db-body, .bis-dash) .db-sidebar-toggle,
+:is(.db-body, .bis-dash) .db-sidebar .db-menu-toggle,
+:is(.db-body, .bis-dash) .db-topbar-title h1,
+:is(.db-body, .bis-dash) .db-username,
+:is(.db-body, .bis-dash) .db-menu-toggle {
+    color: #1c2b45 !important;
+}
+
+:is(.db-body, .bis-dash) .db-brand-role,
+:is(.db-body, .bis-dash) .db-topbar-title span {
+    color: #6b7689 !important;
+}
+
+:is(.db-body, .bis-dash) .db-nav-item,
+:is(.db-body, .bis-dash) .db-nav-item:hover,
+:is(.db-body, .bis-dash) .db-nav-item.active {
+    border-radius: 0 !important;
+}
+
+:is(.db-body, .bis-dash) .db-nav-item:hover,
+:is(.db-body, .bis-dash) .db-nav-item.active {
+    background: #f4f6f9 !important;
+    color: #16325c !important;
+}
+
+:is(.db-body, .bis-dash) .db-nav-section-title {
+    color: #16325c !important;
+    opacity: .55;
+}
+
+:is(.db-body, .bis-dash) .db-nav-section-line {
+    background: #dce3ee !important;
+}
+
+:is(.db-body, .bis-dash) .db-topbar {
+    position: fixed !important;
+    top: 0;
+    left: 240px;
+    right: 0;
+    height: 64px;
+    z-index: 150;
+    padding: 0 20px;
+    background: #fff !important;
+    border: 0 !important;
+    border-top: 3px solid #e0b32a !important;
+    border-bottom: 1px solid #e2e6ee !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+:is(.db-body, .bis-dash).db-sidebar-collapsed .db-topbar {
+    left: 72px;
+}
+
+:is(.db-body, .bis-dash) .db-topbar-title h1 {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+:is(.db-body, .bis-dash) .db-notif-btn,
+:is(.db-body, .bis-dash) .db-avatar,
+:is(.db-body, .bis-dash) .db-notif-btn:hover,
+:is(.db-body, .bis-dash) .db-mobile-menu-toggle,
+:is(.db-body, .bis-dash) .db-mobile-menu-toggle:hover,
+:is(.db-body, .bis-dash) .db-mobile-menu-toggle:active,
+:is(.db-body, .bis-dash) .db-icon-btn,
+:is(.db-body, .bis-dash) .db-icon-btn:hover,
+:is(.db-body, .bis-dash) .db-avatar-sm,
+:is(.db-body, .bis-dash) .cs-avatar,
+:is(.db-body, .bis-dash) .cs-resident-avatar,
+:is(.db-body, .bis-dash) [class*="-icon"]:not(.cw-toggle-icon) {
+    width: auto !important;
+    height: auto !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+:is(.db-body, .bis-dash) .db-notif-btn,
+:is(.db-body, .bis-dash) .db-notif-btn:hover,
+:is(.db-body, .bis-dash) .db-avatar,
+:is(.db-body, .bis-dash) .db-mobile-menu-toggle,
+:is(.db-body, .bis-dash) .db-mobile-menu-toggle:hover,
+:is(.db-body, .bis-dash) .db-mobile-menu-toggle:active,
+:is(.db-body, .bis-dash) .dash-stat-icon,
+:is(.db-body, .bis-dash) .db-stat-icon,
+:is(.db-body, .bis-dash) .db-module-icon,
+:is(.db-body, .bis-dash) .pf-card-header-icon,
+:is(.db-body, .bis-dash) .dash-welcome-icon,
+:is(.db-body, .bis-dash) .db-welcome-icon {
+    color: #16325c !important;
+}
+
+:is(.db-body, .bis-dash) .db-topbar,
+:is(.db-body, .bis-dash) .db-topbar-right {
+    overflow: visible !important;
+}
+
+:is(.db-body, .bis-dash) .db-topbar-logout {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 8px;
+    padding: 6px 10px;
+    border: 1px solid #e2e6ee;
+    background: #fff;
+    color: #16325c;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+:is(.db-body, .bis-dash) .db-topbar-logout:hover {
+    background: #f4f6f9;
+    color: #16325c;
+}
+
+:is(.db-body, .bis-dash) .db-topbar-title {
+    flex: 0 1 220px !important;
+    min-width: 0;
+}
+
+:is(.db-body, .bis-dash) .db-topbar-title h1,
+:is(.db-body, .bis-dash) .db-topbar-title span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+:is(.db-body, .bis-dash) .db-topbar-right {
+    margin-left: auto !important;
+    flex-shrink: 0;
+}
+
+:is(.db-body, .bis-dash) .db-global-search {
+    position: relative;
+    flex: 1 1 320px;
+    max-width: 520px;
+    min-width: 160px;
+    margin: 0 16px 0 0;
+}
+
+:is(.db-body, .bis-dash) .db-global-search .fa-search {
+    position: absolute;
+    left: 12px;
+    top: 11px;
+    color: #8b93a7;
+    font-size: 13px;
+    pointer-events: none;
+}
+
+:is(.db-body, .bis-dash) .db-global-search input {
+    width: 100%;
+    height: 36px;
+    margin: 0;
+    padding: 0 12px 0 34px;
+    border: 1px solid #e2e6ee;
+    border-radius: 0;
+    background: #f7f8fb;
+    color: #16325c;
+    font-size: 13px;
+    box-shadow: none;
+}
+
+:is(.db-body, .bis-dash) .db-global-search input:focus {
+    outline: none;
+    border-color: #16325c;
+    background: #fff;
+}
+
+:is(.db-body, .bis-dash) .db-global-search-results {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    width: max(100%, 320px);
+    max-width: none !important;
+    max-height: 420px;
+    overflow: auto;
+    background: #fff;
+    border: 1px solid #e2e6ee;
+    box-shadow: 0 12px 30px rgba(22, 50, 92, .12);
+    z-index: 30;
+}
+
+:is(.db-body, .bis-dash) .db-search-group,
+:is(.db-body, .bis-dash) .db-search-empty {
+    padding: 8px 12px 4px;
+    color: #8a6a12;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+:is(.db-body, .bis-dash) .db-search-empty {
+    color: #6b7280;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 500;
+    padding: 12px;
+}
+
+:is(.db-body, .bis-dash) .db-search-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    color: #16325c;
+    text-decoration: none;
+}
+
+:is(.db-body, .bis-dash) .db-search-item:hover,
+:is(.db-body, .bis-dash) .db-search-item.is-active {
+    background: #f4f6f9;
+}
+
+:is(.db-body, .bis-dash) .db-search-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+:is(.db-body, .bis-dash) .db-search-title .pii-text {
+    height: 16px !important;
+    width: auto !important;
+    max-width: none !important;
+}
+
+:is(.db-body, .bis-dash) .db-search-hint {
+    flex-shrink: 0;
+    color: #6b7280;
+    font-size: 12px;
+}
+
+@media (min-width: 901px) {
+    :is(.db-body, .bis-dash) .db-topbar > .db-mobile-menu-toggle {
+        display: none !important;
+    }
+}
+
+@media (max-width: 900px) {
+    :is(.db-body, .bis-dash) .db-topbar {
+        height: auto !important;
+        min-height: 0;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 10px;
+        padding: 8px 12px 10px !important;
+    }
+
+    :is(.db-body, .bis-dash) .db-mobile-menu-toggle {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 36px !important;
+        height: 36px !important;
+        min-width: 36px !important;
+        padding: 0 !important;
+        font-size: 18px;
+        order: 0;
+    }
+
+    :is(.db-body, .bis-dash) .db-topbar-title {
+        flex: 1 1 0 !important;
+        min-width: 0;
+        order: 1;
+    }
+
+    :is(.db-body, .bis-dash) .db-topbar-title span {
+        display: none;
+    }
+
+    :is(.db-body, .bis-dash) .db-topbar-right {
+        order: 2;
+        margin-left: 0 !important;
+        gap: 16px;
+    }
+
+    :is(.db-body, .bis-dash) .db-global-search {
+        order: 3;
+        flex: 1 1 100%;
+        max-width: none;
+        min-width: 0;
+        margin: 0;
+    }
+
+    :is(.db-body, .bis-dash) .db-topbar-logout span,
+    :is(.db-body, .bis-dash) .db-username {
+        display: none !important;
+    }
+
+    :is(.db-body, .bis-dash) .db-topbar-logout {
+        margin-left: 0;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        justify-content: center;
+    }
+
+    :is(.db-body, .bis-dash) .db-global-search-results {
+        position: fixed;
+        top: 112px;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        max-width: none !important;
+    }
+}
+
+:is(.db-body, .bis-dash) .db-notif-btn,
+:is(.db-body, .bis-dash) .db-notif-btn:hover {
+    position: relative !important;
+    overflow: visible !important;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+:is(.db-body, .bis-dash) .db-notif-count {
+    position: absolute !important;
+    top: 1px !important;
+    right: 0 !important;
+    left: auto !important;
+    max-width: none !important;
+    min-width: 16px !important;
+    width: auto !important;
+    height: 16px !important;
+    margin: 0 !important;
+    padding: 0 4px !important;
+    box-sizing: border-box !important;
+    border-radius: 8px !important;
+    background: #c0392b !important;
+    color: #fff !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    line-height: 16px !important;
+    letter-spacing: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 3 !important;
+    pointer-events: none;
+    overflow: visible !important;
+}
+
+@media (max-width: 900px) {
+    :is(.db-body, .bis-dash) .db-notif-count {
+        right: 4px !important;
+    }
+}
+
+:is(.db-body, .bis-dash) .dash-welcome-icon,
+:is(.db-body, .bis-dash) .db-welcome-icon {
+    font-size: 22px !important;
+}
+
+:is(.db-body, .bis-dash) .db-icon-btn--view,
+:is(.db-body, .bis-dash) .db-icon-btn--view:hover {
+    color: #16325c !important;
+}
+
+:is(.db-body, .bis-dash) .db-icon-btn--edit,
+:is(.db-body, .bis-dash) .db-icon-btn--edit:hover {
+    color: #8a6a12 !important;
+}
+
+:is(.db-body, .bis-dash) .db-icon-btn--del,
+:is(.db-body, .bis-dash) .db-icon-btn--del:hover {
+    color: #c0392b !important;
+}
+
+:is(.db-body, .bis-dash) .db-avatar img {
+    width: 28px !important;
+    height: 28px !important;
+    object-fit: cover;
+    border-radius: 0 !important;
+}
+
+:is(.db-body, .bis-dash) .db-content {
+    padding: 84px 20px 24px !important;
+}
+
+@media (max-width: 900px) {
+    :is(.db-body, .bis-dash) .db-content {
+        padding: 136px 14px 20px !important;
+    }
+}
+
+:is(.db-body, .bis-dash) [class*="card"],
+:is(.db-body, .bis-dash) [class*="-panel"],
+:is(.db-body, .bis-dash) .dash-stat,
+:is(.db-body, .bis-dash) .dash-welcome,
+:is(.db-body, .bis-dash) .dash-link,
+:is(.db-body, .bis-dash) .dbadge,
+:is(.db-body, .bis-dash) .db-table-wrap,
+:is(.db-body, .bis-dash) .db-modal,
+:is(.db-body, .bis-dash) .db-welcome,
+:is(.db-body, .bis-dash) .db-btn,
+:is(.db-body, .bis-dash) .db-page-btn,
+:is(.db-body, .bis-dash) .db-filter-select,
+:is(.db-body, .bis-dash) .cs-panel,
+:is(.db-body, .bis-dash) .cs-header-badge,
+:is(.db-body, .bis-dash) .census-card,
+:is(.db-body, .bis-dash) .census-note,
+:is(.db-body, .bis-dash) [style*="border-radius:1"],
+:is(.db-body, .bis-dash) [style*="border-radius: 1"] {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+:is(.db-body, .bis-dash) .dash-stat,
+:is(.db-body, .bis-dash) .dash-card,
+:is(.db-body, .bis-dash) .db-stat-card,
+:is(.db-body, .bis-dash) .db-module-card,
+:is(.db-body, .bis-dash) .bl-card,
+:is(.db-body, .bis-dash) .pf-card,
+:is(.db-body, .bis-dash) .kk-card,
+:is(.db-body, .bis-dash) .cs-panel,
+:is(.db-body, .bis-dash) .census-card,
+:is(.db-body, .bis-dash) .db-table-wrap,
+:is(.db-body, .bis-dash) .db-chart-card,
+:is(.db-body, .bis-dash) .db-settings-card {
+    background: #fff;
+    border: 1px solid #e2e6ee;
+}
+
+:is(.db-body, .bis-dash) .dash-stat:hover,
+:is(.db-body, .bis-dash) .db-stat-card:hover,
+:is(.db-body, .bis-dash) .db-module-card:hover,
+:is(.db-body, .bis-dash) .db-btn:hover {
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+:is(.db-body, .bis-dash) .dash-card-head {
+    background: #fff !important;
+    border-bottom: 1px solid #e2e6ee !important;
+    padding: 10px 14px;
+}
+
+:is(.db-body, .bis-dash) .dash-card-head h4,
+:is(.db-body, .bis-dash) .dash-card-head h4 i,
+:is(.db-body, .bis-dash) .dash-card-head a {
+    color: #16325c !important;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+:is(.db-body, .bis-dash) .dash-mini-table th,
+:is(.db-body, .bis-dash) .db-table th {
+    background: #f7f8fa !important;
+    color: #5c677a !important;
+    border-radius: 0 !important;
+}
+
+:is(.db-body, .bis-dash) .dash-link {
+    border: 1px solid #e2e6ee !important;
+    background: #fff !important;
+    color: #1c2b45 !important;
+}
+
+:is(.db-body, .bis-dash) .dash-link:hover {
+    background: #f4f6f9 !important;
+}
+
+:is(.db-body, .bis-dash) .dash-welcome,
+:is(.db-body, .bis-dash) .db-welcome {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding: 16px 18px !important;
+    background: #fff !important;
+    border: 1px solid #e2e6ee !important;
+    border-top: 3px solid #e0b32a !important;
+    overflow: hidden;
+}
+
+:is(.db-body, .bis-dash) .dash-welcome:has(.gov-mast) {
+    display: block;
+    padding: 0 !important;
+}
+
+:is(.db-body, .bis-dash) .dash-welcome::after {
+    display: none !important;
+}
+
+:is(.db-body, .bis-dash) .dash-welcome h2 {
+    margin: 0 0 2px;
+    color: #1c2b45 !important;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+:is(.db-body, .bis-dash) .dash-welcome p,
+:is(.db-body, .bis-dash) .dash-welcome-date {
+    color: #6b7689 !important;
+    font-size: 12px;
+}
+
+:is(.db-body, .bis-dash) .gov-mast {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    padding: 14px 16px;
+    background: #fff;
+}
+
+:is(.db-body, .bis-dash) .gov-seal {
+    width: 48px !important;
+    height: 48px !important;
+    max-width: 48px !important;
+    object-fit: contain !important;
+    flex-shrink: 0;
+}
+
+:is(.db-body, .bis-dash) .gov-kicker {
+    margin: 0 0 2px;
+    color: #8a6a12;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+:is(.db-body, .bis-dash) .customer-service-page {
+    border-top: 3px solid #e0b32a;
+}
+
+:is(.db-body, .bis-dash) .census-header {
+    background: #fff !important;
+    border-top: 3px solid #e0b32a;
+}
+
+@media (max-width: 900px) {
+    :is(.db-body, .bis-dash) .db-topbar,
+    :is(.db-body, .bis-dash).db-sidebar-collapsed .db-topbar {
+        left: 0 !important;
+    }
+}
+
+/* Modals: square corners and navy headers */
+:is(.db-body, .bis-dash) .db-modal,
+:is(.db-body, .bis-dash) .dec-modal,
+:is(.db-body, .bis-dash) .pf-modal,
+:is(.db-body, .bis-dash) .conf-box,
+:is(.db-body, .bis-dash) .pa-modal,
+:is(.db-body, .bis-dash) .clr-modal,
+:is(.db-body, .bis-dash) [class*="-modal"]:not(.db-modal-overlay):not([class*="overlay"]) {
+    border-radius: 0 !important;
+}
+
+:is(.db-body, .bis-dash) .db-modal-header,
+:is(.db-body, .bis-dash) .dec-modal__banner,
+:is(.db-body, .bis-dash) .pf-modal-header,
+:is(.db-body, .bis-dash) .clr-modal-header,
+:is(.db-body, .bis-dash) .pa-modal-header,
+:is(.db-body, .bis-dash) [class*="modal-header"],
+:is(.db-body, .bis-dash) [class*="modal__banner"],
+:is(.db-body, .bis-dash) [class*="modal__header"] {
+    background: #16325c !important;
+    background-image: none !important;
+    color: #fff !important;
+    border-radius: 0 !important;
+    border-bottom: 0 !important;
+}
+
+:is(.db-body, .bis-dash) .db-modal-header h3,
+:is(.db-body, .bis-dash) .db-modal-header h3 i,
+:is(.db-body, .bis-dash) .db-modal-header *,
+:is(.db-body, .bis-dash) .dec-modal__banner-title,
+:is(.db-body, .bis-dash) .dec-modal__banner-sub,
+:is(.db-body, .bis-dash) .dec-modal__banner-icon,
+:is(.db-body, .bis-dash) [class*="modal-header"] h3,
+:is(.db-body, .bis-dash) [class*="modal-header"] *,
+:is(.db-body, .bis-dash) .pf-modal-header *,
+:is(.db-body, .bis-dash) .clr-modal-header * {
+    color: #fff !important;
+}
+
+:is(.db-body, .bis-dash) .db-modal-close,
+:is(.db-body, .bis-dash) .dec-modal__close,
+:is(.db-body, .bis-dash) [class*="modal-close"] {
+    color: #fff !important;
+    border-radius: 0 !important;
+}
+
+:is(.db-body, .bis-dash) .db-modal *,
+:is(.db-body, .bis-dash) .dec-modal *,
+:is(.db-body, .bis-dash) .pf-modal *,
+:is(.db-body, .bis-dash) .conf-box *,
+:is(.db-body, .bis-dash) .pa-modal *,
+:is(.db-body, .bis-dash) [class*="-modal"] *:not(.fa):not([class^="fa-"]) {
+    border-radius: 0 !important;
+}
+
+:is(.db-body, .bis-dash) .db-modal .db-btn,
+:is(.db-body, .bis-dash) .db-modal button,
+:is(.db-body, .bis-dash) .dec-modal button,
+:is(.db-body, .bis-dash) .dec-modal__btn,
+:is(.db-body, .bis-dash) .pf-modal button,
+:is(.db-body, .bis-dash) [class*="-modal"] button,
+:is(.db-body, .bis-dash) [class*="-modal"] .db-btn {
+    border-radius: 0 !important;
+}
+
+:is(.db-body, .bis-dash) .dec-modal__btn--confirm,
+:is(.db-body, .bis-dash) .db-modal .db-btn--primary {
+    background: #16325c !important;
+    background-image: none !important;
+    color: #fff !important;
+}
+
+.pii-text {
+    display: inline-block;
+    vertical-align: middle;
+    height: 16px;
+    max-width: 100%;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.pii-text--name {
+    height: 15px;
+}
+
+.pii-text--muted,
+.pii-text--small {
+    height: 14px;
+    opacity: .95;
+}
+
+.pii-text--inverse {
+    height: 16px;
+}
+
+@media print {
+    :is(.db-body, .bis-dash) .db-topbar,
+    :is(.db-body, .bis-dash) .db-sidebar {
+        display: none !important;
+    }
+
+    :is(.db-body, .bis-dash) .db-main {
+        margin-left: 0 !important;
+    }
+
+    :is(.db-body, .bis-dash) .db-content {
+        padding: 0 !important;
+    }
+}

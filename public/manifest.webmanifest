@@ -1,0 +1,23 @@
+{
+  "name": "Barangay Bacolod Information System",
+  "short_name": "Bacolod BIS",
+  "description": "Barangay services for residents of Bacolod, Bato, Camarines Sur.",
+  "start_url": "/login",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f6fa",
+  "theme_color": "#16325c",
+  "icons": [
+    {
+      "src": "/bacolod.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "32x32",
+      "type": "image/x-icon"
+    }
+  ]
+}

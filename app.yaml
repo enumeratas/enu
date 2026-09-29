@@ -1,0 +1,32 @@
+runtime: php
+env: flex
+
+runtime_config:
+  operating_system: "ubuntu22"
+  runtime_version: "8.2"
+  document_root: public
+
+handlers:
+  - url: /household-files/.*
+    script: auto
+
+  - url: /uploads/ids/.*
+    script: auto
+
+  - url: /(.*\.(css|js|png|jpg|jpeg|gif|ico|svg|webp|woff|woff2|ttf|eot|map))
+    static_files: public/\1
+    upload: public/.*\.(css|js|png|jpg|jpeg|gif|ico|svg|webp|woff|woff2|ttf|eot|map)
+    require_matching_file: true
+
+  - url: /.*
+    script: auto
+
+automatic_scaling:
+  min_num_instances: 1
+  max_num_instances: 3
+
+beta_settings:
+  cloud_sql_instances: barangay-info-system:asia-southeast2:barangay-info-system
+
+env_variables:
+  GCS_UPLOAD_BUCKET: barangay-info-system.appspot.com
