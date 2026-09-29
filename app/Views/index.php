@@ -8,6 +8,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="/style.css">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#16325c">
+    <meta name="mobile-web-app-capable" content="yes">
     <link rel="stylesheet" href="/landing-gov.css?v=20260929k">
 </head>
 
@@ -1547,6 +1550,7 @@
             };
         })();
     </script>
+    <script src="/js/pwa-install.js?v=1"></script>
 </body>
 
 </html>`

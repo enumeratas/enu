@@ -40,7 +40,7 @@ if (getcwd() . DIRECTORY_SEPARATOR !== FCPATH) {
 // Serve public assets when the managed web server forwards them to the front controller.
 $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 $assetPath = realpath(FCPATH . ltrim(rawurldecode($requestPath ?: '/'), '/'));
-$allowedAssetExtensions = ['css', 'js', 'png', 'jpg', 'jpeg', 'gif', 'ico', 'svg', 'webp', 'woff', 'woff2', 'ttf', 'eot', 'map'];
+$allowedAssetExtensions = ['css', 'js', 'png', 'jpg', 'jpeg', 'gif', 'ico', 'svg', 'webp', 'woff', 'woff2', 'ttf', 'eot', 'map', 'webmanifest'];
 
 if (
     $assetPath !== false
@@ -52,6 +52,7 @@ if (
         'css' => 'text/css',
         'js' => 'application/javascript',
         'json' => 'application/json',
+        'webmanifest' => 'application/manifest+json',
         'png' => 'image/png',
         'jpg' => 'image/jpeg',
         'jpeg' => 'image/jpeg',

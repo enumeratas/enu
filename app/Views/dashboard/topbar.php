@@ -617,6 +617,7 @@ foreach (
     window.BIS_USER_ROLE = <?= json_encode((string) (session()->get('role') ?? '')) ?>;
 </script>
 <script src="/js/resident-offline.js?v=4"></script>
+<script src="/js/pwa-install.js?v=1"></script>
 
 <script>
     if ('serviceWorker' in navigator) {

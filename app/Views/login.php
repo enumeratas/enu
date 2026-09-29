@@ -740,6 +740,7 @@
             }
         }
     </script>
+    <script src="/js/pwa-install.js?v=1"></script>
 </body>
 
 </html>
