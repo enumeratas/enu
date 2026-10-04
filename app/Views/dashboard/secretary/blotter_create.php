@@ -268,6 +268,7 @@
                         <div class="bl-form-group">
                             <label>Incident Date</label>
                             <input type="date" name="incident_date" class="bl-input"
+                                max="<?= date('Y-m-d') ?>"
                                 value="<?= esc(old('incident_date')) ?>">
                         </div>
                         <div class="bl-form-group">

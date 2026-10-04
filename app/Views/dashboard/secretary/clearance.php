@@ -19,6 +19,12 @@
         <?php include(APPPATH . 'Views/dashboard/topbar.php'); ?>
         <div class="db-content">
 
+            <?php $feeRole = session()->get('role') === 'admin' ? 'admin' : 'secretary'; ?>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+                <a class="db-btn db-btn--outline db-btn--sm" href="/<?= esc($feeRole) ?>/barangay-settings">
+                    <i class="fas fa-peso-sign"></i> Document Fees
+                </a>
+            </div>
             <div class="db-stats" style="margin-bottom:24px;">
                 <div class="db-stat-card">
                     <div class="db-stat-icon" style="background:rgba(255,193,7,0.15);color:#ffc107;"><i class="fas fa-clock"></i></div>
@@ -59,12 +65,12 @@
                 </button>
             </div>
 
-            <form method="get" action="" style="margin-bottom:0;">
+            <form method="get" action="" data-live-results="liveResults" style="margin-bottom:0;">
                 <div class="db-toolbar">
                     <div class="db-search-wrap">
                         <i class="fas fa-search"></i>
-                        <input type="text" name="search" placeholder="Search ..." id="searchInput"
-                            value="<?= esc($search ?? '') ?>" onchange="this.form.submit()">
+                        <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search name or date..." id="searchInput"
+                            value="<?= esc($search ?? '') ?>">
                     </div>
                     <div class="db-toolbar-actions">
                         <select class="db-filter-select" name="status" onchange="this.form.submit()">
@@ -84,6 +90,7 @@
                 </div>
             </form>
 
+            <div id="liveResults">
             <div class="db-table-wrap">
                 <table class="db-table" id="clearanceTable">
                     <thead>
@@ -168,6 +175,7 @@
                     </div>
                 </div>
             <?php endif; ?>
+            </div>
 
             <!-- Reject Modal -->
             <div class="db-modal-overlay" id="rejectModal">
@@ -324,13 +332,13 @@
                         <div class="secretary-doc-grid" id="secretaryDocumentType">
                             <?php
                             $secretaryDocuments = [
-                                ['value' => 'Barangay Clearance', 'icon' => 'fa-file-alt', 'color' => '#5b6fd6', 'bg' => 'rgba(91,111,214,.12)', 'fee' => '₱100.00'],
-                                ['value' => 'Certificate of Residency', 'icon' => 'fa-home', 'color' => '#16c79a', 'bg' => 'rgba(22,199,154,.12)', 'fee' => 'Free'],
-                                ['value' => 'Certificate of Indigency', 'icon' => 'fa-hands-helping', 'color' => '#e6a800', 'bg' => 'rgba(255,193,7,.14)', 'fee' => 'Free'],
-                                ['value' => 'Certificate of Good Moral', 'icon' => 'fa-award', 'color' => '#7c5cbf', 'bg' => 'rgba(124,92,191,.12)', 'fee' => 'Free'],
-                                ['value' => 'First Time Job Seekers', 'icon' => 'fa-briefcase', 'color' => '#16a085', 'bg' => 'rgba(22,160,133,.12)', 'fee' => 'Free'],
-                                ['value' => 'Solo Parent Certificate', 'icon' => 'fa-child', 'color' => '#3a8fd9', 'bg' => 'rgba(58,143,217,.12)', 'fee' => 'Free'],
-                                ['value' => 'Business Permit Clearance', 'icon' => 'fa-store', 'color' => '#dc3545', 'bg' => 'rgba(220,53,69,.12)', 'fee' => '₱75.00'],
+                                ['value' => 'Barangay Clearance', 'icon' => 'fa-file-alt', 'color' => '#5b6fd6', 'bg' => 'rgba(91,111,214,.12)', 'fee' => \Config\ClearanceDocuments::fee('Barangay Clearance')],
+                                ['value' => 'Certificate of Residency', 'icon' => 'fa-home', 'color' => '#16c79a', 'bg' => 'rgba(22,199,154,.12)', 'fee' => \Config\ClearanceDocuments::fee('Certificate of Residency')],
+                                ['value' => 'Certificate of Indigency', 'icon' => 'fa-hands-helping', 'color' => '#e6a800', 'bg' => 'rgba(255,193,7,.14)', 'fee' => \Config\ClearanceDocuments::fee('Certificate of Indigency')],
+                                ['value' => 'Certificate of Good Moral', 'icon' => 'fa-award', 'color' => '#7c5cbf', 'bg' => 'rgba(124,92,191,.12)', 'fee' => \Config\ClearanceDocuments::fee('Certificate of Good Moral')],
+                                ['value' => 'First Time Job Seekers', 'icon' => 'fa-briefcase', 'color' => '#16a085', 'bg' => 'rgba(22,160,133,.12)', 'fee' => \Config\ClearanceDocuments::fee('First Time Job Seekers')],
+                                ['value' => 'Solo Parent Certificate', 'icon' => 'fa-child', 'color' => '#3a8fd9', 'bg' => 'rgba(58,143,217,.12)', 'fee' => \Config\ClearanceDocuments::fee('Solo Parent Certificate')],
+                                ['value' => 'Business Permit Clearance', 'icon' => 'fa-store', 'color' => '#dc3545', 'bg' => 'rgba(220,53,69,.12)', 'fee' => \Config\ClearanceDocuments::fee('Business Permit Clearance')],
                             ];
                             ?>
                             <?php foreach ($secretaryDocuments as $document): ?>
@@ -339,7 +347,7 @@
                                     <div class="secretary-doc-icon" style="background:<?= $document['bg'] ?>;color:<?= $document['color'] ?>;"><i class="fas <?= $document['icon'] ?>"></i></div>
                                     <div>
                                         <div class="secretary-doc-name"><?= esc($document['value']) ?></div>
-                                        <div class="secretary-doc-fee"><?= $document['fee'] ?></div>
+                                        <div class="secretary-doc-fee"><?= esc($document['fee']) ?></div>
                                         <div class="secretary-doc-reason" aria-live="polite"></div>
                                     </div>
                                 </label>

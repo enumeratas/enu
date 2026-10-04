@@ -57,29 +57,107 @@ class PiiController extends BaseController
             return $this->jsonResponse([], 403);
         }
 
-        $rows = (new UserModel())
-            ->where('role', 'resident')
-            ->whereIn('status', ['active', 'unverified', 'pending'])
-            ->orderBy('last_name', 'ASC')
-            ->findAll();
+        $db = \Config\Database::connect();
+        $rows = $db->table('users u')
+            ->select('u.id, u.first_name, u.middle_name, u.last_name, u.username, u.email, u.household_no,
+                      h.date_of_birth AS head_dob, h.first_name AS head_first, h.middle_name AS head_middle, h.last_name AS head_last')
+            ->join('households h', 'h.household_no = u.household_no', 'left')
+            ->where('u.role', 'resident')
+            ->whereIn('u.status', ['active', 'unverified', 'pending'])
+            ->orderBy('u.last_name', 'ASC')
+            ->orderBy('u.first_name', 'ASC')
+            ->get()->getResultArray();
+
+        $householdNos = array_values(array_filter(array_unique(array_map(
+            static fn(array $row): string => trim((string) ($row['household_no'] ?? '')),
+            $rows
+        ))));
+        $membersByHousehold = [];
+        if ($householdNos !== []) {
+            $members = $db->table('household_members')
+                ->select('household_no, first_name, middle_name, last_name, date_of_birth')
+                ->whereIn('household_no', $householdNos)
+                ->get()->getResultArray();
+            foreach ($members as $member) {
+                $membersByHousehold[(string) $member['household_no']][] = $member;
+            }
+        }
 
         $out = [];
         foreach ($rows as $r) {
             $first = trim((string) ($r['first_name'] ?? ''));
             $middle = trim((string) ($r['middle_name'] ?? ''));
             $last = trim((string) ($r['last_name'] ?? ''));
+            $dob = null;
+
+            $headFirst = trim((string) ($r['head_first'] ?? ''));
+            $headLast = trim((string) ($r['head_last'] ?? ''));
+            $isHead = $headFirst !== ''
+                && strcasecmp($first, $headFirst) === 0
+                && ($last === '' || strcasecmp($last, $headLast) === 0);
+            if ($isHead) {
+                if ($last === '') {
+                    $last = $headLast;
+                }
+                if ($middle === '') {
+                    $middle = trim((string) ($r['head_middle'] ?? ''));
+                }
+                $dob = $r['head_dob'] ?? null;
+            }
+
+            foreach ($membersByHousehold[(string) ($r['household_no'] ?? '')] ?? [] as $member) {
+                $memberFirst = trim((string) ($member['first_name'] ?? ''));
+                $memberLast = trim((string) ($member['last_name'] ?? ''));
+                $samePerson = strcasecmp($first, $memberFirst) === 0
+                    && ($last === '' || strcasecmp($last, $memberLast) === 0);
+                if (! $samePerson) {
+                    continue;
+                }
+                if ($last === '') {
+                    $last = $memberLast;
+                }
+                if ($middle === '') {
+                    $middle = trim((string) ($member['middle_name'] ?? ''));
+                }
+                if (! empty($member['date_of_birth'])) {
+                    $dob = $member['date_of_birth'];
+                }
+                break;
+            }
+
+            $given = trim($first . ($middle !== '' ? ' ' . $middle : ''));
+            if ($last !== '' && $given !== '') {
+                $label = $last . ', ' . $given;
+            } else {
+                $label = $given !== '' ? $given : ($last !== '' ? $last : 'Resident');
+            }
+
             $out[] = [
                 'id'       => (int) $r['id'],
-                'label'    => trim($last . ', ' . $first . ($middle !== '' ? ' ' . $middle : '')),
-                'name'     => trim($first . ' ' . $last),
-                'display'  => trim($last . ', ' . $first . ' ' . $middle),
+                'label'    => $label,
+                'name'     => trim($given . ($last !== '' ? ' ' . $last : '')),
+                'display'  => $label,
                 'username' => (string) ($r['username'] ?? ''),
                 'email'    => (string) ($r['email'] ?? ''),
-                'age'      => (int) ($r['age'] ?? 0),
+                'age'      => $this->ageFromDob(is_string($dob) ? $dob : null),
             ];
         }
 
         return $this->jsonResponse($out);
+    }
+
+    private function ageFromDob(?string $dob): ?int
+    {
+        $dob = trim((string) $dob);
+        if ($dob === '' || str_starts_with($dob, '0000')) {
+            return null;
+        }
+        $birth = date_create($dob);
+        if ($birth === false) {
+            return null;
+        }
+
+        return (int) date_diff($birth, date_create('today'))->y;
     }
 
     public function residentCard(int $id)

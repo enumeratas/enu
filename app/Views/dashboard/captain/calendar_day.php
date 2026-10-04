@@ -479,7 +479,7 @@
 
                                 <!-- Description -->
                                 <?php if (! empty($ev['description'])): ?>
-                                    <div class="cd-description"><?= esc($ev['description']) ?></div>
+                                    <div class="cd-description"><?= esc(\App\Models\ScheduleModel::visibleDescription($ev['description'])) ?></div>
                                 <?php endif; ?>
 
                                 <!-- Actions -->

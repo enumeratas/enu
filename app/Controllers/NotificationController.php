@@ -21,8 +21,14 @@ class NotificationController extends BaseController
         if (! $userId) {
             return $this->response->setJSON(['unread' => 0]);
         }
+
+        $role = strtolower((string) session()->get('role'));
+
         return $this->response->setJSON([
-            'unread' => $this->model->countUnread($userId),
+            'unread' => $this->model->countUnread(
+                $userId,
+                NotificationModel::includesBroadcastsForRole($role)
+            ),
         ]);
     }
 
@@ -31,7 +37,12 @@ class NotificationController extends BaseController
     {
         $userId = (int) session()->get('user_id');
         if ($userId) {
-            $this->model->markReadById($id, $userId);
+            $role = strtolower((string) session()->get('role'));
+            $this->model->markReadById(
+                $id,
+                $userId,
+                NotificationModel::includesBroadcastsForRole($role)
+            );
         }
         return $this->response->setJSON(['ok' => true]);
     }
@@ -40,9 +51,39 @@ class NotificationController extends BaseController
     public function markAllRead(): \CodeIgniter\HTTP\ResponseInterface
     {
         $userId = (int) session()->get('user_id');
-        if ($userId) {
-            $this->model->markAllRead($userId);
+        $unread = 0;
+
+        if ($userId > 0) {
+            $role = strtolower((string) session()->get('role'));
+            $includeBroadcasts = NotificationModel::includesBroadcastsForRole($role);
+
+            $this->model->markAllRead($userId, $includeBroadcasts);
+
+            if (in_array($role, ['admin', 'secretary', 'captain'], true)) {
+                controller(AdminNotificationController::class)->dismissAllFeedForUser($userId);
+                $unread = controller(AdminNotificationController::class)->getBellUnreadCount($userId);
+            } else {
+                $unread = $this->model->countUnread($userId, $includeBroadcasts);
+            }
         }
+
+        return $this->response->setJSON([
+            'ok'     => true,
+            'unread' => $unread,
+        ]);
+    }
+
+    // ── POST /{role}/notifications/dismiss-feed  (AJAX) ─────────────────────
+    public function dismissFeed(): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $userId = (int) session()->get('user_id');
+        $type   = strtolower(trim((string) $this->request->getPost('type')));
+        $ref    = trim((string) $this->request->getPost('ref'));
+
+        if ($userId > 0 && $type !== '' && $ref !== '') {
+            (new \App\Models\NotificationDismissalModel())->dismiss($userId, $type, $ref);
+        }
+
         return $this->response->setJSON(['ok' => true]);
     }
 }

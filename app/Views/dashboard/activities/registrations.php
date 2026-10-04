@@ -74,6 +74,13 @@
                 </div>
             </div>
 
+            <form method="get" data-live-results="liveResults" style="margin-bottom:16px;">
+                <div class="db-search-wrap">
+                    <i class="fas fa-search"></i>
+                    <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search residents or dates..." value="<?= esc($search ?? '') ?>">
+                </div>
+            </form>
+            <div id="liveResults">
             <div class="db-table-wrap">
                 <table class="db-table">
                     <thead>
@@ -90,7 +97,7 @@
                         <?php if ($registrations === []): ?>
                             <tr>
                                 <td colspan="6" style="text-align:center;padding:32px;color:#9aa0b4;">
-                                    No one has joined this activity yet.
+                                    <?= ($search ?? '') !== '' ? 'No registrations match your search.' : 'No one has joined this activity yet.' ?>
                                 </td>
                             </tr>
                         <?php else: ?>
@@ -159,19 +166,26 @@
                     </tbody>
                 </table>
             </div>
+            </div>
         </div>
     </div>
     <script>
-        document.querySelectorAll('.registration-reject-toggle').forEach(function (button) {
-            button.addEventListener('click', function () {
-                const form = button.closest('.registration-reject-form');
-                const reason = form.querySelector('.registration-reject-reason');
-                reason.hidden = false;
-                reason.style.display = 'flex';
-                button.style.display = 'none';
-                reason.querySelector('input').focus();
+        function bindRegistrationRejects() {
+            document.querySelectorAll('.registration-reject-toggle').forEach(function (button) {
+                if (button.dataset.bound === '1') return;
+                button.dataset.bound = '1';
+                button.addEventListener('click', function () {
+                    const form = button.closest('.registration-reject-form');
+                    const reason = form.querySelector('.registration-reject-reason');
+                    reason.hidden = false;
+                    reason.style.display = 'flex';
+                    button.style.display = 'none';
+                    reason.querySelector('input').focus();
+                });
             });
-        });
+        }
+        bindRegistrationRejects();
+        document.addEventListener('bis-live-results', bindRegistrationRejects);
     </script>
 </body>
 

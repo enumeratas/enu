@@ -72,6 +72,13 @@
                 </div>
             </div>
 
+            <form method="get" data-live-results="liveResults" style="margin-bottom:16px;">
+                <div class="db-search-wrap">
+                    <i class="fas fa-search"></i>
+                    <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search residents or dates..." value="<?= esc($search ?? '') ?>">
+                </div>
+            </form>
+            <div id="liveResults">
             <!-- Registrations table -->
             <div class="db-table-wrap">
                 <table class="db-table">
@@ -90,7 +97,7 @@
                             <tr>
                                 <td colspan="6" style="text-align:center;padding:32px;color:#9aa0b4;">
                                     <i class="fas fa-users" style="font-size:26px;display:block;margin-bottom:8px;color:#d0d5e8;"></i>
-                                    No registrations yet for this program.
+                                    <?= ($search ?? '') !== '' ? 'No registrations match your search.' : 'No registrations yet for this program.' ?>
                                 </td>
                             </tr>
                         <?php else: ?>
@@ -152,21 +159,28 @@
                     </tbody>
                 </table>
             </div>
+            </div>
 
         </div>
     </div>
 
     <script>
-        document.querySelectorAll('.registration-reject-toggle').forEach(button => {
-            button.addEventListener('click', () => {
-                const form = button.closest('.registration-reject-form');
-                const reason = form.querySelector('.registration-reject-reason');
-                reason.hidden = false;
-                reason.style.display = 'flex';
-                button.style.display = 'none';
-                reason.querySelector('input').focus();
+        function bindRegistrationRejects() {
+            document.querySelectorAll('.registration-reject-toggle').forEach(button => {
+                if (button.dataset.bound === '1') return;
+                button.dataset.bound = '1';
+                button.addEventListener('click', () => {
+                    const form = button.closest('.registration-reject-form');
+                    const reason = form.querySelector('.registration-reject-reason');
+                    reason.hidden = false;
+                    reason.style.display = 'flex';
+                    button.style.display = 'none';
+                    reason.querySelector('input').focus();
+                });
             });
-        });
+        }
+        bindRegistrationRejects();
+        document.addEventListener('bis-live-results', bindRegistrationRejects);
 
         document.querySelectorAll('.db-nav-item').forEach(i =>
             i.addEventListener('click', () => document.getElementById('sidebar').classList.remove('open'))

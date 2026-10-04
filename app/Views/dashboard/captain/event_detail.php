@@ -325,7 +325,7 @@
                             <?php if (! empty($ev['description'])): ?>
                                 <div>
                                     <label style="display:block;font-size:11px;font-weight:700;color:#9aa0b4;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Description / Notes</label>
-                                    <div class="ev-description"><?= nl2br(esc($ev['description'])) ?></div>
+                                    <div class="ev-description"><?= nl2br(esc(\App\Models\ScheduleModel::visibleDescription($ev['description']))) ?></div>
                                 </div>
                             <?php endif; ?>
                         </div>
@@ -379,7 +379,7 @@
 
                                 <div class="ev-form-group">
                                     <label>Description / Notes</label>
-                                    <textarea name="description" class="ev-textarea"><?= esc($ev['description'] ?? '') ?></textarea>
+                                    <textarea name="description" class="ev-textarea"><?= esc(\App\Models\ScheduleModel::visibleDescription($ev['description'] ?? '')) ?></textarea>
                                 </div>
 
                                 <div class="ev-form-group">

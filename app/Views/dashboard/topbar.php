@@ -9,7 +9,10 @@ $notificationRole = (string) (session()->get('role') ?? 'resident');
 $notificationUrl = site_url($notificationRole . '/notifications');
 $notificationUserId = (int) session()->get('user_id');
 $notificationUnreadCount = $notificationUserId > 0
-    ? (new \App\Models\NotificationModel())->countUnread($notificationUserId)
+    ? (new \App\Models\NotificationModel())->countUnread(
+        $notificationUserId,
+        \App\Models\NotificationModel::includesBroadcastsForRole($notificationRole)
+    )
     : 0;
 $actionToast = null;
 $actionToastType = 'success';
@@ -108,8 +111,8 @@ foreach (
 
             <span
                 id="topbarUnreadCount"
-                class="db-notif-count"
-                style="display:<?= $notificationUnreadCount > 0 ? 'flex' : 'none' ?>;">
+                class="db-notif-count<?= $notificationUnreadCount > 0 ? '' : ' is-empty' ?>"
+                <?= $notificationUnreadCount > 0 ? '' : 'hidden' ?>>
                 <?= $notificationUnreadCount > 9 ? '9+' : $notificationUnreadCount ?>
             </span>
 
@@ -403,71 +406,36 @@ foreach (
     <script>
         (function() {
 
+            function applyNotifCount(count) {
+                const value = Number(count) || 0;
+                const badge = document.getElementById('topbarUnreadCount');
+                const dot = document.getElementById('topbarNotifDot');
+
+                if (badge) {
+                    badge.textContent = value > 9 ? '9+' : String(value);
+                    badge.classList.toggle('is-empty', value <= 0);
+                    badge.hidden = value <= 0;
+                }
+
+                if (dot) {
+                    dot.hidden = value <= 0;
+                }
+            }
+
             function pollUnread() {
-
                 fetch(
-                        '<?= esc(site_url('resident/notifications/poll')) ?>', {
-                            credentials: 'same-origin'
+                        '<?= esc(site_url('resident/notifications/poll')) ?>?_=' + Date.now(), {
+                            credentials: 'same-origin',
+                            cache: 'no-store'
                         }
                     )
-
-                    .then(
-                        function(r) {
-                            return r.json();
-                        }
-                    )
-
-                    .then(
-                        function(data) {
-
-                            const count =
-                                data.unread || 0;
-
-
-                            const dot =
-                                document.getElementById(
-                                    'topbarNotifDot'
-                                );
-
-
-                            const badge =
-                                document.getElementById(
-                                    'topbarUnreadCount'
-                                );
-
-
-                            if (dot) {
-
-                                dot.style.display =
-                                    count > 0 ?
-                                    '' :
-                                    'none';
-
-                            }
-
-
-                            if (badge) {
-
-                                badge.textContent =
-                                    count > 9 ?
-                                    '9+' :
-                                    count;
-
-
-                                badge.style.display =
-                                    count > 0 ?
-                                    'flex' :
-                                    'none';
-
-                            }
-
-                        }
-                    )
-
-                    .catch(
-                        function() {}
-                    );
-
+                    .then(function(r) {
+                        return r.json();
+                    })
+                    .then(function(data) {
+                        applyNotifCount(data.unread || 0);
+                    })
+                    .catch(function() {});
             }
 
 
@@ -490,7 +458,7 @@ foreach (
 <?php elseif (
     in_array(
         session()->get('role'),
-        ['secretary', 'captain', 'council', 'sk']
+        ['admin', 'secretary', 'captain', 'council', 'sk']
     )
 ): ?>
 
@@ -532,71 +500,36 @@ foreach (
     <script>
         (function() {
 
+            function applyNotifCount(count) {
+                const value = Number(count) || 0;
+                const badge = document.getElementById('topbarUnreadCount');
+                const dot = document.getElementById('topbarNotifDot');
+
+                if (badge) {
+                    badge.textContent = value > 9 ? '9+' : String(value);
+                    badge.classList.toggle('is-empty', value <= 0);
+                    badge.hidden = value <= 0;
+                }
+
+                if (dot) {
+                    dot.hidden = value <= 0;
+                }
+            }
+
             function pollAdmin() {
-
                 fetch(
-                        '<?= esc(site_url($notificationRole . '/notifications/poll')) ?>', {
-                            credentials: 'same-origin'
+                        '<?= esc(site_url($notificationRole . '/notifications/poll')) ?>?_=' + Date.now(), {
+                            credentials: 'same-origin',
+                            cache: 'no-store'
                         }
                     )
-
-                    .then(
-                        function(r) {
-                            return r.json();
-                        }
-                    )
-
-                    .then(
-                        function(data) {
-
-                            const count =
-                                data.unread || 0;
-
-
-                            const dot =
-                                document.getElementById(
-                                    'topbarNotifDot'
-                                );
-
-
-                            const badge =
-                                document.getElementById(
-                                    'topbarUnreadCount'
-                                );
-
-
-                            if (dot) {
-
-                                dot.style.display =
-                                    count > 0 ?
-                                    '' :
-                                    'none';
-
-                            }
-
-
-                            if (badge) {
-
-                                badge.textContent =
-                                    count > 9 ?
-                                    '9+' :
-                                    count;
-
-
-                                badge.style.display =
-                                    count > 0 ?
-                                    'flex' :
-                                    'none';
-
-                            }
-
-                        }
-                    )
-
-                    .catch(
-                        function() {}
-                    );
-
+                    .then(function(r) {
+                        return r.json();
+                    })
+                    .then(function(data) {
+                        applyNotifCount(data.unread || 0);
+                    })
+                    .catch(function() {});
             }
 
 
@@ -616,13 +549,14 @@ foreach (
     window.BIS_USER_ID = <?= (int) (session()->get('user_id') ?? 0) ?>;
     window.BIS_USER_ROLE = <?= json_encode((string) (session()->get('role') ?? '')) ?>;
 </script>
-<script src="/js/resident-offline.js?v=4"></script>
+<script src="/js/resident-offline.js?v=5"></script>
 <script src="/js/pwa-install.js?v=1"></script>
+<script src="/js/live-search.js?v=1"></script>
 
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
-            navigator.serviceWorker.register('/sw.js?v=8', {
+            navigator.serviceWorker.register('/sw.js?v=10', {
                 updateViaCache: 'none'
             }).catch(function() {
                 // Ignore registration failures; the app still works online.
@@ -632,70 +566,6 @@ foreach (
 </script>
 
 
-
-<script>
-    (function() {
-        function sortTableRows(table) {
-            const tbody = table.querySelector('tbody');
-            if (!tbody) return;
-
-            const rows = Array.from(tbody.querySelectorAll('tr'));
-            if (rows.length < 2) return;
-
-            rows.sort(function(a, b) {
-                const aText = (a.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                const bText = (b.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                return aText.localeCompare(bText);
-            });
-
-            rows.forEach(function(row) {
-                tbody.appendChild(row);
-            });
-        }
-
-        function applyLiveTableFilter(input) {
-            const form = input.closest('form');
-            const table = form ? form.querySelector('table') : null;
-            if (!table) return;
-
-            sortTableRows(table);
-
-            const rows = Array.from(table.querySelectorAll('tbody tr'));
-            const query = (input.value || '').trim().toLowerCase();
-
-            rows.forEach(function(row) {
-                const text = (row.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                const matches = !query || text.includes(query);
-                row.style.display = matches ? '' : 'none';
-            });
-        }
-
-        function wireLiveTableFilters() {
-            const searchInputs = document.querySelectorAll('input[type="text"][name="search"], input[type="search"], input[placeholder*="Search"], input[placeholder*="search"]');
-
-            searchInputs.forEach(function(input) {
-                if (input.dataset.bisTableLiveFilterBound === '1') {
-                    return;
-                }
-
-                input.dataset.bisTableLiveFilterBound = '1';
-                input.addEventListener('input', function() {
-                    applyLiveTableFilter(input);
-                });
-                input.addEventListener('focus', function() {
-                    applyLiveTableFilter(input);
-                });
-                const table = input.closest('form') ? input.closest('form').querySelector('table') : null;
-                if (table) sortTableRows(table);
-                applyLiveTableFilter(input);
-            });
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            wireLiveTableFilters();
-        });
-    })();
-</script>
 
 <script>
     (function() {

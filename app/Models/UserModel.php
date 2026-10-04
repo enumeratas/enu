@@ -137,4 +137,29 @@ class UserModel extends Model
             ->where('status', 'active')
             ->first();
     }
+
+    /** The secretary appointed from a resident account, when one is active. */
+    public function getAppointedSecretary(): ?array
+    {
+        $appointed = $this->select('id, last_name, first_name, middle_name, username, email, status')
+            ->where('role', 'secretary')
+            ->where('status', 'active')
+            ->where('username !=', 'secretary_admin')
+            ->orderBy('id', 'DESC')
+            ->first();
+
+        return $appointed ?: $this->getActiveByRole('secretary');
+    }
+
+    public function residentOwnsEmail(string $email): bool
+    {
+        $email = strtolower(trim($email));
+        if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return false;
+        }
+
+        return $this->where('role', 'resident')
+            ->where('email', $email)
+            ->countAllResults() > 0;
+    }
 }

@@ -42,11 +42,12 @@ class ConcernController extends BaseController
         }
 
         if ($search !== '') {
-            $builder->groupStart()
-                ->like('full_name', $search)
-                ->orLike('email',   $search)
-                ->orLike('subject', $search)
-                ->groupEnd();
+            $builder->where(\App\Libraries\RecordSearch::clause([
+                'full_name',
+                'email',
+                'subject',
+                'category',
+            ], ['created_at', 'appointment_date'], $search), null, false);
         }
 
         $allConcerns = $builder->get()->getResultArray();
@@ -179,25 +180,15 @@ class ConcernController extends BaseController
                 ->withInput();
         }
 
-        // ── Validate appointment date if provided ─────────────────────────────
+        $slot = $this->prepareAppointment($appointmentDate, $appointmentTime);
+        if ($slot['error'] !== null) {
+            return redirect()->back()
+                ->with('concern_error', $slot['error'])
+                ->withInput();
+        }
+        $appointmentDate = $slot['date'];
+        $appointmentTime = $slot['time'];
         if ($appointmentDate) {
-            if ($appointmentDate < date('Y-m-d', strtotime('+1 day'))) {
-                return redirect()->back()
-                    ->with('concern_error', 'Appointment date must be at least one day from today.')
-                    ->withInput();
-            }
-            // Block Sundays
-            if (date('w', strtotime($appointmentDate)) == 0) {
-                return redirect()->back()
-                    ->with('concern_error', 'Appointments are not available on Sundays.')
-                    ->withInput();
-            }
-
-            if ($this->isDateFullyBooked($appointmentDate) || ($appointmentTime && $this->hasAppointmentConflict($appointmentDate, $appointmentTime))) {
-                return redirect()->back()
-                    ->with('concern_error', 'That appointment date and time is already unavailable. Please choose another available slot.')
-                    ->withInput();
-            }
             $duplicate = $this->duplicateAppointmentMessage([
                 'email'            => $email,
                 'full_name'        => $fullName,
@@ -285,15 +276,78 @@ class ConcernController extends BaseController
         }
 
         $user = (new UserModel())->find((int) session()->get('user_id'));
-        return view('dashboard/sk/concerns', ['account' => $user ?? []]);
+        $search = \App\Libraries\RecordSearch::term();
+        return view('dashboard/sk/concerns', [
+            'account'  => $user ?? [],
+            'concerns' => $this->filterOwnConcerns($user ?? [], $search),
+            'search'   => $search,
+        ]);
+    }
+
+    public function cancelOwn(int $id)
+    {
+        $role = session()->get('role');
+        if (! in_array($role, ['resident', 'sk'], true)) {
+            return redirect()->to('/')->with('error', 'Unauthorized.');
+        }
+
+        $concern = $this->model->find($id);
+        $userId = (int) session()->get('user_id');
+        if (! $concern || (int) ($concern['user_id'] ?? 0) !== $userId) {
+            return redirect()->to('/' . $role . '/concerns')->with('error', 'Request not found.');
+        }
+        if (($concern['status'] ?? '') !== 'pending') {
+            return redirect()->to('/' . $role . '/concerns')->with('error', 'Only a pending request can be cancelled.');
+        }
+
+        $db = \Config\Database::connect();
+        $scheduleId = (int) ($concern['schedule_id'] ?? 0);
+        if ($scheduleId <= 0) {
+            $scheduleId = $this->findScheduleIdForConcern($concern, $id);
+        }
+        $this->model->delete($id);
+        if ($scheduleId > 0) {
+            $db->table('schedules')->where('id', $scheduleId)->delete();
+        }
+        if ($db->fieldExists('concern_id', 'schedules')) {
+            $db->table('schedules')->where('concern_id', $id)->delete();
+        }
+
+        return redirect()->to('/' . $role . '/concerns')->with('success', 'Request cancelled. That appointment slot is open again.');
+    }
+
+    public function slots()
+    {
+        $date = trim((string) $this->request->getGet('date'));
+        $excludeScheduleId = (int) ($this->request->getGet('exclude_schedule_id') ?? 0);
+        $excludeConcernId = (int) ($this->request->getGet('exclude_concern_id') ?? 0);
+        $times = [];
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            foreach ($this->appointmentSlotValues() as $value) {
+                $times[] = [
+                    'value'     => $value,
+                    'label'     => date('g:i A', strtotime($value)),
+                    'available' => ! $this->hasAppointmentConflict($date, $value, $excludeScheduleId, $excludeConcernId),
+                ];
+            }
+        }
+
+        return $this->response->setJSON([
+            'dates' => $this->fullyBookedDates($excludeScheduleId, $excludeConcernId),
+            'times' => $times,
+        ]);
     }
 
     public function residentForm()
     {
         $user = (new UserModel())->find((int) session()->get('user_id'));
+        $search = \App\Libraries\RecordSearch::term();
         return view('dashboard/sk/concerns', [
-            'account' => $user ?? [],
-            'role'    => 'resident',
+            'account'  => $user ?? [],
+            'role'     => 'resident',
+            'concerns' => $this->filterOwnConcerns($user ?? [], $search),
+            'search'   => $search,
         ]);
     }
 
@@ -325,14 +379,12 @@ class ConcernController extends BaseController
         if ($subject === '' || $message === '') {
             return redirect()->back()->with('error', 'Please fill in the subject and message.')->withInput();
         }
-        if ($appointmentDate && ($appointmentDate < date('Y-m-d', strtotime('+1 day')) || date('w', strtotime($appointmentDate)) == 0)) {
-            return redirect()->back()->with('error', 'Please select a valid appointment date.')->withInput();
+        $slot = $this->prepareAppointment($appointmentDate, $appointmentTime);
+        if ($slot['error'] !== null) {
+            return redirect()->back()->with('error', $slot['error'])->withInput();
         }
-        if ($appointmentDate && ($this->isDateFullyBooked($appointmentDate) || ($appointmentTime && $this->hasAppointmentConflict($appointmentDate, $appointmentTime)))) {
-            return redirect()->back()
-                ->with('error', 'That appointment date and time is already unavailable. Please choose another available slot.')
-                ->withInput();
-        }
+        $appointmentDate = $slot['date'];
+        $appointmentTime = $slot['time'];
         if ($appointmentDate) {
             $duplicate = $this->duplicateAppointmentMessage([
                 'user_id'          => (int) session()->get('user_id'),
@@ -390,30 +442,15 @@ class ConcernController extends BaseController
         $newTime = $this->request->getPost('appointment_time') ?: null;
         $notes    = trim($this->request->getPost('schedule_notes') ?? '');
 
-        if (empty($newDate)) {
-            return redirect()->back()
-                ->with('concern_form_error', 'Please select an appointment date before saving.')
-                ->withInput();
-        }
-
-        if ($newDate < date('Y-m-d', strtotime('+1 day'))) {
-            return redirect()->back()
-                ->with('concern_form_error', 'Appointment date must be at least one day from today.')
-                ->withInput();
-        }
-
-        if (date('w', strtotime($newDate)) == 0) {
-            return redirect()->back()
-                ->with('concern_form_error', 'Appointments are not available on Sundays.')
-                ->withInput();
-        }
-
         $existingScheduleId = $this->findScheduleIdForConcern($concern, $id);
-        if ($this->isDateFullyBooked($newDate, $existingScheduleId, $id) || ($newTime && $this->hasAppointmentConflict($newDate, $newTime, $existingScheduleId, $id))) {
+        $slot = $this->prepareAppointment($newDate, $newTime, $existingScheduleId, $id, true);
+        if ($slot['error'] !== null) {
             return redirect()->back()
-                ->with('concern_form_error', 'That appointment date and time is already booked. Please choose an available slot.')
+                ->with('concern_form_error', $slot['error'])
                 ->withInput();
         }
+        $newDate = $slot['date'];
+        $newTime = $slot['time'];
         $duplicate = $this->duplicateAppointmentMessage([
             'user_id'          => $concern['user_id'] ?? null,
             'email'            => $concern['email'] ?? '',
@@ -500,18 +537,15 @@ class ConcernController extends BaseController
         $newTime  = $this->request->getPost('appointment_time') ?: null;
         $notes    = trim($this->request->getPost('response') ?? '');
 
-        if (empty($newDate)) {
-            return redirect()->back()
-                ->with('concern_form_error', 'Please select a new appointment date.')
-                ->withInput();
-        }
-
         $existingScheduleId = $this->findScheduleIdForConcern($concern, $id);
-        if ($this->isDateFullyBooked($newDate, $existingScheduleId, $id) || ($newTime && $this->hasAppointmentConflict($newDate, $newTime, $existingScheduleId, $id))) {
+        $slot = $this->prepareAppointment($newDate, $newTime, $existingScheduleId, $id, true);
+        if ($slot['error'] !== null) {
             return redirect()->back()
-                ->with('concern_form_error', 'That appointment date and time is already booked. Please choose an available slot.')
+                ->with('concern_form_error', $slot['error'])
                 ->withInput();
         }
+        $newDate = $slot['date'];
+        $newTime = $slot['time'];
         $duplicate = $this->duplicateAppointmentMessage([
             'user_id'          => $concern['user_id'] ?? null,
             'email'            => $concern['email'] ?? '',
@@ -636,40 +670,11 @@ class ConcernController extends BaseController
         }
 
         $excludeScheduleId = (int) ($this->request->getGet('exclude_schedule_id') ?? 0);
-        $db = \Config\Database::connect();
+        $excludeConcernId = (int) ($this->request->getGet('exclude_concern_id') ?? 0);
 
-        $scheduleQuery = $db->table('schedules')
-            ->select('event_date')
-            ->where('event_date IS NOT NULL', null, false);
-        if ($excludeScheduleId > 0) {
-            $scheduleQuery->where('id !=', $excludeScheduleId);
-        }
-
-        $dates = array_column($scheduleQuery->get()->getResultArray(), 'event_date');
-        $dates = array_merge($dates, array_column(
-            $db->table('blotter_reports')
-                ->select('appointment_date, hearing_date')
-                ->groupStart()
-                ->where('appointment_date IS NOT NULL', null, false)
-                ->orWhere('hearing_date IS NOT NULL', null, false)
-                ->groupEnd()
-                ->get()->getResultArray(),
-            'appointment_date'
-        ));
-
-        foreach (
-            $db->table('blotter_reports')
-                ->select('hearing_date')
-                ->where('hearing_date IS NOT NULL', null, false)
-                ->get()->getResultArray() as $hearing
-        ) {
-            $dates[] = $hearing['hearing_date'];
-        }
-
-        $dates = array_values(array_unique(array_filter($dates)));
-        $dates = array_values(array_filter($dates, fn(string $date): bool => $this->isDateFullyBooked($date, $excludeScheduleId)));
-
-        return $this->response->setJSON(['dates' => $dates]);
+        return $this->response->setJSON([
+            'dates' => $this->fullyBookedDates($excludeScheduleId, $excludeConcernId),
+        ]);
     }
 
     private function groupConcernsByPerson(array $concerns): array
@@ -724,6 +729,158 @@ class ConcernController extends BaseController
         $stamp = strtotime('1970-01-01 ' . $time);
 
         return $stamp ? date('H:i', $stamp) : null;
+    }
+
+    private function filterOwnConcerns(array $user, string $search): array
+    {
+        return \App\Libraries\RecordSearch::filter(
+            $this->concernsForAccount($user),
+            $search,
+            static fn(array $row): string => implode(' ', [
+                (string) ($row['subject'] ?? ''),
+                (string) ($row['category'] ?? ''),
+                (string) ($row['notes'] ?? ''),
+                (string) ($row['status'] ?? ''),
+            ]),
+            static fn(array $row): array => [
+                $row['created_at'] ?? null,
+                $row['appointment_date'] ?? null,
+            ]
+        );
+    }
+
+    private function concernsForAccount(array $user): array
+    {
+        $userId = (int) ($user['id'] ?? 0);
+        $email = strtolower(trim((string) ($user['email'] ?? '')));
+        if ($userId <= 0 && $email === '') {
+            return [];
+        }
+
+        $builder = \Config\Database::connect()->table('concern_submissions');
+        $builder->groupStart();
+        if ($userId > 0) {
+            $builder->where('user_id', $userId);
+        }
+        if ($email !== '') {
+            $userId > 0
+                ? $builder->orWhere('email', $email)
+                : $builder->where('email', $email);
+        }
+        $builder->groupEnd()->orderBy('id', 'DESC');
+
+        return $builder->get()->getResultArray();
+    }
+
+    /** @return list<string> */
+    private function appointmentSlotValues(): array
+    {
+        $values = [];
+        for ($hour = 8; $hour <= 16; $hour++) {
+            $values[] = sprintf('%02d:00', $hour);
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return array{date: ?string, time: ?string, error: ?string}
+     */
+    private function prepareAppointment(?string $date, ?string $time, int $excludeScheduleId = 0, int $excludeConcernId = 0, bool $required = false): array
+    {
+        $date = trim((string) $date);
+        $postedTime = trim((string) $time);
+        if ($date === '') {
+            if ($required) {
+                return ['date' => null, 'time' => null, 'error' => 'Please select an appointment date.'];
+            }
+            if ($postedTime !== '') {
+                return ['date' => null, 'time' => null, 'error' => 'Choose a date for that appointment time.'];
+            }
+
+            return ['date' => null, 'time' => null, 'error' => null];
+        }
+
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || strtotime($date) === false) {
+            return ['date' => null, 'time' => null, 'error' => 'Please select a valid appointment date.'];
+        }
+        if ($date < date('Y-m-d', strtotime('+1 day'))) {
+            return ['date' => $date, 'time' => null, 'error' => 'Appointment date must be at least one day from today.'];
+        }
+        if ((int) date('w', strtotime($date)) === 0) {
+            return ['date' => $date, 'time' => null, 'error' => 'Appointments are not available on Sundays.'];
+        }
+
+        $normalized = $this->normalizeTime($postedTime);
+        if ($normalized === null || ! in_array($normalized, $this->appointmentSlotValues(), true)) {
+            return ['date' => $date, 'time' => null, 'error' => 'Choose an open appointment time. Booked times stay unavailable.'];
+        }
+        if ($this->hasAppointmentConflict($date, $normalized, $excludeScheduleId, $excludeConcernId)) {
+            return ['date' => $date, 'time' => $normalized, 'error' => 'That appointment time is already booked. Please choose another open slot.'];
+        }
+
+        return ['date' => $date, 'time' => $normalized, 'error' => null];
+    }
+
+    /** @return list<string> */
+    private function fullyBookedDates(int $excludeScheduleId = 0, int $excludeConcernId = 0): array
+    {
+        $db = \Config\Database::connect();
+        $scheduleQuery = $db->table('schedules')
+            ->select('event_date')
+            ->where('event_date IS NOT NULL', null, false);
+        if ($excludeScheduleId > 0) {
+            $scheduleQuery->where('id !=', $excludeScheduleId);
+        }
+
+        $dates = array_column($scheduleQuery->get()->getResultArray(), 'event_date');
+        $dates = array_merge($dates, array_column(
+            $db->table('blotter_reports')
+                ->select('appointment_date, hearing_date')
+                ->groupStart()
+                    ->where('appointment_date IS NOT NULL', null, false)
+                    ->orWhere('hearing_date IS NOT NULL', null, false)
+                ->groupEnd()
+                ->get()->getResultArray(),
+            'appointment_date'
+        ));
+
+        foreach (
+            $db->table('blotter_reports')
+                ->select('hearing_date')
+                ->where('hearing_date IS NOT NULL', null, false)
+                ->get()->getResultArray() as $hearing
+        ) {
+            $dates[] = $hearing['hearing_date'];
+        }
+
+        $concernQuery = $db->table('concern_submissions')
+            ->select('appointment_date')
+            ->where('appointment_date IS NOT NULL', null, false)
+            ->whereIn('status', ['pending', 'approved']);
+        if ($excludeConcernId > 0) {
+            $concernQuery->where('id !=', $excludeConcernId);
+        }
+        foreach ($concernQuery->get()->getResultArray() as $concernRow) {
+            $dates[] = $concernRow['appointment_date'];
+        }
+
+        $unique = [];
+        foreach ($dates as $date) {
+            $day = substr((string) $date, 0, 10);
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
+                $unique[$day] = $day;
+            }
+        }
+
+        $booked = [];
+        foreach ($unique as $day) {
+            if ($this->isDateFullyBooked($day, $excludeScheduleId, $excludeConcernId)) {
+                $booked[] = $day;
+            }
+        }
+
+        return $booked;
     }
 
     private function duplicateAppointmentMessage(array $data, int $excludeId = 0): ?string

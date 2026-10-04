@@ -1,3 +1,8 @@
+<?php
+$zone = (isset($zone) && is_string($zone)) ? $zone : '';
+$byZone = (isset($byZone) && is_array($byZone)) ? $byZone : [];
+$activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFilters : [];
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -100,51 +105,43 @@
         #content-area {
             margin-top: 60px;
             padding: 16px;
+            overflow-x: auto;
         }
 
-        /* ── Zone page ── */
         .zone-page {
             background: #fff;
-            width: 277mm;
-            /* A4 landscape usable width */
+            width: 420mm;
             min-height: 185mm;
             margin: 0 auto 24px;
             padding: 8mm 6mm;
             box-shadow: 0 2px 12px rgba(0, 0, 0, .12);
         }
 
-        /* ── Zone title ── */
-        .zone-title {
+        .form-title {
             text-align: center;
-            font-size: 20pt;
+            font-size: 16pt;
             font-weight: bold;
-            letter-spacing: 5px;
-            text-transform: uppercase;
-            margin-bottom: 5mm;
+            margin-bottom: 3mm;
         }
 
-        /* ── Meta header ── */
-        .meta-row {
+        .form-id {
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
-            margin-bottom: 3mm;
-            font-size: 7pt;
+            gap: 16px;
+            margin-bottom: 4mm;
+            font-size: 9pt;
+            line-height: 1.7;
         }
 
-        .meta-left {
-            line-height: 1.7;
+        .form-codes {
+            text-align: center;
         }
 
         .meta-ul {
             border-bottom: 1px solid #000;
-            min-width: 130px;
+            min-width: 140px;
             display: inline-block;
-        }
-
-        .meta-right {
-            text-align: right;
-            font-size: 6.5pt;
         }
 
         /* ── Census table ── */
@@ -154,31 +151,50 @@
             table-layout: fixed;
         }
 
+        table.ct,
+        table.ct th,
+        table.ct td {
+            font-family: Arial, Helvetica, sans-serif;
+            font-style: normal;
+            font-variant: normal;
+            letter-spacing: normal;
+            text-transform: none;
+        }
+
         table.ct th,
         table.ct td {
             border: 1px solid #555;
-            padding: 1.5px 2px;
+            padding: 4px 5px;
             vertical-align: middle;
-            word-wrap: break-word;
+            word-break: normal;
             overflow-wrap: break-word;
         }
 
         table.ct thead th {
             background: #d9d9d9;
-            font-size: 5.5pt;
-            font-weight: bold;
+            font-size: 8.5pt;
+            font-weight: 700;
             text-align: center;
-            line-height: 1.2;
+            line-height: 1.25;
         }
 
         table.ct tbody td {
-            font-size: 6.5pt;
-            line-height: 1.3;
+            font-size: 10pt;
+            font-weight: 400;
+            line-height: 1.35;
+        }
+
+        table.ct td.name-cell {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 10.5pt;
+            font-weight: 400;
+            text-align: left;
+            letter-spacing: 0;
         }
 
         tr.row-head td {
             background: #f2f2f2;
-            font-weight: bold;
+            font-weight: 400;
         }
 
         tr.hh-spacer td {
@@ -188,70 +204,24 @@
             padding: 0;
         }
 
-        /* Column widths */
-        .c-name {
-            width: 15%;
-        }
-
-        .c-rel {
-            width: 7%;
-        }
-
-        .c-bday {
-            width: 7%;
-        }
-
-        .c-age {
-            width: 3%;
-        }
-
-        .c-sex {
-            width: 3%;
-        }
-
-        .c-occ {
-            width: 10%;
-        }
-
-        .c-inc {
-            width: 5%;
-        }
-
-        .c-rel2 {
-            width: 5%;
-        }
-
-        .c-educ {
-            width: 8%;
-        }
-
-        .c-phil {
-            width: 8%;
-        }
-
-        .c-fp {
-            width: 4%;
-        }
-
-        .c-unmet {
-            width: 4%;
-        }
-
-        .c-pwd {
-            width: 5%;
-        }
-
-        .c-morb {
-            width: 5%;
-        }
-
-        .c-water {
-            width: 5%;
-        }
-
-        .c-sanit {
-            width: 5%;
-        }
+        table.ct col.c-zone { width: 4%; }
+        table.ct col.c-hh { width: 4.5%; }
+        table.ct col.c-count { width: 3.6%; }
+        table.ct col.c-name { width: 14.5%; }
+        table.ct col.c-rel { width: 5%; }
+        table.ct col.c-bday { width: 6.5%; }
+        table.ct col.c-age { width: 3%; }
+        table.ct col.c-sex { width: 2.8%; }
+        table.ct col.c-status { width: 4.5%; }
+        table.ct col.c-occ { width: 6.5%; }
+        table.ct col.c-inc { width: 4.5%; }
+        table.ct col.c-religion { width: 4.5%; }
+        table.ct col.c-educ { width: 5.5%; }
+        table.ct col.c-phil { width: 5%; }
+        table.ct col.c-cat { width: 4%; }
+        table.ct col.c-4ps { width: 3%; }
+        table.ct col.c-water { width: 4%; }
+        table.ct col.c-flag { width: 3.8%; }
     </style>
 </head>
 
@@ -275,38 +245,92 @@
     <!-- Printable content -->
     <div id="content-area">
         <?php
-        $pdfText = static function ($value): string {
+        $cell = static function ($value): string {
             $value = trim((string) ($value ?? ''));
-            return $value === '' ? '-' : esc($value);
+            return $value === '' ? '' : esc($value);
         };
-        $pdfDate = static function ($value) use ($pdfText): string {
-            return empty($value) ? '-' : date('m-d-y', strtotime($value));
+        $pdfDate = static function ($value): string {
+            if (empty($value)) {
+                return '';
+            }
+            $stamp = strtotime((string) $value);
+            return $stamp ? date('m/d/Y', $stamp) : '';
         };
-        $pdfAge = static function ($value) use ($pdfText): string {
-            return empty($value) ? '-' : (string) ((int) date_diff(date_create($value), date_create('today'))->y);
+        $pdfAge = static function ($value): string {
+            if (empty($value)) {
+                return '';
+            }
+            $born = date_create((string) $value);
+            return $born ? (string) ((int) date_diff($born, date_create('today'))->y) : '';
         };
-        $pdfYesNo = static function ($value): string {
-            return ($value === null || $value === '') ? '-' : ((int) $value === 1 ? 'Yes' : 'No');
+        $sexOf = static function ($gender): string {
+            $gender = strtolower(trim((string) $gender));
+            if ($gender === '') {
+                return '';
+            }
+            return $gender === 'female' ? 'F' : 'M';
+        };
+        $money = static function ($value): string {
+            $amount = (float) ($value ?? 0);
+            return $amount > 0 ? number_format($amount, 0) : '';
+        };
+        $waterLevel = static function ($value): string {
+            $value = strtoupper(trim((string) $value));
+            if ($value === '') {
+                return '';
+            }
+            return $value === 'NONE' ? 'No' : $value;
+        };
+        $yesNo = static function ($value): string {
+            if ($value === null || $value === '') {
+                return '';
+            }
+            if (is_string($value)) {
+                $text = strtolower(trim($value));
+                if ($text === 'yes' || $text === 'with') {
+                    return 'Yes';
+                }
+                if ($text === 'no' || $text === 'without') {
+                    return 'No';
+                }
+            }
+            return ((int) $value === 1) ? 'Yes' : 'No';
+        };
+        $facility = static function ($value): string {
+            $value = strtolower(trim((string) $value));
+            if ($value === 'with') {
+                return 'With';
+            }
+            if ($value === 'without') {
+                return 'Without';
+            }
+            return '';
+        };
+        $personName = static function (array $person): string {
+            $name = trim(
+                ($person['last_name'] ?? '') . ', ' . ($person['first_name'] ?? '')
+                . (! empty($person['middle_name']) ? ' ' . $person['middle_name'] : '')
+                . (! empty($person['suffix']) ? ' ' . $person['suffix'] : '')
+            );
+            return trim($name, " \t\n\r\0\x0B,");
         };
         ?>
-        <?php foreach ($byZone as $zoneName => $households):
-            $totalActual = array_sum(array_map(fn($h) => 1 + count($h['members']), $households));
-        ?>
+        <?php foreach ($byZone as $zoneName => $households): ?>
             <div class="zone-page" id="zone-<?= esc(preg_replace('/\s+/', '-', strtolower($zoneName))) ?>">
 
-                <div class="zone-title"><?= strtoupper(esc($zoneName)) ?></div>
-
-                <div class="meta-row">
-                    <div class="meta-left">
-                        <div>BATO &nbsp; <span class="meta-ul">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>
-                        <div>BACOLOD</div>
+                <div class="form-title">Household and Health Profile</div>
+                <div class="form-id">
+                    <div>
+                        <div>Municipality: <strong>BATO</strong></div>
+                        <div>Barangay: <strong>BACOLOD</strong></div>
                     </div>
-                    <div style="text-align:center;font-size:7pt;">
-                        <div>Total Projected Population: <span class="meta-ul">&nbsp;<?= count($households) ?>&nbsp;</span></div>
-                        <div style="margin-top:2px;">Total Actual Population: <span class="meta-ul">&nbsp;<?= $totalActual ?>&nbsp;</span></div>
+                    <div class="form-codes">
+                        <div>NHFR Facility Code: <span class="meta-ul">&nbsp;</span></div>
+                        <div>PSG Code: <strong>0501703002</strong></div>
                     </div>
-                    <div class="meta-right">
-                        Date Accomplished: <span class="meta-ul">&nbsp;<?= esc($dateAccomplished) ?>&nbsp;</span>
+                    <div style="text-align:right;">
+                        <div>Region: <strong>V (Bicol)</strong></div>
+                        <div>Province: <strong>CAMARINES SUR</strong></div>
                     </div>
                 </div>
 
@@ -317,86 +341,135 @@
                 <?php endif; ?>
 
                 <table class="ct">
+                    <colgroup>
+                        <col class="c-zone">
+                        <col class="c-hh">
+                        <col class="c-count">
+                        <col class="c-count">
+                        <col class="c-name">
+                        <col class="c-rel">
+                        <col class="c-bday">
+                        <col class="c-age">
+                        <col class="c-sex">
+                        <col class="c-status">
+                        <col class="c-occ">
+                        <col class="c-inc">
+                        <col class="c-religion">
+                        <col class="c-educ">
+                        <col class="c-phil">
+                        <col class="c-cat">
+                        <col class="c-4ps">
+                        <col class="c-water">
+                        <col class="c-flag">
+                        <col class="c-flag">
+                        <col class="c-flag">
+                    </colgroup>
                     <thead>
                         <tr>
-                            <th class="c-name">Name of Household Members<br>(Surname, First Name Middle Name)</th>
-                            <th class="c-rel">Relationship to<br>Household Head</th>
-                            <th class="c-bday">Birthday<br>(mm/dd/yy)</th>
-                            <th class="c-age">Age</th>
-                            <th class="c-sex">Sex<br>(M/F)</th>
-                            <th class="c-occ">Occupation / Source<br>of Income (Individual)</th>
-                            <th class="c-inc">Avg Monthly<br>Income (₱)</th>
-                            <th class="c-rel2">Religion<br>(specify)</th>
-                            <th class="c-educ">Educational<br>Attainment</th>
-                            <th class="c-phil">PhilHealth<br>Number</th>
-                            <th class="c-fp">FP User<br>(Yes/No)</th>
-                            <th class="c-unmet">Unmet<br>Needs<br>(Yes/No)</th>
-                            <th class="c-pwd">PWD<br>(specify)</th>
-                            <th class="c-morb">Morbidity<br>(specify)</th>
-                            <th class="c-water">Access to<br>Safe Water<br>(I, II, III)</th>
-                            <th class="c-sanit">Sanitation<br>Facility</th>
+                            <th rowspan="2">Zone</th>
+                            <th rowspan="2">HH No.</th>
+                            <th rowspan="2">No. of<br>Family</th>
+                            <th rowspan="2">No. of<br>HH<br>Members</th>
+                            <th rowspan="2">Name of HH Member<br>(Surname, First Name Middle Name)</th>
+                            <th rowspan="2">Relation to<br>Household Head</th>
+                            <th rowspan="2">Birthday<br>(mm/dd/yyyy)</th>
+                            <th rowspan="2">Age</th>
+                            <th rowspan="2">Sex</th>
+                            <th rowspan="2">Relation<br>Status</th>
+                            <th rowspan="2">Occupation /<br>Source of Income</th>
+                            <th rowspan="2">Average<br>Monthly<br>Income</th>
+                            <th rowspan="2">Religion</th>
+                            <th rowspan="2">Educational<br>Attainment</th>
+                            <th colspan="2">Philhealth Number</th>
+                            <th rowspan="2">4Ps</th>
+                            <th colspan="2">Access to Safe Water</th>
+                            <th colspan="2">Sanitation Services</th>
+                        </tr>
+                        <tr>
+                            <th>Philhealth<br>Number</th>
+                            <th>Philhealth<br>Category</th>
+                            <th>Basic Safe<br>Source<br>(Level I, II, III)</th>
+                            <th>Safety-<br>Managed</th>
+                            <th>Basic<br>Sanitation<br>Facility</th>
+                            <th>Using Safety-<br>Managed<br>Sanitation<br>Services</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($households as $hh):
-                            $headName = $pdfText(trim(($hh['last_name'] ?? '') . ', ' . ($hh['first_name'] ?? '')
-                                . (! empty($hh['middle_name']) ? ' ' . $hh['middle_name'] : '')
-                                . (! empty($hh['suffix']) ? ' ' . $hh['suffix'] : '')));
-                            $headDob    = $pdfDate($hh['date_of_birth'] ?? null);
-                            $headAge    = $pdfAge($hh['date_of_birth'] ?? null);
-                            $headGender = strtolower(trim((string) ($hh['gender'] ?? '')));
-                            $headSex    = $headGender === '' ? '-' : ($headGender === 'female' ? 'F' : 'M');
-                            $headIncome = ($hh['monthly_income'] ?? 0) > 0 ? number_format((float) $hh['monthly_income'], 0) : '-';
+                            $water = $waterLevel($hh['water_source_level'] ?? '');
+                            $waterManaged = $yesNo($hh['water_safety_managed'] ?? null);
+                            $sanitation = $facility($hh['sanitation_basic'] ?? '');
+                            $sanitationManaged = $facility($hh['sanitation_managed'] ?? '');
+                            $religion = $cell($hh['religion'] ?? '');
+                            $familyCount = (string) max(1, (int) ($hh['num_families'] ?? 1));
+                            $memberCount = (string) max(1, (int) ($hh['member_total'] ?? (1 + count($hh['members'] ?? []))));
+                            $rows = [];
+                            if (! isset($hh['show_head']) || $hh['show_head']) {
+                                $rows[] = [
+                                    'head' => true,
+                                    'name' => $personName($hh),
+                                    'relation' => 'Head',
+                                    'birthday' => $pdfDate($hh['date_of_birth'] ?? null),
+                                    'age' => $pdfAge($hh['date_of_birth'] ?? null),
+                                    'sex' => $sexOf($hh['gender'] ?? ''),
+                                    'status' => (string) ($hh['civil_status'] ?? ''),
+                                    'occupation' => (string) ($hh['occupation'] ?? ''),
+                                    'income' => $money($hh['monthly_income'] ?? 0),
+                                    'education' => (string) ($hh['educational_attainment'] ?? ''),
+                                    'philhealth' => (string) ($hh['philhealth_no'] ?? ''),
+                                ];
+                            }
+                            foreach ($hh['members'] as $member) {
+                                $occupation = trim((string) ($member['occupation'] ?? ''));
+                                if ($occupation === '') {
+                                    $occupation = trim((string) ($member['work_detail'] ?? ''));
+                                }
+                                $education = trim((string) ($member['grade_level'] ?? ''));
+                                if ($education === '') {
+                                    $education = trim((string) ($member['educational_attainment'] ?? ''));
+                                }
+                                $rows[] = [
+                                    'head' => false,
+                                    'name' => $personName($member),
+                                    'relation' => (string) ($member['relationship'] ?? ''),
+                                    'birthday' => $pdfDate($member['date_of_birth'] ?? null),
+                                    'age' => $pdfAge($member['date_of_birth'] ?? null),
+                                    'sex' => $sexOf($member['gender'] ?? ''),
+                                    'status' => (string) ($member['marital_status'] ?? ''),
+                                    'occupation' => $occupation,
+                                    'income' => $money($member['monthly_income'] ?? 0),
+                                    'education' => $education,
+                                    'philhealth' => (string) ($member['philhealth_no'] ?? ''),
+                                ];
+                            }
                         ?>
-                            <tr class="row-head">
-                                <td><?= $headName ?></td>
-                                <td style="text-align:center;">Head</td>
-                                <td style="text-align:center;"><?= $headDob ?></td>
-                                <td style="text-align:center;"><?= $headAge ?></td>
-                                <td style="text-align:center;"><?= $headSex ?></td>
-                                <td><?= $pdfText($hh['occupation'] ?? null) ?></td>
-                                <td style="text-align:right;"><?= $headIncome ?></td>
-                                <td style="text-align:center;"><?= $pdfText($hh['religion'] ?? null) ?></td>
-                                <td><?= $pdfText($hh['educational_attainment'] ?? null) ?></td>
-                                <td style="text-align:center;"><?= $pdfText($hh['philhealth_no'] ?? null) ?></td>
-                                <td style="text-align:center;">-</td>
-                                <td style="text-align:center;">-</td>
-                                <td style="text-align:center;"><?= $pdfYesNo($hh['is_pwd'] ?? null) ?></td>
-                                <td style="text-align:center;">-</td>
-                                <td style="text-align:center;"><?= $pdfText($hh['water_source_level'] ?? null) ?></td>
-                                <td style="text-align:center;"><?= $pdfText($hh['sanitation_basic'] ?? null) ?></td>
-                            </tr>
-                            <?php foreach ($hh['members'] as $m):
-                                $mName = $pdfText(trim(($m['last_name'] ?? '') . ', ' . ($m['first_name'] ?? '')
-                                    . (! empty($m['middle_name']) ? ' ' . $m['middle_name'] : '')
-                                    . (! empty($m['suffix']) ? ' ' . $m['suffix'] : '')));
-                                $mDob    = $pdfDate($m['date_of_birth'] ?? null);
-                                $mAge    = $pdfAge($m['date_of_birth'] ?? null);
-                                $mGender = strtolower(trim((string) ($m['gender'] ?? '')));
-                                $mSex    = $mGender === '' ? '-' : ($mGender === 'female' ? 'F' : 'M');
-                                $mIncome = ($m['monthly_income'] ?? 0) > 0 ? number_format((float) $m['monthly_income'], 0) : '-';
-                            ?>
-                                <tr>
-                                    <td><?= $mName ?></td>
-                                    <td style="text-align:center;"><?= $pdfText(ucfirst($m['relationship'] ?? '')) ?></td>
-                                    <td style="text-align:center;"><?= $mDob ?></td>
-                                    <td style="text-align:center;"><?= $mAge ?></td>
-                                    <td style="text-align:center;"><?= $mSex ?></td>
-                                    <td><?= $pdfText($m['occupation'] ?? null) ?></td>
-                                    <td style="text-align:right;"><?= $mIncome ?></td>
-                                    <td style="text-align:center;"><?= $pdfText($hh['religion'] ?? null) ?></td>
-                                    <td><?= $pdfText($m['educational_attainment'] ?? null) ?></td>
-                                    <td style="text-align:center;"><?= $pdfText($m['philhealth_no'] ?? null) ?></td>
-                                    <td style="text-align:center;"><?= $pdfText($hh['water_source_level'] ?? null) ?></td>
-                                    <td style="text-align:center;"><?= $pdfText($hh['sanitation_basic'] ?? null) ?></td>
-                                    <td style="text-align:center;"><?= $pdfYesNo($m['is_pwd'] ?? null) ?></td>
-                                    <td style="text-align:center;">-</td>
-                                    <td style="text-align:center;">-</td>
-                                    <td style="text-align:center;">-</td>
+                            <?php foreach ($rows as $index => $row): ?>
+                                <tr class="<?= ! empty($row['head']) ? 'row-head' : '' ?>">
+                                    <td style="text-align:center;"><?= $index === 0 ? $cell($hh['zone'] ?? $zoneName) : '' ?></td>
+                                    <td style="text-align:center;"><?= $index === 0 ? $cell($hh['household_no'] ?? '') : '' ?></td>
+                                    <td style="text-align:center;"><?= $index === 0 ? esc($familyCount) : '' ?></td>
+                                    <td style="text-align:center;"><?= $index === 0 ? esc($memberCount) : '' ?></td>
+                                    <td class="name-cell"><?= $cell($row['name']) ?></td>
+                                    <td style="text-align:center;"><?= $cell($row['relation']) ?></td>
+                                    <td style="text-align:center;"><?= esc($row['birthday']) ?></td>
+                                    <td style="text-align:center;"><?= esc($row['age']) ?></td>
+                                    <td style="text-align:center;"><?= esc($row['sex']) ?></td>
+                                    <td style="text-align:center;"><?= $cell($row['status']) ?></td>
+                                    <td><?= $cell($row['occupation']) ?></td>
+                                    <td style="text-align:right;"><?= esc($row['income']) ?></td>
+                                    <td style="text-align:center;"><?= $religion ?></td>
+                                    <td><?= $cell($row['education']) ?></td>
+                                    <td style="text-align:center;"><?= $cell($row['philhealth']) ?></td>
+                                    <td></td>
+                                    <td style="text-align:center;"><?= $index === 0 && ! empty($hh['is_4ps']) ? '&#10003;' : '' ?></td>
+                                    <td style="text-align:center;"><?= esc($water) ?></td>
+                                    <td style="text-align:center;"><?= esc($waterManaged) ?></td>
+                                    <td style="text-align:center;"><?= esc($sanitation) ?></td>
+                                    <td style="text-align:center;"><?= esc($sanitationManaged) ?></td>
                                 </tr>
                             <?php endforeach; ?>
                             <tr class="hh-spacer">
-                                <td colspan="16"></td>
+                                <td colspan="21"></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -420,16 +493,15 @@
             const {
                 jsPDF
             } = window.jspdf;
-            // A4 landscape: 297mm × 210mm
             const pdf = new jsPDF({
                 orientation: 'landscape',
                 unit: 'mm',
-                format: 'a4'
+                format: 'a3'
             });
             const pages = document.querySelectorAll('.zone-page');
-            const W = 297; // page width mm
-            const H = 210; // page height mm
-            const margin = 6; // mm each side
+            const W = pdf.internal.pageSize.getWidth();
+            const H = pdf.internal.pageSize.getHeight();
+            const margin = 6;
 
             for (let i = 0; i < pages.length; i++) {
                 progFill.style.width = Math.round(((i) / pages.length) * 90) + '%';
@@ -446,7 +518,7 @@
                 const imgW = W - margin * 2;
                 const imgH = (canvas.height * imgW) / canvas.width;
 
-                if (i > 0) pdf.addPage('a4', 'landscape');
+                if (i > 0) pdf.addPage('a3', 'landscape');
 
                 // If content taller than page, scale down to fit
                 const finalH = Math.min(imgH, H - margin * 2);

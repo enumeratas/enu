@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bis-app-shell-v8';
+const CACHE_NAME = 'bis-app-shell-v10';
 const APP_SHELL = [
   '/',
   '/login',
@@ -147,7 +147,7 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname === '/sw.js') return;
+  if (url.pathname === '/sw.js' || url.pathname.includes('/notifications/poll') || url.pathname === '/public/concern/slots') return;
 
   const isNavigationRequest = request.mode === 'navigate' || request.destination === 'document';
   const isStyleRequest = url.pathname.endsWith('.css');

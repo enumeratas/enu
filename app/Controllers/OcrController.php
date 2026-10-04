@@ -52,8 +52,11 @@ class OcrController extends BaseController
 
             $frontFile = $this->request->getFile('id_front');
             $backFile  = $this->request->getFile('id_back');
-            $fullName  = trim((string) $this->request->getPost('full_name'));
-            $dob       = trim((string) $this->request->getPost('date_of_birth'));
+            $fullName   = trim((string) $this->request->getPost('full_name'));
+            $firstName  = trim((string) $this->request->getPost('first_name'));
+            $middleName = trim((string) $this->request->getPost('middle_name'));
+            $lastName   = trim((string) $this->request->getPost('last_name'));
+            $dob        = trim((string) $this->request->getPost('date_of_birth'));
 
             if (! $frontFile || $frontFile->getError() === UPLOAD_ERR_NO_FILE) {
                 return $response->setStatusCode(400)->setJSON([
@@ -97,7 +100,7 @@ class OcrController extends BaseController
                 }
             }
 
-            $nameMatch = $fullName !== '' ? $this->matchesName($combinedText, $fullName) : null;
+            $nameMatch = $fullName !== '' ? $this->matchesName($combinedText, $fullName, $firstName, $middleName, $lastName) : null;
             $dobMatch  = $dob !== '' ? $this->matchesDob($combinedText, $dob) : null;
 
             $verified = ($nameMatch === true) && ($dobMatch !== false);
@@ -196,33 +199,55 @@ class OcrController extends BaseController
     }
 
     /**
-     * Case-insensitive check that every alphabetic word in the typed name
-     * appears in the OCR text. Middle initials and one-letter tokens are
-     * treated as optional so "JUAN S DELA CRUZ" still matches "JUAN DELA CRUZ".
+     * First and last names must appear in full. A middle name may appear
+     * in full or as its initial, so an ID printed "JUAN S DELA CRUZ" matches
+     * a census middle name of "SANTOS".
      */
-    private function matchesName(string $text, string $fullName): bool
+    private function matchesName(string $text, string $fullName, string $firstName = '', string $middleName = '', string $lastName = ''): bool
     {
         $normalizedText = $this->normalize($text);
-        $tokens         = array_values(array_filter(preg_split('/\s+/', $this->normalize($fullName)) ?: [], static fn($t) => $t !== ''));
-        if ($tokens === []) {
-            return false;
+        $firstTokens    = $this->nameTokens($firstName);
+        $middleTokens   = $this->nameTokens($middleName);
+        $lastTokens     = $this->nameTokens($lastName);
+
+        if ($firstTokens === [] && $lastTokens === []) {
+            $tokens = $this->nameTokens($fullName);
+            if ($tokens === []) {
+                return false;
+            }
+            $firstTokens = [array_shift($tokens)];
+            if ($tokens !== []) {
+                $lastTokens = [array_pop($tokens)];
+                $middleTokens = $tokens;
+            }
         }
 
-        $required = array_filter($tokens, static fn($t) => strlen($t) > 1);
-        $required = $required === [] ? $tokens : $required;
-
-        foreach ($required as $token) {
-            if (! preg_match('/\b' . preg_quote($token, '/') . '\b/u', $normalizedText)) {
+        foreach (array_merge($firstTokens, $lastTokens) as $token) {
+            if (strlen($token) > 1 && ! $this->wordPresent($normalizedText, $token)) {
                 return false;
             }
         }
 
-        return true;
+        foreach ($middleTokens as $token) {
+            if ($token === '') {
+                continue;
+            }
+            if ($this->wordPresent($normalizedText, $token)) {
+                continue;
+            }
+            if (strlen($token) > 1 && $this->wordPresent($normalizedText, substr($token, 0, 1))) {
+                continue;
+            }
+
+            return false;
+        }
+
+        return $firstTokens !== [] || $middleTokens !== [] || $lastTokens !== [];
     }
 
     /**
-     * Accepts the DOB in a few common formats the ID might use.
-     * Returns true when any variant appears in the OCR text.
+     * Accept the census birthdate when the ID prints it as numbers or as a
+     * month name, in either day/month or month/day order.
      */
     private function matchesDob(string $text, string $dob): bool
     {
@@ -231,30 +256,94 @@ class OcrController extends BaseController
             return false;
         }
 
-        $needles = [
-            date('Y-m-d', $stamp),
-            date('Y/m/d', $stamp),
-            date('m/d/Y', $stamp),
-            date('m-d-Y', $stamp),
-            date('d/m/Y', $stamp),
-            date('d-m-Y', $stamp),
-            date('F j, Y', $stamp),
-            date('F j Y', $stamp),
-            date('j F Y', $stamp),
-            date('M j, Y', $stamp),
-            date('M j Y', $stamp),
-            date('d M Y', $stamp),
-        ];
+        $month = (int) date('n', $stamp);
+        $day   = (int) date('j', $stamp);
+        $year  = (int) date('Y', $stamp);
+        $flat  = $this->flattenDateText($text);
 
-        $haystack = strtolower(preg_replace('/\s+/', ' ', $text));
-        foreach ($needles as $needle) {
-            $needle = strtolower(preg_replace('/\s+/', ' ', $needle));
-            if ($needle !== '' && str_contains($haystack, $needle)) {
+        return $this->numericDatePresent($flat, $month, $day, $year)
+            || $this->wordDatePresent($flat, $month, $day, $year);
+    }
+
+    private function flattenDateText(string $text): string
+    {
+        $text = strtolower($text);
+        // Correct a scanned O or I only when it sits inside a month word.
+        // A year glued to the month, such as APR1990, must keep its digits.
+        $text = preg_replace('/(?<=[a-z])0(?=[a-z])/', 'o', $text) ?? $text;
+        $text = preg_replace('/(?<=[a-z])1(?=[a-z])/', 'i', $text) ?? $text;
+        $text = preg_replace('/(?<![a-z0-9])0(?=[a-z]{2,})/', 'o', $text) ?? $text;
+        $text = preg_replace('/[^a-z0-9]+/', ' ', $text) ?? $text;
+
+        return trim(preg_replace('/\s+/', ' ', $text) ?? '');
+    }
+
+    private function numericDatePresent(string $text, int $month, int $day, int $year): bool
+    {
+        $monthPart = '0*' . $month;
+        $dayPart   = '0*' . $day;
+        $yearPart  = (string) $year;
+        $shortYear = sprintf('%02d', $year % 100);
+
+        foreach ([
+            '(?<!\d)' . $monthPart . '\s+' . $dayPart . '\s+' . $yearPart . '(?!\d)',
+            '(?<!\d)' . $dayPart . '\s+' . $monthPart . '\s+' . $yearPart . '(?!\d)',
+            '(?<!\d)' . $yearPart . '\s+' . $monthPart . '\s+' . $dayPart . '(?!\d)',
+            '(?<!\d)' . $monthPart . '\s+' . $dayPart . '\s+' . $shortYear . '(?!\d)',
+            '(?<!\d)' . $dayPart . '\s+' . $monthPart . '\s+' . $shortYear . '(?!\d)',
+        ] as $pattern) {
+            if (preg_match('/' . $pattern . '/', $text)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private function wordDatePresent(string $text, int $month, int $day, int $year): bool
+    {
+        $names = [
+            1  => ['january', 'enero', 'jan'],
+            2  => ['february', 'pebrero', 'feb'],
+            3  => ['march', 'marso', 'mar'],
+            4  => ['april', 'abril', 'apr'],
+            5  => ['mayo', 'may'],
+            6  => ['hunyo', 'june', 'jun'],
+            7  => ['hulyo', 'july', 'jul'],
+            8  => ['agosto', 'august', 'aug'],
+            9  => ['setyembre', 'september', 'sept', 'sep'],
+            10 => ['oktubre', 'october', 'oct'],
+            11 => ['nobyembre', 'november', 'nov'],
+            12 => ['disyembre', 'december', 'dec'],
+        ];
+        $monthPart = '(?<![a-z])(?:' . implode('|', $names[$month] ?? []) . ')(?![a-z])';
+        $dayPart   = '(?<!\d)0*' . $day . '(?:st|nd|rd|th)?';
+        $yearPart  = '(?:' . $year . '|(?<!\d)' . sprintf('%02d', $year % 100) . '(?!\d))';
+        $gap       = '\s*';
+
+        foreach ([
+            $monthPart . $gap . '(?:of\s+)?' . $dayPart . $gap . '(?:of\s+)?' . $yearPart,
+            $dayPart . $gap . '(?:of\s+)?' . $monthPart . $gap . '(?:of\s+)?' . $yearPart,
+            '(?<!\d)' . $year . '(?!\d)' . $gap . $monthPart . $gap . $dayPart,
+        ] as $pattern) {
+            if (preg_match('/' . $pattern . '/', $text)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function nameTokens(string $value): array
+    {
+        $tokens = preg_split('/\s+/', $this->normalize($value)) ?: [];
+
+        return array_values(array_filter($tokens, static fn ($token) => $token !== ''));
+    }
+
+    private function wordPresent(string $text, string $token): bool
+    {
+        return (bool) preg_match('/\b' . preg_quote($token, '/') . '\b/u', $text);
     }
 
     private function normalize(string $value): string

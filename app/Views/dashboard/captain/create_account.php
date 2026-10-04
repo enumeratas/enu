@@ -1000,7 +1000,7 @@
     <?php
     $role      = 'captain';
     $active    = 'create_account';
-    $pageTitle = 'Create Official Account';
+    $pageTitle = 'Appoint Secretary';
     include(APPPATH . 'Views/dashboard/sidebar.php');
     ?>
     <div class="db-main">
@@ -1019,6 +1019,7 @@
             $officialActionBase = $isDefaultAdmin ? '/secretary' : '/captain';
             $officialPromotePath = $isDefaultAdmin ? '/secretary/promote-resident' : '/captain/promote-secretary';
             $officialRevokePath = $isDefaultAdmin ? '/secretary/demote-official/' : '/captain/revoke-secretary/';
+            $appointSecretaryOnly = $role === 'captain';
             $successMessage = session()->getFlashdata('success');
             $errorMessage   = session()->getFlashdata('error');
             ?>
@@ -1037,6 +1038,7 @@
                 </div>
             <?php endif; ?>
 
+            <?php if (! $appointSecretaryOnly): ?>
             <!-- ── Tabs (above the card) ── -->
             <div class="pf-page-tabs" style="margin: 0 0 20px;">
                 <?php if ($canAssignOfficials): ?>
@@ -1048,6 +1050,7 @@
                     <span class="pf-page-tab-num"><?= $canAssignOfficials ? '2' : '1' ?></span> Resident Account
                 </button>
             </div>
+            <?php endif; ?>
 
             <div class="ca-wrap">
 
@@ -1072,18 +1075,20 @@
                                     <button type="button" class="ar-role-btn" style="padding:7px 12px;font-size:11px;" onclick="toggleOfficialsList()" aria-expanded="true">
                                         <i class="fas fa-chevron-up" id="officialsListIcon"></i> <span id="officialsListLabel">Hide List</span>
                                     </button>
+                                    <?php if (! $appointSecretaryOnly): ?>
                                     <a href="/<?= session()->get('role') ?>/officials-history"
                                         style="display:inline-flex;align-items:center;gap:7px;padding:7px 14px;background:#f5f7ff;border:1.5px solid #dde2f5;border-radius:8px;font-size:12px;font-weight:600;color:#1d2448;text-decoration:none;transition:all .15s;"
                                         onmouseover="this.style.background='#1d2448';this.style.color='#fff';this.style.borderColor='#1d2448';"
                                         onmouseout="this.style.background='#f5f7ff';this.style.color='#1d2448';this.style.borderColor='#dde2f5';">
                                         <i class="fas fa-history" style="font-size:11px;"></i> Officials History
                                     </a>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                             <div class="ar-officials-grid" id="officialsList">
 
                                 <!-- Captain slot -->
-                                <?php if ($activeCaptain): ?>
+                                <?php if (! $appointSecretaryOnly && $activeCaptain): ?>
                                     <div class="ar-official-row">
                                         <div class="ar-official-avatar">
                                             <?= strtoupper(substr($activeCaptain['first_name'], 0, 1)) ?>
@@ -1101,7 +1106,7 @@
                                             </button>
                                         </form>
                                     </div>
-                                <?php else: ?>
+                                <?php elseif (! $appointSecretaryOnly): ?>
                                     <div class="ar-empty-slot">
                                         <i class="fas fa-user-tie"></i>
                                         <span>No active Captain — assign one below.</span>
@@ -1152,7 +1157,7 @@
                                 <?php endif; ?>
 
                                 <!-- SK slot -->
-                                <?php if ($activeSk): ?>
+                                <?php if (! $appointSecretaryOnly && $activeSk): ?>
                                     <div class="ar-official-row">
                                         <div class="ar-official-avatar ar-sk">
                                             <?= strtoupper(substr($activeSk['first_name'], 0, 1)) ?>
@@ -1170,7 +1175,7 @@
                                             </button>
                                         </form>
                                     </div>
-                                <?php else: ?>
+                                <?php elseif (! $appointSecretaryOnly): ?>
                                     <div class="ar-empty-slot">
                                         <i class="fas fa-users"></i>
                                         <span>No active SK — assign one below.</span>
@@ -1178,7 +1183,7 @@
                                 <?php endif; ?>
 
                                 <!-- Barangay Council slots -->
-                                <?php if (! empty($activeCouncils)): ?>
+                                <?php if (! $appointSecretaryOnly && ! empty($activeCouncils)): ?>
                                     <?php foreach ($activeCouncils as $activeCouncil): ?>
                                         <div class="ar-official-row">
                                             <div class="ar-official-avatar ar-council">
@@ -1198,7 +1203,7 @@
                                             </form>
                                         </div>
                                     <?php endforeach; ?>
-                                <?php else: ?>
+                                <?php elseif (! $appointSecretaryOnly): ?>
                                     <div class="ar-empty-slot">
                                         <i class="fas fa-users"></i>
                                         <span>No active Barangay Council member — assign one below.</span>
@@ -1262,9 +1267,12 @@
                                                 </button>
                                             <?php endif; ?>
                                             <?php if ($role === 'captain'): ?>
-                                                <button type="button" class="ar-role-btn" id="arBtn-secretary" onclick="selectPromoteRole('secretary')">
+                                                <button type="button" class="ar-role-btn <?= $hasNonAdminSecretary ? 'ar-role-btn--blocked' : '' ?>" id="arBtn-secretary" onclick="selectPromoteRole('secretary')">
                                                     <i class="fas fa-user-shield"></i>
                                                     Secretary
+                                                    <?php if ($hasNonAdminSecretary): ?>
+                                                        <span style="font-size:10px;color:#c0392b;">Slot filled</span>
+                                                    <?php endif; ?>
                                                 </button>
                                             <?php endif; ?>
                                         </div>
@@ -1305,6 +1313,7 @@
                     </div><!-- /.ca-card (assign role) -->
                 <?php endif; ?>
 
+                <?php if (! $appointSecretaryOnly): ?>
                 <!-- ══════════════════════════════════════════════════════════
                      CARD 2 — CREATE NEW ACCOUNT
                 ════════════════════════════════════════════════════════════ -->
@@ -1433,6 +1442,7 @@
 
                     </div><!-- /.ca-body -->
                 </div><!-- /.ca-card (create new) -->
+                <?php endif; ?>
 
             </div><!-- /.ca-wrap -->
         </div><!-- /.db-content -->
@@ -1572,9 +1582,11 @@
         }
 
         // ── Create-new-account form ──────────────────────────────────────────────
+        const createForm = document.getElementById('createForm');
         const allRoles = ['resident'];
 
         function selectRole(role) {
+            if (!createForm) return;
             allRoles.forEach(r => {
                 const pill = document.getElementById('pill-' + r);
                 if (pill) pill.classList.toggle('selected', r === role);
@@ -1587,7 +1599,7 @@
             selectRole('resident');
         })();
 
-        document.getElementById('createForm').addEventListener('submit', function(e) {
+        if (createForm) createForm.addEventListener('submit', function(e) {
             try {
                 sessionStorage.setItem('ca_tab', 2);
             } catch (e2) {}
@@ -1664,7 +1676,18 @@
         // ── Assign-role form ─────────────────────────────────────────────────────
         let selectedPromoteRole = '';
 
+        function ageText(age) {
+            if (age === null || age === undefined || age === '') {
+                return 'Age not on record';
+            }
+            return 'Age ' + age;
+        }
+
         function selectPromoteRole(role) {
+            const chosen = document.getElementById('arBtn-' + role);
+            if (chosen && chosen.classList.contains('ar-role-btn--blocked')) {
+                return;
+            }
             selectedPromoteRole = role;
             document.getElementById('promoteRoleInput').value = role;
             ['captain', 'secretary', 'sk', 'council'].forEach(r => {
@@ -1731,7 +1754,7 @@
                             '<div class="ar-combo-item-avatar">' + esc(r.label.charAt(0).toUpperCase()) + '</div>' +
                             '<div>' +
                             '<div class="ar-combo-item-name">' + highlight(r.label, q) + '</div>' +
-                            '<div class="ar-combo-item-meta">@' + esc(r.username) + ' &nbsp;·&nbsp; Age ' + r.age + '</div>' +
+                            '<div class="ar-combo-item-meta">@' + esc(r.username) + ' &nbsp;·&nbsp; ' + ageText(r.age) + '</div>' +
                             '</div>';
                         item.addEventListener('mousedown', function(e) {
                             e.preventDefault();
@@ -1758,7 +1781,7 @@
 
             function pickResident(r) {
                 hiddenEl.value = r.id;
-                searchEl.value = r.label + '  (@' + r.username + ')  — Age ' + r.age;
+                searchEl.value = r.label + '  (@' + r.username + ')  — ' + ageText(r.age);
                 clearBtn.style.display = '';
                 close();
                 updateAssignBtn();
@@ -1864,6 +1887,9 @@
             <?php if (session()->getFlashdata('error') || session()->getFlashdata('success')): ?>
                 // After a form submit keep tab 2 if that's where the action came from
                 startTab = startTab || 1;
+            <?php endif; ?>
+            <?php if ($appointSecretaryOnly): ?>
+                startTab = 1;
             <?php endif; ?>
             goTo(startTab);
         })();

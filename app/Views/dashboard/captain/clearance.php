@@ -136,12 +136,12 @@
                 <i class="fas fa-users" style="color:#1d2448;margin-right:8px;"></i>Residents' Requests
             </h3>
 
-            <form method="get" action="" style="margin-bottom:0;">
+            <form method="get" action="" data-live-results="liveResults" style="margin-bottom:0;">
                 <div class="db-toolbar">
                     <div class="db-search-wrap">
                         <i class="fas fa-search"></i>
-                        <input type="text" name="search" placeholder="Search requests..." id="searchInput"
-                            value="<?= esc($search ?? '') ?>" onchange="this.form.submit()">
+                        <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search name or date..." id="searchInput"
+                            value="<?= esc($search ?? '') ?>">
                     </div>
                     <div class="db-toolbar-actions">
                         <select class="db-filter-select" name="status" onchange="this.form.submit()">
@@ -160,6 +160,7 @@
                 </div>
             </form>
 
+            <div id="liveResults">
             <div class="db-table-wrap">
                 <table class="db-table" id="clearanceTable">
                     <thead>
@@ -242,6 +243,7 @@
                     </div>
                 </div>
             <?php endif; ?>
+            </div>
 
             <!-- Reject Modal -->
             <div class="db-modal-overlay" id="rejectModal">
@@ -435,14 +437,14 @@
                         <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;" id="captainDocGrid">
                             <?php
                             $captainDocTypes = [
-                                ['value' => 'Barangay Clearance',           'label' => 'Barangay Clearance',           'icon' => 'fa-file-alt',      'color' => '#5b6fd6', 'fee' => '₱100.00'],
-                                ['value' => 'Certificate of Residency',     'label' => 'Certificate of Residency',     'icon' => 'fa-home',          'color' => '#16c79a', 'fee' => 'Free'],
-                                ['value' => 'Certificate of Indigency',     'label' => 'Certificate of Indigency',     'icon' => 'fa-hands-helping', 'color' => '#e6a800', 'fee' => 'Free'],
-                                ['value' => 'Certificate of Good Moral',    'label' => 'Certificate of Good Moral',    'icon' => 'fa-award',         'color' => '#7c5cbf', 'fee' => 'Free'],
-                                ['value' => 'First Time Job Seekers',       'label' => 'First Time Job Seekers',       'icon' => 'fa-briefcase',     'color' => '#16a085', 'fee' => 'Free'],
-                                ['value' => 'Solo Parent Certificate',      'label' => 'Solo Parent Certificate',      'icon' => 'fa-child',         'color' => '#3a8fd9', 'fee' => 'Free'],
-                                ['value' => 'Business Permit Clearance',    'label' => 'Business Permit Clearance',    'icon' => 'fa-store',         'color' => '#dc3545', 'fee' => '₱75.00'],
-                                ['value' => 'Other Document',               'label' => 'Other Document',               'icon' => 'fa-file-signature', 'color' => '#335b7d', 'fee' => 'Free'],
+                                ['value' => 'Barangay Clearance',           'label' => 'Barangay Clearance',           'icon' => 'fa-file-alt',      'color' => '#5b6fd6', 'fee' => \Config\ClearanceDocuments::fee('Barangay Clearance')],
+                                ['value' => 'Certificate of Residency',     'label' => 'Certificate of Residency',     'icon' => 'fa-home',          'color' => '#16c79a', 'fee' => \Config\ClearanceDocuments::fee('Certificate of Residency')],
+                                ['value' => 'Certificate of Indigency',     'label' => 'Certificate of Indigency',     'icon' => 'fa-hands-helping', 'color' => '#e6a800', 'fee' => \Config\ClearanceDocuments::fee('Certificate of Indigency')],
+                                ['value' => 'Certificate of Good Moral',    'label' => 'Certificate of Good Moral',    'icon' => 'fa-award',         'color' => '#7c5cbf', 'fee' => \Config\ClearanceDocuments::fee('Certificate of Good Moral')],
+                                ['value' => 'First Time Job Seekers',       'label' => 'First Time Job Seekers',       'icon' => 'fa-briefcase',     'color' => '#16a085', 'fee' => \Config\ClearanceDocuments::fee('First Time Job Seekers')],
+                                ['value' => 'Solo Parent Certificate',      'label' => 'Solo Parent Certificate',      'icon' => 'fa-child',         'color' => '#3a8fd9', 'fee' => \Config\ClearanceDocuments::fee('Solo Parent Certificate')],
+                                ['value' => 'Business Permit Clearance',    'label' => 'Business Permit Clearance',    'icon' => 'fa-store',         'color' => '#dc3545', 'fee' => \Config\ClearanceDocuments::fee('Business Permit Clearance')],
+                                ['value' => 'Other Document',               'label' => 'Other Document',               'icon' => 'fa-file-signature', 'color' => '#335b7d', 'fee' => \Config\ClearanceDocuments::fee('Other Document')],
                             ];
                             ?>
                             <?php foreach ($captainDocTypes as $di => $dt): ?>
@@ -456,7 +458,7 @@
                                         </div>
                                         <div>
                                             <div style="font-size:12.5px;font-weight:600;color:#1a1d2e;line-height:1.3;"><?= esc($dt['label']) ?></div>
-                                            <div style="font-size:11px;color:<?= $dt['fee'] === 'Free' ? '#16c79a' : '#e6a800' ?>;font-weight:600;"><?= $dt['fee'] ?></div>
+                                            <div style="font-size:11px;color:<?= $dt['fee'] === 'Free' ? '#16c79a' : '#e6a800' ?>;font-weight:600;"><?= esc($dt['fee']) ?></div>
                                         </div>
                                     </div>
                                 </label>

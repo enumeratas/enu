@@ -375,10 +375,17 @@
                 <div class="db-welcome-icon"><i class="fas fa-star"></i></div>
             </div>
 
+            <form method="get" data-live-results="liveResults" style="margin-bottom:16px;">
+                <div class="db-search-wrap">
+                    <i class="fas fa-search"></i>
+                    <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search programs or dates..." value="<?= esc($search ?? '') ?>">
+                </div>
+            </form>
+            <div id="liveResults">
             <?php if (empty($programs)): ?>
                 <div style="text-align:center;padding:60px 20px;color:#9aa0b4;">
                     <i class="fas fa-calendar-times" style="font-size:42px;display:block;margin-bottom:14px;color:#d0d5e8;"></i>
-                    <p style="font-size:14px;font-weight:600;color:#6b7280;margin:0 0 4px;">No activities yet</p>
+                    <p style="font-size:14px;font-weight:600;color:#6b7280;margin:0 0 4px;"><?= ($search ?? '') !== '' ? 'No programs match your search.' : 'No activities yet' ?></p>
                     <p style="font-size:13px;margin:0;">Check back later — the SK will post upcoming programs here.</p>
                 </div>
             <?php else: ?>
@@ -478,6 +485,7 @@
                     <?php endforeach; ?>
                 </div>
             <?php endif; ?>
+            </div>
 
         </div>
     </div>

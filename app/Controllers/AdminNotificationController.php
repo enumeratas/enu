@@ -21,7 +21,7 @@ class AdminNotificationController extends BaseController
             $userId = (int) session()->get('user_id');
             $notificationModel = new \App\Models\NotificationModel();
             return view('dashboard/sk/notifications', [
-                'personalNotifications' => $notificationModel->getForUser($userId),
+                'personalNotifications' => $notificationModel->getForUser($userId, false),
             ]);
         }
 
@@ -30,10 +30,12 @@ class AdminNotificationController extends BaseController
         if ($role === 'council') {
             $userId = (int) session()->get('user_id');
             $notificationModel = new \App\Models\NotificationModel();
+            $includeBroadcasts = \App\Models\NotificationModel::includesBroadcastsForRole('council');
+
             return view('dashboard/resident/notifications', [
                 'role'        => 'council',
-                'notifs'      => $notificationModel->getForUser($userId),
-                'unreadCount' => $notificationModel->countUnread($userId),
+                'notifs'      => $notificationModel->getForUser($userId, $includeBroadcasts),
+                'unreadCount' => $notificationModel->countUnread($userId, $includeBroadcasts),
             ]);
         }
 
@@ -50,51 +52,67 @@ class AdminNotificationController extends BaseController
     // ── GET /secretary/notifications/poll  (JSON for topbar bell) ─────────────
     public function poll(): \CodeIgniter\HTTP\ResponseInterface
     {
-        $role = session()->get('role');
-
-        // SK gets their own count: pending registrations for their programs
-        if ($role === 'sk') {
-            $userId = (int) session()->get('user_id');
-            $db     = \Config\Database::connect();
-            $count  = (int) $db->table('sk_program_registrations r')
-                ->join('sk_programs p', 'p.id = r.program_id')
-                ->where('p.created_by', $userId)
-                ->where('r.status', 'pending')
-                ->countAllResults();
-            $count += (int) $db->table('notifications')
-                ->where('user_id', $userId)
-                ->where('read_at IS NULL')
-                ->whereNotIn('type', ['sk_join'])
-                ->countAllResults();
-            return $this->response->setJSON(['unread' => $count]);
-        }
-
-        if ($role === 'council') {
-            $userId = (int) session()->get('user_id');
-            $notificationModel = new \App\Models\NotificationModel();
-            return $this->response->setJSON([
-                'unread' => $notificationModel->countUnread($userId),
-            ]);
-        }
-
-        // Secretary / Captain: use the shared builder
-        $data  = $this->_buildNotificationData();
-        $total = array_sum(array_column($data['groups'], 'count'))
-            + (new \App\Models\NotificationModel())->countUnread((int) session()->get('user_id'));
-
         return $this->response->setJSON([
-            'unread' => $total,
-            'groups' => $data['groups'],
+            'unread' => $this->getBellUnreadCount((int) session()->get('user_id')),
         ]);
     }
 
+    /**
+     * Topbar bell badge: unread rows in notifications only.
+     */
+    public function getBellUnreadCount(int $userId): int
+    {
+        if ($userId <= 0) {
+            return 0;
+        }
+
+        return (new \App\Models\NotificationModel())->countUnread(
+            $userId,
+            false
+        );
+    }
+
+    /**
+     * Notifications page badge: unread feed items plus unread notification rows.
+     */
+    public function getPageUnreadCount(int $userId): int
+    {
+        return $this->_buildNotificationData($userId)['unreadCount'];
+    }
+
+    public function dismissAllFeedForUser(int $userId): void
+    {
+        if ($userId <= 0) {
+            return;
+        }
+
+        $data  = $this->_buildNotificationData($userId);
+        $items = [];
+
+        foreach ($data['feedItems'] as $item) {
+            if (! empty($item['is_read'])) {
+                continue;
+            }
+
+            $items[] = [
+                'type'   => (string) ($item['type'] ?? ''),
+                'ref_id' => (string) ($item['ref_id'] ?? ''),
+            ];
+        }
+
+        (new \App\Models\NotificationDismissalModel())->dismissMany($userId, $items);
+    }
+
     // ── Shared data builder ───────────────────────────────────────────────────
-    private function _buildNotificationData(): array
+    private function _buildNotificationData(?int $userId = null): array
     {
         $db = \Config\Database::connect();
-        $userId = (int) session()->get('user_id');
+        $userId = $userId ?? (int) session()->get('user_id');
+        $dismissed = $userId > 0
+            ? (new \App\Models\NotificationDismissalModel())->getDismissedKeys($userId)
+            : [];
         $personalNotifications = $userId > 0
-            ? (new \App\Models\NotificationModel())->getForUser($userId)
+            ? (new \App\Models\NotificationModel())->getForUser($userId, false)
             : [];
 
         // ── 1. Pending accounts awaiting approval ─────────────────────────────
@@ -195,8 +213,10 @@ class AdminNotificationController extends BaseController
         $feedItems = [];
 
         foreach ($pendingUsers as $u) {
+            $refId = (string) ($u['id'] ?? '');
             $feedItems[] = [
                 'type'        => 'account',
+                'ref_id'      => $refId,
                 'title'       => trim($u['first_name'] . ' ' . $u['last_name']),
                 'sub'         => strtoupper($u['role']) . ' · ' . $u['email'],
                 'link'        => null,
@@ -205,35 +225,44 @@ class AdminNotificationController extends BaseController
                 'username'    => null,
                 'user_role'   => $u['role'],
                 'created_at'  => $u['created_at'],
+                'is_read'     => isset($dismissed[\App\Models\NotificationDismissalModel::key('account', $refId)]),
             ];
         }
 
         foreach ($recentClearances as $cr) {
+            $refId = (string) ($cr['id'] ?? '');
             $feedItems[] = [
                 'type'        => 'clearance',
+                'ref_id'      => $refId,
                 'title'       => $cr['resident_name'] ?? 'Unknown',
                 'sub'         => $cr['document_type'] . ' — ' . $cr['purpose'],
                 'link'        => null,
                 'user_id'     => $cr['user_id'],
                 'created_at'  => $cr['created_at'],
+                'is_read'     => isset($dismissed[\App\Models\NotificationDismissalModel::key('clearance', $refId)]),
             ];
         }
 
         foreach ($recentBlotters as $b) {
+            $refId = (string) ($b['id'] ?? '');
             $feedItems[] = [
                 'type'        => 'blotter',
+                'ref_id'      => $refId,
                 'title'       => $b['complainant_name'],
                 'sub'         => $b['incident_type'] . ' · ' . ($b['status'] === 'under_investigation' ? 'Under Investigation' : ucfirst(str_replace('_', ' ', $b['status']))),
                 'link'        => null, // filled in view with role prefix
                 'blotter_id'  => $b['id'],
                 'appt_date'   => $b['appointment_date'] ?? null,
                 'created_at'  => $b['created_at'],
+                'is_read'     => isset($dismissed[\App\Models\NotificationDismissalModel::key('blotter', $refId)]),
             ];
         }
 
         foreach ($recentConcerns as $c) {
+            $refId = (string) ($c['id'] ?? '');
             $feedItems[] = [
                 'type'        => 'concern',
+                'ref_id'      => $refId,
                 'title'       => $c['full_name'],
                 'sub'         => ($c['category'] ? $c['category'] . ' · ' : '') . $c['subject'],
                 'email'       => $c['email'],
@@ -245,6 +274,7 @@ class AdminNotificationController extends BaseController
                 'appt_date'   => $c['appointment_date'] ?? null,
                 'appt_time'   => $c['appointment_time'] ?? null,
                 'created_at'  => $c['created_at'],
+                'is_read'     => isset($dismissed[\App\Models\NotificationDismissalModel::key('concern', $refId)]),
             ];
         }
 
@@ -254,14 +284,17 @@ class AdminNotificationController extends BaseController
             if (! $dt) {
                 $dt = $s['event_date'] . ($s['start_time'] ? ' ' . $s['start_time'] : ' 00:00:00');
             }
+            $refId = (string) ($s['id'] ?? '');
             $feedItems[] = [
                 'type'        => 'schedule',
+                'ref_id'      => $refId,
                 'title'       => $s['title'],
                 'sub'         => date('M d, Y', strtotime($s['event_date']))
                     . ($s['start_time'] ? ' at ' . date('g:i A', strtotime($s['start_time'])) : '')
                     . ($s['location']   ? ' — ' . $s['location'] : ''),
                 'schedule_id' => $s['id'],
                 'created_at'  => $dt,
+                'is_read'     => isset($dismissed[\App\Models\NotificationDismissalModel::key('schedule', $refId)]),
             ];
         }
 
@@ -275,11 +308,21 @@ class AdminNotificationController extends BaseController
             return strcmp((string) ($b['type'] ?? ''), (string) ($a['type'] ?? ''));
         });
 
+        $unreadFeed = count(array_filter(
+            $feedItems,
+            static fn(array $item): bool => empty($item['is_read'])
+        ));
+        $unreadPersonal = count(array_filter(
+            $personalNotifications,
+            static fn(array $notification): bool => empty($notification['read_at'])
+        ));
+
         return [
             'groups'               => $groups,
             'feedItems'            => $feedItems,
             'personalNotifications' => $personalNotifications,
-            'totalItems'           => count($feedItems),
+            'unreadCount'          => $unreadFeed + $unreadPersonal,
+            'totalItems'           => count($feedItems) + count($personalNotifications),
             // Keep individual counts for the summary stat cards
             'pendingAccounts'      => $pendingAccounts,
             'pendingClearances'    => $pendingClearances,

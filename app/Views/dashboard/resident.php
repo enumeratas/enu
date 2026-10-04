@@ -202,9 +202,10 @@
              <?php
                 $censusUpdateDrive = $censusUpdateDrive ?? null;
                 $censusUpdateAuth  = $censusUpdateAuth ?? null;
+                $portalRole = ($role ?? '') === 'council' ? 'council' : 'resident';
                 $updateLink = ! empty($censusUpdateAuth['token'])
-                    ? '/census/update/' . $censusUpdateAuth['token']
-                    : '/resident/dashboard';
+                    ? '/' . $portalRole . '/census-update'
+                    : '/' . $portalRole . '/dashboard';
              ?>
              <?php if ($censusUpdateDrive): ?>
                  <div class="dash-card" style="margin-bottom:16px;border-top:3px solid #e0b32a;">
@@ -355,7 +356,7 @@
              <div class="dash-card" style="margin-top:16px;">
                  <div class="dash-card-head">
                      <h4><i class="fas fa-bullhorn" style="color:#5b6fd6;margin-right:8px;"></i>Barangay Activities</h4>
-                     <a href="/resident/activities">View all →</a>
+                     <a href="/<?= esc($role) ?>/activities">View all →</a>
                  </div>
                  <div class="db-table-wrap">
                      <table class="dash-mini-table">

@@ -116,6 +116,14 @@ class ChatbotController extends ResourceController
              * message such as "Can I speak with the secretary?" can fall
              * through to the office-hours response.
              */
+            $deskRole = $this->requestedDeskRole($message);
+            if ($deskRole !== null && $userId !== null) {
+                $ticketResponse = $this->replyWithDeskTicket($userId, $message, $deskRole);
+                if ($ticketResponse !== null) {
+                    return $ticketResponse;
+                }
+            }
+
             if ($this->isHumanSupportRequest($message)) {
 
                 // Human support conversations belong to authenticated users.
@@ -439,7 +447,7 @@ class ChatbotController extends ResourceController
             // intent explicitly so the assistant does not answer with the
             // generic Barangay Clearance workflow.
 
-            if ($this->isBusinessPermitQuestion($message)) {
+            if ($this->apiKey === '' && $this->isBusinessPermitQuestion($message)) {
 
                 $businessPermitResponse =
                     'To request a <strong>Business Permit</strong>:<br><br>' .
@@ -472,11 +480,38 @@ class ChatbotController extends ResourceController
                 ]);
             }
 
+            $documentResponse = $this->apiKey === ''
+                ? $this->documentHowToResponse($message, $history)
+                : null;
+
+            if ($documentResponse !== null) {
+                $this->saveConversationExchange(
+                    $conversationId,
+                    $message,
+                    $documentResponse
+                );
+
+                $this->touchConversationActivity($conversationId);
+
+                return $this->response->setJSON([
+                    'success' => true,
+                    'response' => $documentResponse,
+                    'source' => 'document_howto',
+                    'ai_available' => $this->apiKey !== '',
+                    'retrieved_documents' => 1,
+                    'conversation_id' => $conversationId,
+                    'live_data' => false,
+                    'support_mode' => $supportMode
+                ]);
+            }
+
             // ------------------------------------------------------------
             // SIMPLE LOCAL QUESTIONS
             // ------------------------------------------------------------
 
-            $simpleResponse = $this->handleSimpleQuestion($message);
+            $simpleResponse = $this->apiKey === ''
+                ? $this->handleSimpleQuestion($message)
+                : null;
 
             if ($simpleResponse !== null) {
                 $this->saveConversationExchange(
@@ -1155,6 +1190,10 @@ class ChatbotController extends ResourceController
         string $message,
         array $history = []
     ): bool {
+        if ($this->isDocumentHowToQuestion($message)) {
+            return false;
+        }
+
         $text = mb_strtolower(trim($message));
 
         $keywords = [
@@ -1364,7 +1403,7 @@ class ChatbotController extends ResourceController
 
                 if (
                     preg_match(
-                        '/\b(what about|how many|how about|and|also|paano|ilan|pila|what is|give me)\b/i',
+                        '/\b(what about|how many|how about|ilan|pila)\b/i',
                         $text
                     )
                 ) {
@@ -2881,6 +2920,73 @@ class ChatbotController extends ResourceController
     }
 
     /**
+     * How-to and request questions belong to document steps, not census totals.
+     */
+    protected function isDocumentHowToQuestion(string $message): bool
+    {
+        $normalized = $this->normalizeChatText($message);
+
+        if ($normalized === '') {
+            return false;
+        }
+
+        if (preg_match('/(?:^|\s)(?:how many|ilan|ilang|pila|statistics|statistic|summary|total|count)(?:\s|$)/u', $normalized) === 1) {
+            return false;
+        }
+
+        return preg_match(
+            '/(?:paano|pano|how to|how do|how can|where can|where do|where to|request|magrequest|mag request|makapag|makakuha|kumuha|apply)/u',
+            $normalized
+        ) === 1
+            && preg_match(
+                '/(?:certificate|certification|clearance|permit|document|solo parent|indigency|residency|good moral|job seeker|blotter|business|request|magrequest|makapag|apply)/u',
+                $normalized
+            ) === 1;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $history
+     */
+    protected function documentHowToResponse(string $message, array $history): ?string
+    {
+        if (! $this->isDocumentHowToQuestion($message)) {
+            return null;
+        }
+
+        $blob = $message;
+
+        foreach (array_slice($history, -8) as $item) {
+            $sender = strtolower((string) ($item['sender'] ?? ''));
+
+            if ($sender !== '' && $sender !== 'user' && $sender !== 'resident') {
+                continue;
+            }
+
+            $blob .= ' ' . (string) ($item['message'] ?? '');
+        }
+
+        $documents = $this->retrieveKnowledge($blob);
+
+        if ($documents === [] || (int) ($documents[0]['score'] ?? 0) < 250) {
+            return null;
+        }
+
+        $content = trim((string) ($documents[0]['content'] ?? ''));
+        $content = preg_replace('/\s*Do not invent[^.]+\./u', '', $content) ?? $content;
+        $content = preg_replace('/\s*Do not confuse[^.]+\./u', '', $content) ?? $content;
+        $content = trim($content);
+
+        if ($content === '') {
+            return null;
+        }
+
+        $safe = esc($content);
+        $safe = preg_replace('/\s+(\d+\.\s)/', '<br>$1', $safe) ?? $safe;
+
+        return '<strong>' . esc((string) ($documents[0]['title'] ?? 'BIS')) . '</strong><br><br>' . $safe;
+    }
+
+    /**
      * Landing-page visitors, including guests who call the public chat API,
      * are limited to questions about this website.
      *
@@ -4376,6 +4482,13 @@ PRIMARY RULES
 
 1. Help users understand the actual BIS and barangay services.
 
+LANGUAGE:
+Reply in the same language as the user's latest message. This applies to every language, including English, Filipino, Tagalog, Bikol, Bisaya, and any other language the user writes in.
+The knowledge, census figures, and barangay facts may be written in English. Translate the explanation into the user's language.
+Keep official names, document titles, place names, fees, dates, and numbers unchanged. You may add a short translation beside an official title.
+If the user mixes languages, answer in the language they used for the question.
+Do not switch the answer to English unless the user wrote in English.
+
 2. Use the provided BIS knowledge context for procedures and system information.
 
 3. When a specific BIS service is identified in the knowledge context, do not substitute a different service merely because the user uses a related word.
@@ -4479,7 +4592,7 @@ Important:
 ANSWER STYLE
 ============================================================
 
-- Use simple English or clear Filipino/Taglish when appropriate.
+- Answer in the user's language, as required by the LANGUAGE rule.
 - Be concise but informative.
 - Use numbered steps only for procedures.
 - For census questions, organize statistics clearly.
@@ -4547,8 +4660,7 @@ This conversation is the assistant for the Barangay Bacolod Information System.
 
 If the user is talking about this system, answer them. That includes documents, accounts, login, this website, appointments, concerns, officials, fees, schedules, census, SK services, and how to use the barangay portal. A statement such as "I have an account on this website" is about this system, so answer it.
 
-If you judge that the prompt is not about this system, do not answer it. Do not explain, solve, or continue that topic. Reply with exactly this sentence and nothing else:
-"I can only answer questions about the Barangay Bacolod Information System and its services, such as documents, blotter reports, accounts, schedules, fees, and office information."
+If you judge that the prompt is not about this system, do not answer it. Do not explain, solve, or continue that topic. Reply with only a refusal that you can answer questions about the Barangay Bacolod Information System and its services, such as documents, blotter reports, accounts, schedules, fees, and office information. Write that refusal in the user's language.
 PROMPT;
         }
 
@@ -4585,7 +4697,7 @@ PROMPT;
 
         $messages[] = [
             'role' => 'user',
-            'content' => $userMessage
+            'content' => $userMessage . "\n\nReply in the same language as the question above."
         ];
 
         $payload = [
@@ -5611,11 +5723,86 @@ PROMPT;
         return in_array(
             strtolower(trim((string) $role)),
             [
+                'admin',
                 'secretary',
                 'captain'
             ],
             true
         );
+    }
+
+    /**
+     * "Speak to admin" and "speak to secretary" open a ticket for that office
+     * instead of dropping the resident into the shared support queue.
+     */
+    protected function requestedDeskRole(string $message): ?string
+    {
+        $text = mb_strtolower(trim($message));
+        if ($text === '') {
+            return null;
+        }
+
+        $asks = preg_match('/\b(speak|talk|contact|ask|kausap|makausap|usap)\b/u', $text) === 1
+            || in_array($text, ['admin', 'secretary', 'administrator'], true);
+        if (! $asks) {
+            return null;
+        }
+
+        $admin = preg_match('/\b(admin|administrator)\b/u', $text) === 1;
+        $secretary = preg_match('/\b(secretary|sekretarya)\b/u', $text) === 1;
+        if ($admin && ! $secretary) {
+            return 'admin';
+        }
+        if ($secretary && ! $admin) {
+            return 'secretary';
+        }
+
+        return null;
+    }
+
+    protected function replyWithDeskTicket(int $userId, string $message, string $deskRole)
+    {
+        $requestedConversationId = (int) (
+            $this->request->getPost('conversation_id')
+            ?? $this->request->getPost('conversationId')
+            ?? 0
+        );
+        $jsonInput = $this->getJsonInput();
+        if (is_array($jsonInput)) {
+            $requestedConversationId = $requestedConversationId > 0
+                ? $requestedConversationId
+                : (int) ($jsonInput['conversation_id'] ?? $jsonInput['conversationId'] ?? 0);
+        }
+
+        $conversation = $this->getOrCreateConversation($userId, $requestedConversationId, $message);
+        if ($conversation === null) {
+            return null;
+        }
+
+        $conversationId = (int) $conversation['id'];
+        $mode = $this->getConversationSupportMode($conversationId);
+        if ($mode !== self::SUPPORT_AI) {
+            return null;
+        }
+
+        $label = $deskRole === 'admin' ? 'Barangay Admin' : 'Barangay Secretary';
+        $reply = 'To speak with the ' . $label . ', submit a support ticket. Add a title and describe your concern. '
+            . 'After the ' . $label . ' approves it, this chat will open a live conversation with that office.<br>'
+            . '<a class="gpt-ticket-link" href="/resident/support-ticket?to=' . $deskRole . '">Submit a ticket to the ' . $label . '</a>';
+
+        $this->saveSupportMessage($conversationId, 'user', $message, $userId);
+        $this->saveSupportMessage($conversationId, 'assistant', $reply, null);
+        $this->touchConversationActivity($conversationId);
+
+        return $this->response->setJSON([
+            'success' => true,
+            'response' => $reply,
+            'source' => 'support_ticket_link',
+            'conversation_id' => $conversationId,
+            'support_mode' => self::SUPPORT_AI,
+            'ticket_role' => $deskRole,
+            'waiting_for_staff' => false,
+        ]);
     }
 
     /**
@@ -6049,6 +6236,15 @@ PROMPT;
                         self::SUPPORT_HUMAN
                     ]
                 );
+                if (in_array('assigned_role', $fields, true) && $role === 'admin') {
+                    $builder->where('assigned_role', 'admin');
+                } elseif (in_array('assigned_role', $fields, true) && in_array($role, ['secretary', 'captain'], true)) {
+                    $builder->groupStart()
+                        ->where('assigned_role', $role)
+                        ->orWhere('assigned_role', null)
+                        ->orWhere('assigned_role', '')
+                        ->groupEnd();
+                }
             } else {
                 return $this->response->setJSON([
                     'success' => true,
@@ -6569,6 +6765,15 @@ PROMPT;
             }
 
             $mode = $this->getConversationSupportMode($conversationId);
+            $assignedRole = strtolower((string) ($conversation['assigned_role'] ?? ''));
+            if ($assignedRole !== '' && $assignedRole !== strtolower((string) $role)) {
+                return $this->response
+                    ->setStatusCode(403)
+                    ->setJSON([
+                        'success' => false,
+                        'response' => 'This conversation belongs to another office.'
+                    ]);
+            }
 
             if ($mode !== self::SUPPORT_HUMAN) {
                 return $this->response
@@ -6822,12 +7027,15 @@ PROMPT;
                     ]);
             }
 
+            $assignedRole = strtolower((string) ($conversation['assigned_role'] ?? ''));
             $assignedStaffId =
                 isset($conversation['assigned_staff_id'])
                 ? (int) $conversation['assigned_staff_id']
                 : 0;
+            $sameOffice = $assignedRole !== '' && $assignedRole === strtolower((string) $role);
 
             if (
+                ! $sameOffice &&
                 $assignedStaffId > 0 &&
                 $assignedStaffId !== $staffId
             ) {
@@ -6841,7 +7049,7 @@ PROMPT;
 
             $updated = $this->updateConversationSupportMode(
                 $conversationId,
-                self::SUPPORT_CLOSED,
+                self::SUPPORT_AI,
                 null
             );
 
@@ -6854,9 +7062,16 @@ PROMPT;
                     ]);
             }
 
+            $fields = $db->getFieldNames('chat_conversations');
+            if (is_array($fields) && in_array('assigned_role', $fields, true)) {
+                $db->table('chat_conversations')
+                    ->where('id', $conversationId)
+                    ->update(['assigned_role' => null]);
+            }
+
             $message =
-                'This support conversation has been closed. ' .
-                'You may start a new conversation with the BIS Assistant if you need further assistance.';
+                'The conversation has been returned to the BIS Assistant. ' .
+                'I can continue helping you with BIS information and services.';
 
             $this->saveSupportMessage(
                 $conversationId,
@@ -6867,7 +7082,7 @@ PROMPT;
 
             return $this->response->setJSON([
                 'success' => true,
-                'support_mode' => self::SUPPORT_CLOSED,
+                'support_mode' => self::SUPPORT_AI,
                 'response' => $message
             ]);
         } catch (\Throwable $e) {

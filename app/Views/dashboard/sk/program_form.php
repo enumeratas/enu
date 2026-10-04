@@ -34,7 +34,7 @@
     $pageTitle   = $isEdit ? 'Edit Program' : 'Add Program';
     include(APPPATH . 'Views/dashboard/sidebar.php');
 
-    $categories = ['Sports', 'Livelihood', 'Health', 'Education', 'Environment', 'Cultural', 'Other'];
+    $categories = ['Sports', 'Livelihood', 'Health', 'Education', 'Environment', 'Clean-up Drive', 'Cultural', 'Other'];
     $requirements = ['DOCUMENT: Barangay ID', 'DOCUMENT: School ID', 'DOCUMENT: Medical Certificate', 'PHOTO: 2x2 ID Picture', 'PHOTO: Full-body Picture'];
     $base = '/' . $role . '/programs';
     $action = $isEdit ? $base . '/update/' . $programId : $base . '/store';
@@ -109,21 +109,24 @@
                             <textarea class="sk-form-input" id="programDescription" name="description" rows="3"><?= esc($field('description')) ?></textarea>
                         </div>
                     </div>
-                    <p class="sk-section-divider">Upload requirements</p>
-                    <div class="sk-requirement-checks">
-                        <?php foreach ($requirements as $requirement): ?>
-                            <label>
-                                <input type="checkbox" name="requirements[]" value="<?= esc($requirement) ?>" <?= in_array($requirement, $selectedReqs, true) ? 'checked' : '' ?>>
-                                <?= esc($requirement) ?>
-                            </label>
-                        <?php endforeach; ?>
+                    <?php $cleanupSelected = \App\Models\BarangayActivityModel::isCleanupDrive($field('category'), $field('name')); ?>
+                    <div id="programRequirementsBlock" <?= $cleanupSelected ? 'hidden' : '' ?>>
+                        <p class="sk-section-divider">Upload requirements</p>
+                        <div class="sk-requirement-checks">
+                            <?php foreach ($requirements as $requirement): ?>
+                                <label>
+                                    <input type="checkbox" name="requirements[]" value="<?= esc($requirement) ?>" <?= in_array($requirement, $selectedReqs, true) ? 'checked' : '' ?>>
+                                    <?= esc($requirement) ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                        <p class="sk-form-hint" style="margin-bottom:16px;">Select documents or photos that registrants must upload.</p>
                     </div>
-                    <p class="sk-form-hint" style="margin-bottom:16px;">Select documents or photos that registrants must upload.</p>
                     <p class="sk-section-divider">Schedule and venue</p>
-                    <div class="sk-form-row">
+                    <div class="sk-form-row" id="programSubmissionDates" <?= $cleanupSelected ? 'hidden' : '' ?>>
                         <div>
                             <label class="sk-form-label" for="programStart">Start date of submission of requirements <span class="sk-required">*</span></label>
-                            <input class="sk-form-input" id="programStart" name="start_date" type="date" required value="<?= esc($dateValue('start_date')) ?>">
+                            <input class="sk-form-input" id="programStart" name="start_date" type="date" <?= $cleanupSelected ? '' : 'required' ?> value="<?= esc($dateValue('start_date')) ?>">
                         </div>
                         <div>
                             <label class="sk-form-label" for="programEnd">End date of submission of requirements</label>
@@ -161,6 +164,38 @@
             </div>
         </div>
     </div>
+    <script>
+        (function () {
+            const category = document.getElementById('programCategory');
+            const title = document.querySelector('[name="name"]');
+            const requirements = document.getElementById('programRequirementsBlock');
+            const dates = document.getElementById('programSubmissionDates');
+            const start = document.getElementById('programStart');
+            function isCleanup() {
+                const name = title && title.value || '';
+                return (category && category.value === 'Clean-up Drive') || /clean[\s-]*up\s+drive/i.test(name);
+            }
+            function syncCleanup() {
+                const cleanup = isCleanup();
+                if (requirements) requirements.hidden = cleanup;
+                if (dates) dates.hidden = cleanup;
+                if (start) start.required = !cleanup;
+                if (dates) {
+                    dates.querySelectorAll('input').forEach(function (input) {
+                        input.disabled = cleanup;
+                    });
+                }
+                if (requirements) {
+                    requirements.querySelectorAll('input').forEach(function (input) {
+                        input.disabled = cleanup;
+                    });
+                }
+            }
+            category && category.addEventListener('change', syncCleanup);
+            title && title.addEventListener('input', syncCleanup);
+            syncCleanup();
+        })();
+    </script>
 </body>
 
 </html>

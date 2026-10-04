@@ -998,9 +998,10 @@
 
 <body class="db-body">
     <?php
-    $role      = 'admin';
+    $sessionRole = session()->get('role') ?: 'admin';
+    $role      = in_array($sessionRole, ['admin', 'secretary'], true) ? $sessionRole : 'admin';
     $active    = 'create_account';
-    $pageTitle = 'Create Official Account';
+    $pageTitle = $role === 'admin' ? 'Create Official Account' : 'Create Resident Account';
     include(APPPATH . 'Views/dashboard/sidebar.php');
     ?>
     <div class="db-main">
@@ -1014,7 +1015,7 @@
             $activeCouncils    = $activeCouncils ?? [];
             $activeCouncilCount = count($activeCouncils);
             $eligibleResidents = $eligibleResidents ?? [];
-            $isDefaultAdmin = true;
+            $canAssignOfficials = $role === 'admin';
             $activeAdmins = $activeAdmins ?? [];
             $successMessage = session()->getFlashdata('success');
             $errorMessage   = session()->getFlashdata('error');
@@ -1035,23 +1036,23 @@
             <?php endif; ?>
 
             <!-- ── Tabs (above the card) ── -->
+            <?php if ($canAssignOfficials): ?>
             <div class="pf-page-tabs" style="margin: 0 0 20px;">
-                <?php if ($isDefaultAdmin): ?>
-                    <button class="pf-page-tab active" id="tab1" type="button" onclick="goTo(1)">
-                        <span class="pf-page-tab-num">1</span> Official Account
-                    </button>
-                <?php endif; ?>
-                <button class="pf-page-tab <?= $isDefaultAdmin ? '' : 'active' ?>" id="tab2" type="button" onclick="goTo(2)">
-                    <span class="pf-page-tab-num"><?= $isDefaultAdmin ? '2' : '1' ?></span> Resident Account
+                <button class="pf-page-tab active" id="tab1" type="button" onclick="goTo(1)">
+                    <span class="pf-page-tab-num">1</span> Official Account
+                </button>
+                <button class="pf-page-tab" id="tab2" type="button" onclick="goTo(2)">
+                    <span class="pf-page-tab-num">2</span> Resident Account
                 </button>
             </div>
+            <?php endif; ?>
 
             <div class="ca-wrap">
 
                 <!-- ══════════════════════════════════════════════════════════
                      CARD 1 — ASSIGN ROLE TO EXISTING RESIDENT
                 ════════════════════════════════════════════════════════════ -->
-                <?php if ($isDefaultAdmin): ?>
+                <?php if ($canAssignOfficials): ?>
                     <div class="ca-card" data-tab="1">
                         <div class="ca-card-header">
                             <div class="ca-card-header-icon"><i class="fas fa-user-tag"></i></div>
@@ -1287,12 +1288,22 @@
                                             </button>
                                         </div>
 
+                                        <?php
+                                        $assignedZones = [];
+                                        foreach ($activeCouncils as $councilMember) {
+                                            $zoneName = trim((string) ($councilMember['council_zone'] ?? ''));
+                                            if ($zoneName !== '') {
+                                                $assignedZones[$zoneName] = true;
+                                            }
+                                        }
+                                        ?>
                                         <div id="councilZoneAssignment" style="display:none;margin:12px 0 16px;">
                                             <label for="promoteCouncilZone" class="ca-section-label" style="display:block;margin-bottom:7px;">3. Assign council zone</label>
                                             <select name="council_zone" id="promoteCouncilZone" class="ar-combo-input" style="width:100%;height:42px;" onchange="updateAssignBtn()">
                                                 <option value="">Select zone handled by this council member</option>
                                                 <?php foreach (['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4', 'Zone 5', 'Zone 6', 'Zone 7'] as $zone): ?>
-                                                    <option value="<?= esc($zone) ?>"><?= esc($zone) ?></option>
+                                                    <?php $zoneTaken = isset($assignedZones[$zone]); ?>
+                                                    <option value="<?= esc($zone) ?>" <?= $zoneTaken ? 'disabled' : '' ?>><?= esc($zone) ?><?= $zoneTaken ? ' — already assigned' : '' ?></option>
                                                 <?php endforeach; ?>
                                             </select>
                                         </div>
@@ -1336,7 +1347,7 @@
                 <!-- ══════════════════════════════════════════════════════════
                      CARD 2 — CREATE NEW ACCOUNT
                 ════════════════════════════════════════════════════════════ -->
-                <div class="ca-card" data-tab="2" style="display:<?= $isDefaultAdmin ? 'none' : '' ?>;">
+                <div class="ca-card" data-tab="2" style="display:<?= $canAssignOfficials ? 'none' : '' ?>;">
                     <div class="ca-card-header">
                         <div class="ca-card-header-icon"><i class="fas fa-user-plus"></i></div>
                         <div class="ca-card-header-text">
@@ -1346,71 +1357,9 @@
                     </div>
                     <div class="ca-body">
 
-                        <form action="/admin/create-account/store" method="post" id="createForm">
+                        <form action="/<?= esc($role) ?>/create-account/store" method="post" id="createForm">
                             <?= csrf_field() ?>
                             <input type="hidden" name="role" id="roleInput" value="resident">
-
-                            <!-- Role selection -->
-                            <p class="ca-section-label">Select Role</p>
-
-                            <div class="ca-role-pills">
-                                <label class="ca-role-pill" id="pill-admin" onclick="selectRole('admin')">
-                                    <input type="radio" name="_role_ui" value="admin">
-                                    <div class="ca-role-pill-icon"><i class="fas fa-user-shield"></i></div>
-                                    <div>
-                                        <div class="ca-role-pill-label">Admin</div>
-                                        <div class="ca-role-pill-sub">Full system access</div>
-                                    </div>
-                                    <div class="ca-check" id="check-admin"><i class="fas fa-check"></i></div>
-                                </label>
-                                <label class="ca-role-pill" id="pill-captain" onclick="selectRole('captain')">
-                                    <input type="radio" name="_role_ui" value="captain">
-                                    <div class="ca-role-pill-icon"><i class="fas fa-user-tie"></i></div>
-                                    <div>
-                                        <div class="ca-role-pill-label">Captain</div>
-                                        <div class="ca-role-pill-sub">Barangay Captain</div>
-                                    </div>
-                                    <div class="ca-check" id="check-captain"><i class="fas fa-check"></i></div>
-                                </label>
-                                <label class="ca-role-pill" id="pill-secretary" onclick="selectRole('secretary')">
-                                    <input type="radio" name="_role_ui" value="secretary">
-                                    <div class="ca-role-pill-icon"><i class="fas fa-user-edit"></i></div>
-                                    <div>
-                                        <div class="ca-role-pill-label">Secretary</div>
-                                        <div class="ca-role-pill-sub">Barangay Secretary</div>
-                                    </div>
-                                    <div class="ca-check" id="check-secretary"><i class="fas fa-check"></i></div>
-                                </label>
-                                <label class="ca-role-pill" id="pill-sk" onclick="selectRole('sk')">
-                                    <input type="radio" name="_role_ui" value="sk">
-                                    <div class="ca-role-pill-icon"><i class="fas fa-star"></i></div>
-                                    <div>
-                                        <div class="ca-role-pill-label">SK</div>
-                                        <div class="ca-role-pill-sub">SK Chairperson</div>
-                                    </div>
-                                    <div class="ca-check" id="check-sk"><i class="fas fa-check"></i></div>
-                                </label>
-                                <label class="ca-role-pill" id="pill-council" onclick="selectRole('council')">
-                                    <input type="radio" name="_role_ui" value="council">
-                                    <div class="ca-role-pill-icon"><i class="fas fa-users"></i></div>
-                                    <div>
-                                        <div class="ca-role-pill-label">Council</div>
-                                        <div class="ca-role-pill-sub">Barangay Council</div>
-                                    </div>
-                                    <div class="ca-check" id="check-council"><i class="fas fa-check"></i></div>
-                                </label>
-                                <label class="ca-role-pill ca-role-pill--resident selected" id="pill-resident" onclick="selectRole('resident')">
-                                    <input type="radio" name="_role_ui" value="resident" checked>
-                                    <div class="ca-role-pill-icon"><i class="fas fa-user"></i></div>
-                                    <div>
-                                        <div class="ca-role-pill-label">Resident</div>
-                                        <div class="ca-role-pill-sub">Barangay Resident</div>
-                                    </div>
-                                    <div class="ca-check" id="check-resident"><i class="fas fa-check"></i></div>
-                                </label>
-                            </div>
-
-                            <div class="ca-divider"></div>
 
                             <div class="ca-info-note">
                                 <i class="fas fa-info-circle"></i>
@@ -1461,21 +1410,7 @@
                                 </div>
                             </div>
                             <!-- Household No — shown only for Resident -->
-                            <div class="ca-form-row ca-form-row--full" id="councilZoneRow" style="display:none;margin-bottom:14px;">
-                                <div class="ca-form-group">
-                                    <label>Council zone</label>
-                                    <div class="ca-input-wrap">
-                                        <i class="fas fa-map-marker-alt ca-input-icon"></i>
-                                        <select name="council_zone" id="createCouncilZone" style="width:100%;height:42px;border:0;background:transparent;padding-left:36px;">
-                                            <option value="">Select zone</option>
-                                            <?php foreach (['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4', 'Zone 5', 'Zone 6', 'Zone 7'] as $zone): ?>
-                                                <option value="<?= esc($zone) ?>"><?= esc($zone) ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="ca-form-row ca-form-row--full" id="householdRow" style="display:none;margin-bottom:14px;">
+                            <div class="ca-form-row ca-form-row--full" id="householdRow" style="margin-bottom:14px;">
                                 <div class="ca-form-group">
                                     <label>Household Number <span style="color:#9aa0b4;font-weight:400;">(optional — links resident to census)</span></label>
                                     <div class="ca-input-wrap">
@@ -1757,7 +1692,18 @@
         // ── Assign-role form ─────────────────────────────────────────────────────
         let selectedPromoteRole = '';
 
+        function ageText(age) {
+            if (age === null || age === undefined || age === '') {
+                return 'Age not on record';
+            }
+            return 'Age ' + age;
+        }
+
         function selectPromoteRole(role) {
+            const chosen = document.getElementById('arBtn-' + role);
+            if (chosen && chosen.classList.contains('ar-role-btn--blocked')) {
+                return;
+            }
             selectedPromoteRole = role;
             document.getElementById('promoteRoleInput').value = role;
             const zoneWrap = document.getElementById('councilZoneAssignment');
@@ -1774,7 +1720,9 @@
             const hidden = document.getElementById('promoteUserSelect');
             if (!btn || !hidden) return;
             const zone = document.getElementById('promoteCouncilZone');
-            btn.disabled = !(selectedPromoteRole && hidden.value && (selectedPromoteRole !== 'council' || (zone && zone.value)));
+            const zoneOption = zone && zone.selectedIndex >= 0 ? zone.options[zone.selectedIndex] : null;
+            const zoneReady = !!(zoneOption && zoneOption.value && !zoneOption.disabled);
+            btn.disabled = !(selectedPromoteRole && hidden.value && (selectedPromoteRole !== 'council' || zoneReady));
         }
 
         // ── Resident combobox ─────────────────────────────────────────────────────
@@ -1827,7 +1775,7 @@
                             '<div class="ar-combo-item-avatar">' + esc(r.label.charAt(0).toUpperCase()) + '</div>' +
                             '<div>' +
                             '<div class="ar-combo-item-name">' + highlight(r.label, q) + '</div>' +
-                            '<div class="ar-combo-item-meta">@' + esc(r.username) + ' &nbsp;·&nbsp; Age ' + r.age + '</div>' +
+                            '<div class="ar-combo-item-meta">@' + esc(r.username) + ' &nbsp;·&nbsp; ' + ageText(r.age) + '</div>' +
                             '</div>';
                         item.addEventListener('mousedown', function(e) {
                             e.preventDefault();
@@ -1854,7 +1802,7 @@
 
             function pickResident(r) {
                 hiddenEl.value = r.id;
-                searchEl.value = r.label + '  (@' + r.username + ')  — Age ' + r.age;
+                searchEl.value = r.label + '  (@' + r.username + ')  — ' + ageText(r.age);
                 clearBtn.style.display = '';
                 close();
                 updateAssignBtn();
@@ -1953,11 +1901,11 @@
 
         // Restore tab on load (flash errors on tab 2 stay on tab 2)
         (function() {
-            let startTab = <?= $isDefaultAdmin ? '1' : '2' ?>;
+            let startTab = <?= $canAssignOfficials ? '1' : '2' ?>;
             try {
-                startTab = parseInt(sessionStorage.getItem('ca_tab')) || <?= $isDefaultAdmin ? '1' : '2' ?>;
+                startTab = parseInt(sessionStorage.getItem('ca_tab')) || <?= $canAssignOfficials ? '1' : '2' ?>;
             } catch (e) {}
-            <?php if (! $isDefaultAdmin): ?>
+            <?php if (! $canAssignOfficials): ?>
                 startTab = 2;
             <?php endif; ?>
             <?php if (session()->getFlashdata('error') || session()->getFlashdata('success')): ?>

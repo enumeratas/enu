@@ -865,14 +865,13 @@
             </div>
 
             <!-- ── Filter toolbar ─────────────────────────────────────────── -->
-            <form method="get" action="" id="filterForm">
+            <form method="get" action="" id="filterForm" data-live-results="liveResults">
                 <div class="db-toolbar" style="margin-bottom:16px;">
                     <div class="db-search-wrap">
                         <i class="fas fa-search"></i>
-                        <input type="text" name="search"
-                            placeholder="Search by name or household #..."
-                            value="<?= esc($search ?? '') ?>"
-                            onchange="document.getElementById('filterForm').submit()">
+                        <input type="text" name="search" data-live-query autocomplete="off"
+                            placeholder="Search by name, household #, or birth date..."
+                            value="<?= esc($search ?? '') ?>">
                     </div>
                     <div class="db-toolbar-actions">
                         <select name="zone" class="db-filter-select" onchange="this.form.submit()" style="min-width:120px;">
@@ -915,6 +914,7 @@
                 <?= csrf_field() ?>
             </form>
 
+            <div id="liveResults">
             <!-- ── Residents table ───────────────────────────────────────── -->
             <div class="db-table-wrap">
                 <table class="db-table rl-table">
@@ -1094,6 +1094,7 @@
                     </div>
                 </div>
             <?php endif; ?>
+            </div>
 
         </div><!-- /.db-content -->
     </div><!-- /.db-main -->

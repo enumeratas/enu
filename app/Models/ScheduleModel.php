@@ -111,12 +111,11 @@ class ScheduleModel extends Model
         }
 
         if ($search !== '') {
-            $s = $db->escapeLikeString($search);
-            $builder->groupStart()
-                ->like('title', $search)
-                ->orLike('description', $search)
-                ->orLike('location', $search)
-                ->groupEnd();
+            $builder->where(\App\Libraries\RecordSearch::clause(
+                ['title', 'description', 'location'],
+                ['event_date'],
+                $search
+            ), null, false);
         }
         if ($type !== '') {
             $builder->where('event_type', $type);
@@ -162,5 +161,72 @@ class ScheduleModel extends Model
             ->limit($limit)
             ->get()
             ->getResultArray();
+    }
+
+    public static function visibleDescription(?string $description): string
+    {
+        return trim((string) preg_replace('/\s*\[(?:activity|sk-program):\d+\]/', '', (string) $description));
+    }
+
+    public static function markerIn(?string $description): string
+    {
+        if (preg_match('/\[(?:activity|sk-program):\d+\]/', (string) $description, $match) === 1) {
+            return $match[0];
+        }
+
+        return '';
+    }
+
+    /** Keep one public calendar event for an activity or program. */
+    public function upsertMarkedEvent(string $marker, array $fields): void
+    {
+        if (! $this->db->tableExists($this->table) || trim((string) ($fields['event_date'] ?? '')) === '') {
+            return;
+        }
+
+        $description = trim((string) ($fields['description'] ?? ''));
+        if (! str_contains($description, $marker)) {
+            $description = trim($description . ' ' . $marker);
+        }
+
+        $data = [
+            'title'       => mb_substr(trim((string) ($fields['title'] ?? 'Barangay activity')), 0, 200),
+            'description' => $description,
+            'event_date'  => $fields['event_date'],
+            'start_time'  => $fields['start_time'] ?? null,
+            'end_time'    => null,
+            'event_type'  => 'event',
+            'color'       => '#16325c',
+            'location'    => $fields['location'] ?? null,
+            'visibility'  => 'shared',
+            'created_by'  => $fields['created_by'] ?? null,
+            'updated_at'  => date('Y-m-d H:i:s'),
+        ];
+
+        $existing = $this->db->table($this->table)
+            ->like('description', $marker, 'both')
+            ->get()
+            ->getRowArray();
+
+        if ($existing) {
+            $this->db->table($this->table)->where('id', $existing['id'])->update($data);
+
+            return;
+        }
+
+        $data['created_at'] = date('Y-m-d H:i:s');
+        $this->db->table($this->table)->insert($data);
+    }
+
+    public function deleteMarkedEvent(string $marker): void
+    {
+        if (! $this->db->tableExists($this->table)) {
+            return;
+        }
+
+        $rows = $this->db->table($this->table)->like('description', $marker, 'both')->get()->getResultArray();
+        foreach ($rows as $row) {
+            $this->db->table($this->table)->where('id', $row['id'])->delete();
+        }
     }
 }

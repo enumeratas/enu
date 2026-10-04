@@ -11,10 +11,26 @@ class CensusUpdateDriveController extends BaseController
 {
     public function index()
     {
+        $search = \App\Libraries\RecordSearch::term();
+
         return view('dashboard/census_update_drives/index', [
             'role'   => $this->currentRole(),
-            'drives' => (new CensusUpdateDriveModel())->listAll(),
+            'drives' => \App\Libraries\RecordSearch::filter(
+                (new CensusUpdateDriveModel())->listAll(),
+                $search,
+                static fn(array $drive): string => implode(' ', [
+                    (string) ($drive['title'] ?? ''),
+                    (string) ($drive['message'] ?? ''),
+                    (string) ($drive['first_name'] ?? ''),
+                    (string) ($drive['last_name'] ?? ''),
+                ]),
+                static fn(array $drive): array => [
+                    $drive['deadline'] ?? null,
+                    $drive['created_at'] ?? null,
+                ]
+            ),
             'open'   => (new CensusUpdateDriveModel())->currentOpen(),
+            'search' => $search,
         ]);
     }
 

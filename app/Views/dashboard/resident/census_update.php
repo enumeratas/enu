@@ -148,7 +148,8 @@
                     </div>
                 <?php endif; ?>
 
-                <form method="post" action="/resident/census-update">
+                <?php $portalRole = session()->get('role') === 'council' ? 'council' : 'resident'; ?>
+                <form method="post" action="/<?= esc($portalRole) ?>/census-update">
                     <?= csrf_field() ?>
                     <input type="hidden" name="token" value="<?= esc($token ?? '') ?>">
 
@@ -198,7 +199,7 @@
                     </div>
 
                     <div class="census-actions">
-                        <a href="/resident/dashboard" class="db-btn db-btn--outline"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+                        <a href="/<?= esc($portalRole) ?>/dashboard" class="db-btn db-btn--outline"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
                         <button type="submit" class="db-btn db-btn--primary" <?= $canEditHousehold ? '' : 'disabled' ?>><i class="fas fa-paper-plane"></i> Submit for Approval</button>
                     </div>
                 </form>

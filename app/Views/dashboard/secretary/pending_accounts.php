@@ -222,10 +222,17 @@
                 </div>
             <?php endif; ?>
 
+            <form method="get" data-live-results="liveResults" style="margin-bottom:16px;">
+                <div class="db-search-wrap">
+                    <i class="fas fa-search"></i>
+                    <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search name, email, or date..." value="<?= esc($search ?? '') ?>">
+                </div>
+            </form>
+            <div id="liveResults">
             <?php if (empty($pending)): ?>
                 <div class="db-empty-state">
                     <i class="fas fa-check-double"></i>
-                    <p>No pending accounts. All registrations have been reviewed.</p>
+                    <p><?= ($search ?? '') !== '' ? 'No pending accounts match your search.' : 'No pending accounts. All registrations have been reviewed.' ?></p>
                 </div>
             <?php else: ?>
                 <div class="db-table-wrap">
@@ -282,6 +289,7 @@
                     </table>
                 </div>
             <?php endif; ?>
+            </div>
 
         </div>
     </div>

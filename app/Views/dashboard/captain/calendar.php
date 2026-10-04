@@ -195,8 +195,9 @@
                                             <?php if ($ev['location']): ?>
                                                 <div style="font-size:11px;color:#b0b6cc;margin-top:1px;"><i class="fas fa-map-marker-alt" style="margin-right:3px;"></i><?= esc($ev['location']) ?></div>
                                             <?php endif; ?>
-                                            <?php if ($ev['description']): ?>
-                                                <div style="font-size:11px;color:#b0b6cc;margin-top:1px;"><i class="fas fa-map-marker-alt" style="margin-right:3px;"></i><?= esc($ev['description']) ?></div>
+                                            <?php $visibleDescription = \App\Models\ScheduleModel::visibleDescription($ev['description'] ?? ''); ?>
+                                            <?php if ($visibleDescription !== ''): ?>
+                                                <div style="font-size:11px;color:#b0b6cc;margin-top:1px;"><?= esc($visibleDescription) ?></div>
                                             <?php endif; ?>
                                         </div>
                                         <?php if ($isEvToday): ?>

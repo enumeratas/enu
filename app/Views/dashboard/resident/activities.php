@@ -102,7 +102,7 @@
 
 <body class="db-body">
     <?php
-    $role       = 'resident';
+    $role       = session()->get('role') === 'council' ? 'council' : 'resident';
     $active     = 'activities';
     $pageTitle  = 'Brgy Activities';
     $activities = $activities ?? [];
@@ -145,10 +145,17 @@
                 </div>
             <?php endif; ?>
 
+            <form method="get" data-live-results="liveResults" style="margin-bottom:16px;">
+                <div class="db-search-wrap">
+                    <i class="fas fa-search"></i>
+                    <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search activities or dates..." value="<?= esc($search ?? '') ?>">
+                </div>
+            </form>
+            <div id="liveResults">
             <?php if ($activities === []): ?>
                 <div class="brgy-empty">
                     <i class="fas fa-bullhorn" style="font-size:36px;color:#c5cdd8;display:block;margin-bottom:12px;"></i>
-                    <p style="margin:0;font-weight:600;color:#1c2b45;">No activities posted yet</p>
+                    <p style="margin:0;font-weight:600;color:#1c2b45;"><?= ($search ?? '') !== '' ? 'No activities match your search.' : 'No activities posted yet' ?></p>
                     <p style="margin:6px 0 0;font-size:13px;">New barangay activities will appear here after they are posted.</p>
                 </div>
             <?php else: ?>
@@ -213,7 +220,7 @@
                                         <?php endif; ?>
                                     </span>
                                     <?php if ($reg['status'] === 'pending'): ?>
-                                        <form action="/resident/activities/unjoin/<?= (int) $activity['id'] ?>" method="post" class="unjoin-form" data-name="<?= esc($activity['title'], 'attr') ?>">
+                                        <form action="/<?= esc($role) ?>/activities/unjoin/<?= (int) $activity['id'] ?>" method="post" class="unjoin-form" data-name="<?= esc($activity['title'], 'attr') ?>">
                                             <?= csrf_field() ?>
                                             <button type="submit" class="db-btn db-btn--outline db-btn--sm">Cancel</button>
                                         </form>
@@ -233,6 +240,7 @@
                     <?php endforeach; ?>
                 </div>
             <?php endif; ?>
+            </div>
         </div>
     </div>
 
@@ -271,7 +279,7 @@
         }
         function openJoinModal(activity) {
             document.getElementById('joinModalTitle').textContent = 'Join: ' + activity.name;
-            document.getElementById('joinForm').action = '/resident/activities/join/' + activity.id;
+            document.getElementById('joinForm').action = '/<?= esc($role) ?>/activities/join/' + activity.id;
             const reqWrap = document.getElementById('joinReqsWrap');
             const reqList = document.getElementById('joinReqsList');
             const uploadWrap = document.getElementById('joinUploadsWrap');

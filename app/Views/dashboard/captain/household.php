@@ -83,6 +83,7 @@
                         <span><i class="fas fa-venus-mars"></i> <?= esc($headGender) ?>, <?= $headAge ?> yrs</span>
                         <span><i class="fas fa-heart"></i> <?= esc($headCivil) ?></span>
                         <span><i class="fas fa-birthday-cake"></i> <?= $headDob ?></span>
+                        <span><i class="fas fa-clock"></i> <?= (int) current_years_of_residency($head) ?> years in the barangay</span>
                     </div>
                 </div>
                 <div class="hh-head-actions">
@@ -111,6 +112,13 @@
                 </div>
             </div>
 
+            <?php if (($head['record_status'] ?? 'complete') === 'draft'): ?>
+                <div style="background:#fff8e8;border:1px solid #f3d48a;color:#8a5a00;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;">
+                    <i class="fas fa-file-alt"></i>
+                    This household is saved as a draft. Each member still needs one ID or birth certificate before the record is complete.
+                </div>
+            <?php endif; ?>
+
             <!-- Ownership info strip + pending change alert + history (secretary only) -->
             <?php
             $currentOwnership = $head['house_ownership'] ?? 'Owned';
@@ -138,6 +146,11 @@
                     <span style="font-size:11px;color:#9aa0b4;font-family:monospace;">
                         <?= esc($head['shared_address_group'] ?? '') ?>
                     </span>
+                    <?php if (! empty($head['linked_household_no'])): ?>
+                        <span style="font-size:12px;font-weight:700;color:#6b21a8;">
+                            Linked to household <?= esc($head['linked_household_no']) ?>
+                        </span>
+                    <?php endif; ?>
                 <?php endif; ?>
                 <?php if (!empty($head['ownership_notes'])): ?>
                     <span style="font-size:11.5px;color:#6b7280;font-style:italic;">
@@ -293,10 +306,12 @@
             $addHouseholdUpload($householdUploads, $headName ?: 'Household Head', 'PWD ID', $head['id_pwd_path'] ?? null);
             $addHouseholdUpload($householdUploads, $headName ?: 'Household Head', 'Solo Parent ID', $head['id_solo_parent_path'] ?? null);
             $addHouseholdUpload($householdUploads, $headName ?: 'Household Head', 'Ownership document', $head['ownership_document_path'] ?? null);
+            $addHouseholdUpload($householdUploads, $headName ?: 'Household Head', 'ID or Birth Certificate', $head['supporting_doc_path'] ?? null);
             foreach ($members as $member) {
                 $memberName = trim(($member['first_name'] ?? '') . ' ' . ($member['last_name'] ?? '')) ?: 'Household Member';
                 $addHouseholdUpload($householdUploads, $memberName, 'PWD ID', $member['id_pwd_path'] ?? null);
                 $addHouseholdUpload($householdUploads, $memberName, 'Senior Citizen ID', $member['id_senior_path'] ?? null);
+                $addHouseholdUpload($householdUploads, $memberName, 'ID or Birth Certificate', $member['supporting_doc_path'] ?? null);
             }
             ?>
             <section class="hh-upload-gallery" aria-labelledby="hh-upload-gallery-title">
@@ -352,6 +367,7 @@
                             <th>Birthday</th>
                             <th>Age</th>
                             <th>Occupation</th>
+                            <th>Grade Level</th>
                             <th>Monthly Income</th>
                             <th>Education</th>
                             <th>PhilHealth #</th>
@@ -362,7 +378,7 @@
                     <tbody>
                         <?php if (empty($members)): ?>
                             <tr>
-                                <td colspan="10" style="text-align:center;padding:24px;color:#9aa0b4;">
+                                <td colspan="11" style="text-align:center;padding:24px;color:#9aa0b4;">
                                     No household members recorded yet.
                                 </td>
                             </tr>
@@ -415,7 +431,13 @@
                                     </td>
                                     <td><?= $mDob ?></td>
                                     <td><?= $mAge ?></td>
-                                    <td><?= esc($m['occupation'] ?? '—') ?></td>
+                                    <td>
+                                        <?= esc($m['occupation'] ?? '—') ?>
+                                        <?php if (! empty($m['work_detail'])): ?>
+                                            <div style="font-size:11px;color:#4a5068;margin-top:2px;"><?= esc($m['work_detail']) ?></div>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?= esc(($m['grade_level'] ?? '') !== '' ? $m['grade_level'] : '—') ?></td>
                                     <td><?= $m['monthly_income'] ? '₱' . number_format($m['monthly_income'], 2) : '₱0.00' ?></td>
                                     <td><?= esc($m['educational_attainment'] ?? '—') ?></td>
                                     <td><code class="hh-philhealth"><?= esc($m['philhealth_no'] ?? '—') ?></code></td>
@@ -576,16 +598,36 @@
                             </div>
                             <div class="pf-field">
                                 <div class="pf-field-label">Educational Attainment</div>
+                                <?php $savedEdu = trim((string) ($head['educational_attainment'] ?? '')); $eduMatched = false; ?>
                                 <select class="pf-input" name="educational_attainment">
                                     <option value="">— Select —</option>
                                     <?php foreach ($eduOptions as $e): ?>
-                                        <option <?= ($head['educational_attainment'] ?? '') === $e ? 'selected' : '' ?>><?= $e ?></option>
+                                        <?php $eduSelected = strcasecmp($savedEdu, $e) === 0; if ($eduSelected) { $eduMatched = true; } ?>
+                                        <option value="<?= esc($e) ?>" <?= $eduSelected ? 'selected' : '' ?>><?= esc($e) ?></option>
                                     <?php endforeach; ?>
+                                    <?php if ($savedEdu !== '' && ! $eduMatched): ?>
+                                        <option value="<?= esc($savedEdu) ?>" selected><?= esc($savedEdu) ?></option>
+                                    <?php endif; ?>
                                 </select>
                             </div>
                             <div class="pf-field">
                                 <div class="pf-field-label">PhilHealth Number</div>
                                 <input type="text" class="pf-input pf-philhealth" name="philhealth_no" value="<?= esc($head['philhealth_no'] ?? '') ?>" maxlength="12" inputmode="numeric">
+                            </div>
+                        </div>
+                        <div class="pf-field-row pf-cols-1">
+                            <div class="pf-field">
+                                <div class="pf-field-label">Registered Voter?</div>
+                                <div class="pf-radio-row" style="flex-direction:row;gap:20px;padding:8px 10px;">
+                                    <label class="pf-radio">
+                                        <input type="radio" name="registered_voter" value="1" <?= !empty($head['registered_voter']) ? 'checked' : '' ?>>
+                                        <span>Yes</span>
+                                    </label>
+                                    <label class="pf-radio">
+                                        <input type="radio" name="registered_voter" value="0" <?= empty($head['registered_voter']) ? 'checked' : '' ?>>
+                                        <span>No</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                         <div class="pf-field-row pf-cols-1">
@@ -611,25 +653,16 @@
                             <div class="pf-field">
                                 <div class="pf-field-label">Years of Residency</div>
                                 <input type="number" class="pf-input" name="years_of_residency" value="<?= current_years_of_residency($head) ?>" min="0">
+                                <div style="font-size:11px;color:#9aa0b4;margin-top:3px;">This count increases by 1 every January.</div>
                             </div>
                             <div class="pf-field">
                                 <div class="pf-field-label">House Ownership</div>
                                 <select class="pf-input" name="house_ownership" id="edit_house_ownership"
                                     onchange="toggleEditNumFamilies(this.value)">
-                                    <?php foreach (['Owned', 'Rented'] as $ho): ?>
+                                    <?php foreach (['Owned', 'Rented', 'Shared'] as $ho): ?>
                                         <option <?= ($head['house_ownership'] ?? '') === $ho ? 'selected' : '' ?>><?= $ho ?></option>
                                     <?php endforeach; ?>
                                 </select>
-                            </div>
-                        </div>
-
-                        <!-- num_families — visible only when Shared -->
-                        <div id="edit_num_families_row" style="display:<?= ($head['house_ownership'] ?? '') === 'Shared' ? 'block' : 'none' ?>;margin-top:10px;max-width:320px;">
-                            <div class="pf-field-label">No. of Families Sharing the Household</div>
-                            <input type="number" class="pf-input" name="num_families" id="edit_num_families"
-                                value="<?= esc($head['num_families'] ?? 1) ?>" min="2" max="20" style="max-width:140px;">
-                            <div style="font-size:11px;color:#9aa0b4;margin-top:3px;">
-                                <i class="fas fa-info-circle"></i> Multiple household numbers may share this address.
                             </div>
                         </div>
 
@@ -652,6 +685,10 @@
                                     value="<?= esc($head['family_number'] ?? 1) ?>" min="1" max="20"
                                     style="max-width:80px;text-align:center;font-weight:700;">
                                 <div style="font-size:11px;color:#9aa0b4;margin-top:3px;">e.g. 1 = first family registered at this address, 2 = second, etc.</div>
+                            </div>
+                            <div class="pf-field" style="margin-top:8px;">
+                                <div class="pf-field-label">Household number this family belongs to</div>
+                                <input type="text" class="pf-input" name="linked_household_no" value="<?= esc($head['linked_household_no'] ?? '') ?>" maxlength="5" inputmode="numeric" placeholder="e.g. 12345" style="max-width:160px;">
                             </div>
                         </div>
 
@@ -748,26 +785,56 @@
                             </div>
                         </div>
 
-                        <!-- Registered Voter + No. of Families -->
                         <div class="pf-field-row pf-cols-2" style="margin-top:12px;">
                             <div class="pf-field">
-                                <div class="pf-field-label">Registered Voter?</div>
-                                <div class="pf-radio-row" style="flex-direction:row;gap:20px;padding:8px 0;">
-                                    <label class="pf-radio">
-                                        <input type="radio" name="registered_voter" value="1" <?= !empty($head['registered_voter']) ? 'checked' : '' ?>>
-                                        <span>Yes</span>
-                                    </label>
-                                    <label class="pf-radio">
-                                        <input type="radio" name="registered_voter" value="0" <?= empty($head['registered_voter']) ? 'checked' : '' ?>>
-                                        <span>No</span>
-                                    </label>
+                                <div class="pf-field-label">No. of Families in Household</div>
+                                <input type="number" class="pf-input" name="num_families" id="edit_num_families"
+                                    value="<?= esc($head['num_families'] ?? 1) ?>" min="1" max="20"
+                                    style="max-width:120px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <?php
+                    $waterSource = (string) ($head['water_source_level'] ?? '');
+                    $waterManaged = $head['water_safety_managed'] ?? null;
+                    $sanitationBasic = (string) ($head['sanitation_basic'] ?? '');
+                    $sanitationManaged = (string) ($head['sanitation_managed'] ?? '');
+                    ?>
+                    <div class="pf-section">
+                        <div class="pf-section-bar"><i class="fas fa-tint"></i> Access to Safe Water &amp; Sanitation Facility</div>
+                        <div class="pf-field-row pf-cols-2">
+                            <div class="pf-field">
+                                <div class="pf-field-label">Basic Safe Water Source</div>
+                                <div class="pf-radio-row">
+                                    <label class="pf-radio"><input type="radio" name="water_source" value="I" <?= $waterSource === 'I' ? 'checked' : '' ?>> <span>Level I — Point Source (e.g. protected well, spring)</span></label>
+                                    <label class="pf-radio"><input type="radio" name="water_source" value="II" <?= $waterSource === 'II' ? 'checked' : '' ?>> <span>Level II — Communal Faucet / Stand Post</span></label>
+                                    <label class="pf-radio"><input type="radio" name="water_source" value="III" <?= $waterSource === 'III' ? 'checked' : '' ?>> <span>Level III — Individual House Connection (piped water)</span></label>
+                                    <label class="pf-radio"><input type="radio" name="water_source" value="none" <?= $waterSource === 'none' ? 'checked' : '' ?>> <span>No Safe Water Source</span></label>
                                 </div>
                             </div>
                             <div class="pf-field">
-                                <div class="pf-field-label">No. of Families in Household</div>
-                                <input type="number" class="pf-input" name="num_families"
-                                    value="<?= esc($head['num_families'] ?? 1) ?>" min="1" max="20"
-                                    style="max-width:120px;">
+                                <div class="pf-field-label">Using Safety-Managed Water Service</div>
+                                <div class="pf-radio-row">
+                                    <label class="pf-radio"><input type="radio" name="water_managed" value="yes" <?= ($waterManaged === 1 || $waterManaged === '1') ? 'checked' : '' ?>> <span>Yes — Water is safely managed</span></label>
+                                    <label class="pf-radio"><input type="radio" name="water_managed" value="no" <?= ($waterManaged === 0 || $waterManaged === '0') ? 'checked' : '' ?>> <span>No — Not safely managed</span></label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pf-field-row pf-cols-2">
+                            <div class="pf-field">
+                                <div class="pf-field-label">Basic Sanitation Facility</div>
+                                <div class="pf-radio-row">
+                                    <label class="pf-radio"><input type="radio" name="sanitation_basic" value="with" <?= $sanitationBasic === 'with' ? 'checked' : '' ?>> <span>With Basic Sanitation Facility</span></label>
+                                    <label class="pf-radio"><input type="radio" name="sanitation_basic" value="without" <?= $sanitationBasic === 'without' ? 'checked' : '' ?>> <span>Without Basic Sanitation Facility</span></label>
+                                </div>
+                            </div>
+                            <div class="pf-field">
+                                <div class="pf-field-label">Safely Managed Sanitation Services</div>
+                                <div class="pf-radio-row">
+                                    <label class="pf-radio"><input type="radio" name="sanitation_managed" value="with" <?= $sanitationManaged === 'with' ? 'checked' : '' ?>> <span>With Safely Managed Sanitation</span></label>
+                                    <label class="pf-radio"><input type="radio" name="sanitation_managed" value="without" <?= $sanitationManaged === 'without' ? 'checked' : '' ?>> <span>Without Safely Managed Sanitation</span></label>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1191,6 +1258,10 @@
                                 <div class="pf-field-label">Occupation</div>
                                 <input type="text" class="pf-input pf-upper pf-alpha" name="occupation" id="em_occupation">
                             </div>
+                            <div class="pf-field">
+                                <div class="pf-field-label">Work, if working student</div>
+                                <input type="text" class="pf-input pf-upper" name="work_detail" id="em_work" maxlength="120" placeholder="WHAT WORK DO THEY DO?">
+                            </div>
                         </div>
                         <div class="pf-field-row pf-cols-3">
                             <div class="pf-field">
@@ -1332,7 +1403,22 @@
             display: flex;
             flex-direction: column;
             max-height: 92vh;
+            overflow: hidden;
             font-family: 'Arial', sans-serif;
+        }
+
+        .pf-modal>form {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-height: 92vh;
+            min-height: 0;
+        }
+
+        .pf-modal select,
+        .pf-modal option {
+            text-transform: none !important;
+            max-width: none !important;
         }
 
         .pf-modal-header {
@@ -1399,7 +1485,8 @@
 
         .pf-body {
             overflow-y: auto;
-            flex: 1;
+            flex: 1 1 auto;
+            min-height: 0;
             background: #f9f9f7;
             padding: 0;
         }
@@ -1918,16 +2005,12 @@
 
     <script>
         function toggleEditNumFamilies(val) {
-            const row = document.getElementById('edit_num_families_row');
             const input = document.getElementById('edit_num_families');
             const grpRow = document.getElementById('edit_shared_group_row');
-            if (!row) return;
             if (val === 'Shared') {
-                row.style.display = 'block';
                 if (grpRow) grpRow.style.display = 'block';
-                if (input && parseInt(input.value) < 2) input.value = 2;
+                if (input && parseInt(input.value, 10) < 2) input.value = 2;
             } else {
-                row.style.display = 'none';
                 if (grpRow) grpRow.style.display = 'none';
                 if (input) input.value = 1;
             }
@@ -2033,8 +2116,15 @@
             document.getElementById('em_relationship').value = m.relationship || '';
             document.getElementById('em_dob').value = m.date_of_birth || '';
             document.getElementById('em_occupation').value = m.occupation || '';
+            const emWork = document.getElementById('em_work');
+            if (emWork) emWork.value = m.work_detail || '';
             document.getElementById('em_income').value = m.monthly_income || 0;
-            document.getElementById('em_education').value = m.educational_attainment || '';
+            const emEducation = document.getElementById('em_education');
+            const savedEducation = m.educational_attainment || '';
+            if (emEducation && savedEducation && !Array.from(emEducation.options).some(function(opt) { return opt.value === savedEducation || opt.text === savedEducation; })) {
+                emEducation.add(new Option(savedEducation, savedEducation));
+            }
+            if (emEducation) emEducation.value = savedEducation;
             document.getElementById('em_philhealth').value = m.philhealth_no || '';
             // PWD fields
             const isPwd = m.is_pwd == 1;

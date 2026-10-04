@@ -519,13 +519,15 @@
                         <div class="form-row" style="grid-template-columns:1fr 1fr;gap:10px;">
                             <div class="form-group" style="margin-bottom:0;">
                                 <label>Preferred Date</label>
-                                <input type="date" name="appointment_date" id="concernApptDate"
-                                    min="<?= date('Y-m-d', strtotime('+1 day')) ?>">
+                                <input type="text" name="appointment_date" id="concernApptDate"
+                                    placeholder="Select a date" autocomplete="off">
                             </div>
                             <div class="form-group" style="margin-bottom:0;">
                                 <label>Preferred Time</label>
-                                <input type="time" name="appointment_time" id="concernApptTime"
-                                    min="08:00" max="17:00">
+                                <select name="appointment_time" id="concernApptTime" disabled>
+                                    <option value="">Select a date first</option>
+                                </select>
+                                <p id="concernApptNote" style="margin:6px 0 0;font-size:11px;min-height:16px;"></p>
                             </div>
                         </div>
                     </div>
@@ -722,6 +724,17 @@
             }
             if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
                 form.querySelector('[name="email"]').focus();
+                return;
+            }
+            const apptDate = document.getElementById('concernApptDate');
+            const apptTime = document.getElementById('concernApptTime');
+            const apptNote = document.getElementById('concernApptNote');
+            if (apptDate && apptDate.value && apptTime && !apptTime.value) {
+                if (apptNote) {
+                    apptNote.textContent = 'Choose an open time for that date.';
+                    apptNote.style.color = '#c0392b';
+                }
+                apptTime.focus();
                 return;
             }
 
@@ -1549,6 +1562,19 @@
                 document.getElementById('cwIcon').className = 'fas fa-comment-dots';
             };
         })();
+    </script>
+    <script src="/js/appointment-slots.js?v=2"></script>
+    <script>
+        if (window.BISAppointmentSlots) {
+            BISAppointmentSlots.bind(
+                document.getElementById('concernApptDate'),
+                document.getElementById('concernApptTime'),
+                {
+                    minDate: '<?= date('Y-m-d', strtotime('+1 day')) ?>',
+                    message: document.getElementById('concernApptNote')
+                }
+            );
+        }
     </script>
     <script src="/js/pwa-install.js?v=1"></script>
 </body>

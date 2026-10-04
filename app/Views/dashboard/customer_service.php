@@ -18,6 +18,7 @@ if (
     ! in_array(
         $role,
         [
+            'admin',
             'secretary',
             'captain'
         ],
@@ -47,9 +48,9 @@ $roleLabel =
         <?= esc($pageTitle) ?> | Bacolod BIS
     </title>
 
-    <link
-        rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="/style.css">
 
     <style>
         /* =========================================================
@@ -68,240 +69,15 @@ $roleLabel =
             min-height: 100%;
         }
 
-        body {
-            font-family:
-                Arial,
-                Helvetica,
-                sans-serif;
-
-            background: #f5f7fb;
-
-            color: #1f2937;
-        }
-
-
-        /* =========================================================
-           SIDEBAR
-           ========================================================= */
-
-        .db-sidebar {
-            position: fixed;
-
-            top: 0;
-            left: 0;
-            bottom: 0;
-
-            width: 250px;
-
-            background: #ffffff;
-
-            border-right:
-                1px solid #e5e7eb;
-
-            z-index: 1000;
-
-            display: flex;
-            flex-direction: column;
-
-            box-shadow:
-                2px 0 10px rgba(15,
-                    23,
-                    42,
-                    0.04);
-        }
-
-        .db-sidebar-brand {
-            min-height: 78px;
-
-            padding:
-                14px 18px;
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 10px;
-
-            border-bottom:
-                1px solid #eef0f4;
-        }
-
-        .db-brand-logo {
-            width: 42px;
-            height: 42px;
-
-            min-width: 42px;
-
-            display: flex;
-
-            align-items: center;
-            justify-content: center;
-
-            overflow: hidden;
-
-            border-radius: 9px;
-        }
-
-        .db-brand-logo img {
-            display: block;
-
-            width: 38px !important;
-            height: 38px !important;
-
-            max-width: 38px !important;
-            max-height: 38px !important;
-
-            object-fit: contain;
-        }
-
-        .db-brand-text {
-            min-width: 0;
-
-            display: flex;
-            flex-direction: column;
-        }
-
-        .db-brand-name {
-            display: block;
-
-            font-size: 15px;
-
-            font-weight: 700;
-
-            line-height: 1.2;
-
-            color: #1f2937;
-        }
-
-        .db-brand-role {
-            display: flex;
-
-            align-items: center;
-
-            gap: 5px;
-
-            margin-top: 4px;
-
-            font-size: 11px;
-
-            color: #64748b;
-        }
-
-        .db-brand-role i {
-            font-size: 10px;
-        }
-
-        .db-nav {
-            flex: 1;
-
-            overflow-y: auto;
-
-            padding:
-                12px 10px;
-        }
-
-        .db-nav-item {
-            width: 100%;
-
-            min-height: 41px;
-
-            margin-bottom: 3px;
-
-            padding:
-                0 12px;
-
-            border-radius: 8px;
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 10px;
-
-            text-decoration: none;
-
-            color: #64748b;
-
-            font-size: 13px;
-
-            font-weight: 500;
-
-            transition:
-                background 0.15s ease,
-                color 0.15s ease;
-        }
-
-        .db-nav-item i {
-            width: 18px;
-
-            text-align: center;
-
-            font-size: 14px;
-        }
-
-        .db-nav-item:hover {
-            background: #f8fafc;
-
-            color: #2563eb;
-        }
-
-        .db-nav-item.active {
-            background: #eff6ff;
-
-            color: #2563eb;
-
-            font-weight: 600;
-        }
-
-        .db-logout {
-            margin: 10px;
-
-            min-height: 41px;
-
-            padding:
-                0 12px;
-
-            border-radius: 8px;
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 10px;
-
-            text-decoration: none;
-
-            color: #64748b;
-
-            font-size: 13px;
-
-            transition:
-                background 0.15s ease,
-                color 0.15s ease;
-        }
-
-        .db-logout:hover {
-            background: #fef2f2;
-
-            color: #dc2626;
-        }
-
-
         /* =========================================================
            MAIN PAGE
            ========================================================= */
 
         .customer-service-page {
-            margin-left: 250px;
-
-            width: calc(100% - 250px);
-
-            min-height: 100vh;
-
-            padding:
-                24px 28px;
-
-            background: #f5f7fb;
+            width: 100%;
+            min-height: 0;
+            padding: 0;
+            background: transparent;
         }
 
 
@@ -393,7 +169,7 @@ $roleLabel =
             width: 100%;
 
             height:
-                calc(100vh - 130px);
+                calc(100vh - 210px);
 
             min-height: 590px;
 
@@ -497,6 +273,10 @@ $roleLabel =
             font-weight: 700;
         }
 
+        .cs-queue-status[hidden] {
+            display: none;
+        }
+
         .cs-queue-status {
             min-height: 37px;
 
@@ -519,6 +299,116 @@ $roleLabel =
             flex: 1;
 
             overflow-y: auto;
+        }
+
+        .support-conversation-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            width: 100%;
+            margin: 0;
+            padding: 14px 16px;
+            border: 0;
+            border-bottom: 1px solid #e6ebf3;
+            border-radius: 0;
+            background: #fff;
+            color: #16325c;
+            font-family: inherit;
+            text-align: left;
+            cursor: pointer;
+            box-shadow: none;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        .support-conversation-item:hover {
+            background: #f7f9fc;
+        }
+
+        .support-conversation-item.active {
+            background: #f4f7fb;
+            box-shadow: inset 3px 0 0 #16325c;
+        }
+
+        .support-request-avatar {
+            width: 36px;
+            height: 36px;
+            flex: 0 0 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #eef2f8;
+            color: #16325c;
+            font-size: 14px;
+        }
+
+        .support-request-body {
+            min-width: 0;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .support-request-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .support-request-name {
+            min-width: 0;
+            overflow: hidden;
+            color: #16325c;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .support-request-time {
+            flex: 0 0 auto;
+            color: #8b93a7;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        .support-request-status,
+        .support-request-preview {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+            overflow: hidden;
+            color: #5c677d;
+            font-size: 12px;
+            line-height: 1.4;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .support-request-preview {
+            color: #8b93a7;
+        }
+
+        .support-request-dot {
+            width: 7px;
+            height: 7px;
+            flex: 0 0 7px;
+            background: #e0b32a;
+        }
+
+        .support-request-dot.human {
+            background: #1f8a70;
+        }
+
+        .support-request-dot.closed {
+            background: #9aa0b4;
+        }
+
+        .support-request-dot.ai {
+            background: #16325c;
         }
 
         .cs-queue-empty {
@@ -702,6 +592,7 @@ $roleLabel =
            ========================================================= */
 
         .cs-chat-panel {
+            position: relative;
             display: flex;
 
             flex-direction: column;
@@ -1201,16 +1092,6 @@ $roleLabel =
 
         @media (max-width: 1100px) {
 
-            .customer-service-page {
-                margin-left: 250px;
-
-                width:
-                    calc(100% - 250px);
-
-                padding:
-                    20px;
-            }
-
             .cs-layout {
                 grid-template-columns:
                     280px minmax(0,
@@ -1222,25 +1103,8 @@ $roleLabel =
 
         @media (max-width: 850px) {
 
-            .db-sidebar {
-                position: static;
-
-                width: 100%;
-
+            .cs-layout {
                 height: auto;
-            }
-
-            .db-nav {
-                max-height: 300px;
-            }
-
-            .customer-service-page {
-                margin-left: 0;
-
-                width: 100%;
-
-                padding:
-                    18px;
             }
 
             .cs-header {
@@ -1279,12 +1143,73 @@ $roleLabel =
             }
 
         }
+
+        .cs-queue-tools {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .cs-queue-toggle,
+        .cs-queue-expand {
+            width: 32px;
+            height: 32px;
+            flex: 0 0 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            background: #fff;
+            color: #1c2b45;
+            cursor: pointer;
+        }
+
+        .cs-queue-expand {
+            display: none;
+            position: absolute;
+            top: 14px;
+            left: 12px;
+            z-index: 5;
+        }
+
+        .cs-queue-header {
+            gap: 8px;
+        }
+
+        .cs-layout.is-queue-collapsed {
+            grid-template-columns: 0 minmax(0, 1fr);
+            gap: 0;
+        }
+
+        .cs-layout.is-queue-collapsed .cs-queue-panel {
+            border: 0;
+            overflow: hidden;
+        }
+
+        .cs-layout.is-queue-collapsed .cs-queue-expand {
+            display: inline-flex;
+        }
+
+        .cs-layout.is-queue-collapsed .cs-chat-header {
+            padding-left: 52px;
+        }
+
+        @media (max-width: 850px) {
+            .cs-layout.is-queue-collapsed {
+                grid-template-columns: 1fr;
+            }
+
+            .cs-layout.is-queue-collapsed .cs-queue-panel {
+                display: none;
+            }
+        }
     </style>
-    <link rel="stylesheet" href="/dashboard-theme.css?v=20260927p">
 
 </head>
 
-<body class="bis-dash">
+<body class="db-body">
 
     <?php
 
@@ -1293,11 +1218,15 @@ $roleLabel =
         [
             'role'   => $role,
             'active' => $active,
+            'pageTitle' => $pageTitle,
         ]
     );
 
     ?>
 
+    <div class="db-main">
+        <?php include APPPATH . 'Views/dashboard/topbar.php'; ?>
+        <div class="db-content">
     <main class="customer-service-page">
 
         <!-- =====================================================
@@ -1356,11 +1285,22 @@ $roleLabel =
 
                     </div>
 
-                    <span
-                        id="supportRequestCount"
-                        class="cs-count">
-                        0
-                    </span>
+                    <div class="cs-queue-tools">
+                        <span
+                            id="supportRequestCount"
+                            class="cs-count">
+                            0
+                        </span>
+                        <button
+                            id="csQueueToggle"
+                            class="cs-queue-toggle"
+                            type="button"
+                            aria-label="Collapse support requests"
+                            aria-expanded="true"
+                            title="Collapse support requests">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                    </div>
 
                 </div>
 
@@ -1396,6 +1336,9 @@ $roleLabel =
              ================================================== -->
 
             <div class="cs-panel cs-chat-panel">
+                <button class="cs-queue-expand" id="csQueueExpand" type="button" aria-label="Show support requests" title="Show support requests">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
 
 
                 <!-- CHAT HEADER -->
@@ -1436,28 +1379,6 @@ $roleLabel =
 
 
                     <div class="cs-actions">
-
-                        <button
-                            id="takeOverConversation"
-                            type="button"
-                            class="cs-btn takeover"
-                            disabled>
-                            <i class="fas fa-user-headset"></i>
-
-                            Take Over
-                        </button>
-
-
-                        <button
-                            id="returnToAI"
-                            type="button"
-                            class="cs-btn return-ai"
-                            disabled>
-                            <i class="fas fa-robot"></i>
-
-                            Return to AI
-                        </button>
-
 
                         <button
                             id="closeSupportConversation"
@@ -1542,9 +1463,54 @@ $roleLabel =
         </section>
 
     </main>
+        </div>
+    </div>
 
+    <div class="db-modal-overlay" id="csCloseModal" role="dialog" aria-modal="true" aria-labelledby="csCloseModalTitle" aria-hidden="true">
+        <div class="db-modal" role="document" style="max-width:440px;">
+            <div class="db-modal-header">
+                <h3 id="csCloseModalTitle"><i class="fas fa-check-circle"></i> Close conversation</h3>
+                <button type="button" class="db-modal-close" id="csCloseModalDismiss" aria-label="Cancel">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="db-modal-body">
+                <p style="margin:0;color:#6b7280;font-size:14px;line-height:1.6;">Close this conversation and return the resident to the BIS Assistant?</p>
+            </div>
+            <div class="db-modal-footer">
+                <button type="button" class="db-btn db-btn--outline" id="csCloseModalCancel">Cancel</button>
+                <button type="button" class="db-btn db-btn--danger" id="csCloseModalConfirm"><i class="fas fa-check"></i> Close</button>
+            </div>
+        </div>
+    </div>
 
-    <script src="<?= base_url('js/customer_service.js') ?>"></script>
+    <script>
+        (function () {
+            const layout = document.querySelector('.cs-layout');
+            const collapse = document.getElementById('csQueueToggle');
+            const expand = document.getElementById('csQueueExpand');
+            if (!layout || !collapse || !expand) return;
+            const storageKey = 'bisCsQueueCollapsed';
+
+            function setCollapsed(collapsed) {
+                layout.classList.toggle('is-queue-collapsed', collapsed);
+                collapse.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                sessionStorage.setItem(storageKey, collapsed ? '1' : '0');
+            }
+
+            collapse.addEventListener('click', function () {
+                setCollapsed(true);
+            });
+            expand.addEventListener('click', function () {
+                setCollapsed(false);
+            });
+
+            if (sessionStorage.getItem(storageKey) === '1') {
+                setCollapsed(true);
+            }
+        })();
+    </script>
+    <script src="<?= base_url('js/customer_service.js?v=6') ?>"></script>
 
 </body>
 

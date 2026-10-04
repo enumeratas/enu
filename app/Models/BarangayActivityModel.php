@@ -31,7 +31,16 @@ class BarangayActivityModel extends Model
         'created_by',
     ];
 
-    public const CATEGORIES = ['Sports', 'Livelihood', 'Health', 'Education', 'Environment', 'Cultural', 'Other'];
+    public const CATEGORIES = ['Sports', 'Livelihood', 'Health', 'Education', 'Environment', 'Clean-up Drive', 'Cultural', 'Other'];
+
+    public static function isCleanupDrive(string $category, string $title = ''): bool
+    {
+        if (strcasecmp(trim($category), 'Clean-up Drive') === 0) {
+            return true;
+        }
+
+        return preg_match('/clean[\s-]*up\s+drive/i', $title) === 1;
+    }
 
     public const REQUIREMENT_OPTIONS = [
         'DOCUMENT: Barangay ID',

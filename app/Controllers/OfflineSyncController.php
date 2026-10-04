@@ -41,6 +41,23 @@ class OfflineSyncController extends BaseController
                 return $this->jsonResponse(['success' => false, 'message' => 'Required clearance fields are missing.'], 422);
             }
 
+            $forMember = trim((string) ($data['for_member'] ?? ''));
+            $clearanceModel = new \App\Models\ClearanceRequestModel();
+            $slot = $clearanceModel->claimOpenSlot($userId, $documentType, $forMember);
+            if ($slot === null) {
+                return $this->jsonResponse(['success' => false, 'message' => 'Please wait a moment and try again.'], 409);
+            }
+            if ($slot === false) {
+                $db->table('offline_sync_operations')->insert([
+                    'operation_id' => $operationId,
+                    'operation' => $operation,
+                    'user_id' => $userId,
+                    'created_at' => date('Y-m-d H:i:s'),
+                ]);
+
+                return $this->jsonResponse(['success' => true, 'duplicate' => true]);
+            }
+
             $db->transStart();
             $db->table('clearance_requests')->insert([
                 'user_id' => $userId,
@@ -63,8 +80,12 @@ class OfflineSyncController extends BaseController
             $db->transComplete();
 
             if (! $db->transStatus()) {
+                $clearanceModel->releaseOpenSlot($slot);
+
                 return $this->jsonResponse(['success' => false, 'message' => 'Could not save the offline clearance request.'], 500);
             }
+
+            $clearanceModel->releaseOpenSlot($slot);
 
             return $this->jsonResponse(['success' => true, 'duplicate' => false]);
         }

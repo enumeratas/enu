@@ -10,10 +10,27 @@ class DeceasedAccountController extends BaseController
     {
         $service = new DeceasedAccountService();
 
+        $search = \App\Libraries\RecordSearch::term();
+
         return view('dashboard/deceased_accounts/index', [
-            'role'    => $this->currentRole(),
-            'action'  => $service->currentAction(),
-            'accounts' => $service->listLinkedAccounts(),
+            'role'     => $this->currentRole(),
+            'action'   => $service->currentAction(),
+            'accounts' => \App\Libraries\RecordSearch::filter(
+                $service->listLinkedAccounts(),
+                $search,
+                static fn(array $row): string => implode(' ', [
+                    (string) ($row['first_name'] ?? ''),
+                    (string) ($row['middle_name'] ?? ''),
+                    (string) ($row['last_name'] ?? ''),
+                    (string) ($row['household_no'] ?? ''),
+                    (string) ($row['username'] ?? ''),
+                    (string) ($row['email'] ?? ''),
+                    (string) ($row['relationship'] ?? ''),
+                    (string) ($row['year_of_death'] ?? ''),
+                ]),
+                static fn(array $row): array => []
+            ),
+            'search'   => $search,
         ]);
     }
 

@@ -775,6 +775,7 @@
 <body class="db-body">
     <?php
     $requestRole = in_array(session()->get('role'), ['sk', 'council'], true) ? session()->get('role') : 'resident';
+    $role      = $requestRole;
     $active    = 'clearance';
     $pageTitle = 'My Clearances';
     include(APPPATH . 'Views/dashboard/sidebar.php');
@@ -818,10 +819,10 @@
 
             <!-- Toolbar -->
             <div class="db-toolbar">
-                <div class="db-search-wrap">
+                <form method="get" data-live-results="liveResults" class="db-search-wrap">
                     <i class="fas fa-search"></i>
-                    <input type="text" placeholder="Search requests..." id="searchInput" oninput="filterRequests()">
-                </div>
+                    <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search document, purpose, or date..." value="<?= esc($search ?? '') ?>">
+                </form>
                 <div class="db-toolbar-actions">
                     <?php if (! empty($members)): ?>
                         <button class="db-btn db-btn--primary" onclick="openModal('newModal')">
@@ -831,6 +832,7 @@
                 </div>
             </div>
 
+            <div id="liveResults">
             <!-- Requests table -->
             <div class="db-table-wrap">
                 <table class="db-table" id="requestsTable">
@@ -850,7 +852,7 @@
                                 <td colspan="6">
                                     <div class="clr-empty">
                                         <i class="fas fa-file-alt"></i>
-                                        <p>No requests yet. Click <strong>New Request</strong> to get started.</p>
+                                        <p><?= ($search ?? '') !== '' ? 'No requests match your search.' : 'No requests yet. Click <strong>New Request</strong> to get started.' ?></p>
                                     </div>
                                 </td>
                             </tr>
@@ -894,6 +896,7 @@
                         <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
             </div>
 
         </div>
@@ -945,7 +948,7 @@
                 </button>
             </div>
 
-            <form action="/<?= $requestRole ?>/clearance/store" method="post" id="clearanceForm" data-offline-sync="clearance_request" data-offline-verified="1">
+            <form action="/<?= $requestRole ?>/clearance/store" method="post" id="clearanceForm" data-offline-sync="clearance_request" data-offline-verified="1" novalidate>
                 <p data-offline-sync-status aria-live="polite" style="font-size:12px;color:#667085;margin:0 0 12px;display:block;"></p>
                 <?= csrf_field() ?>
                 <div class="clr-form-body" style="max-height:72vh;overflow-y:auto;">
@@ -968,7 +971,8 @@
                             <div class="clr-member-pills" id="memberPills">
                                 <?php foreach ($members as $i => $m): ?>
                                     <label class="clr-member-pill <?= $i === 0 ? 'selected' : '' ?>"
-                                        onclick="selectMember(this, '<?= esc($m['name']) ?>', '<?= esc($m['relationship']) ?>')">
+                                        data-minor="<?= ! empty($m['is_minor']) ? '1' : '0' ?>"
+                                        onclick="selectMember(this, '<?= esc($m['name']) ?>', '<?= esc($m['relationship']) ?>', <?= ! empty($m['is_minor']) ? 'true' : 'false' ?>)">
                                         <input type="radio" name="_member_ui" value="<?= esc($m['name']) ?>" <?= $i === 0 ? 'checked' : '' ?>>
                                         <div class="clr-member-avatar"><?= strtoupper($m['name'][0] ?? '?') ?></div>
                                         <div>
@@ -996,22 +1000,22 @@
                         <div class="secretary-doc-grid" id="secretaryDocumentType">
                             <?php
                             $documentOptions = [
-                                ['value' => 'Barangay Clearance', 'icon' => 'fa-file-alt', 'color' => '#5b6fd6', 'bg' => 'rgba(91,111,214,.12)', 'fee' => '₱100.00'],
-                                ['value' => 'Certificate of Residency', 'icon' => 'fa-home', 'color' => '#16c79a', 'bg' => 'rgba(22,199,154,.12)', 'fee' => 'Free'],
-                                ['value' => 'Certificate of Indigency', 'icon' => 'fa-hands-helping', 'color' => '#e6a800', 'bg' => 'rgba(255,193,7,.14)', 'fee' => 'Free'],
-                                ['value' => 'Certificate of Good Moral', 'icon' => 'fa-award', 'color' => '#7c5cbf', 'bg' => 'rgba(124,92,191,.12)', 'fee' => 'Free'],
-                                ['value' => 'First Time Job Seekers', 'icon' => 'fa-briefcase', 'color' => '#16a085', 'bg' => 'rgba(22,160,133,.12)', 'fee' => 'Free'],
-                                ['value' => 'Solo Parent Certificate', 'icon' => 'fa-child', 'color' => '#3a8fd9', 'bg' => 'rgba(58,143,217,.12)', 'fee' => 'Free'],
-                                ['value' => 'Business Permit Clearance', 'icon' => 'fa-store', 'color' => '#dc3545', 'bg' => 'rgba(220,53,69,.12)', 'fee' => '₱75.00'],
+                                ['value' => 'Barangay Clearance', 'icon' => 'fa-file-alt', 'color' => '#5b6fd6', 'bg' => 'rgba(91,111,214,.12)'],
+                                ['value' => 'Certificate of Residency', 'icon' => 'fa-home', 'color' => '#16c79a', 'bg' => 'rgba(22,199,154,.12)'],
+                                ['value' => 'Certificate of Indigency', 'icon' => 'fa-hands-helping', 'color' => '#e6a800', 'bg' => 'rgba(255,193,7,.14)'],
+                                ['value' => 'Certificate of Good Moral', 'icon' => 'fa-award', 'color' => '#7c5cbf', 'bg' => 'rgba(124,92,191,.12)'],
+                                ['value' => 'First Time Job Seekers', 'icon' => 'fa-briefcase', 'color' => '#16a085', 'bg' => 'rgba(22,160,133,.12)'],
+                                ['value' => 'Solo Parent Certificate', 'icon' => 'fa-child', 'color' => '#3a8fd9', 'bg' => 'rgba(58,143,217,.12)'],
+                                ['value' => 'Business Permit Clearance', 'icon' => 'fa-store', 'color' => '#dc3545', 'bg' => 'rgba(220,53,69,.12)'],
                             ];
                             ?>
                             <?php foreach ($documentOptions as $document): ?>
-                                <label class="secretary-doc-card" data-document="<?= esc($document['value']) ?>" onclick="selectDocument(this)">
+                                <label class="secretary-doc-card" data-document="<?= esc($document['value']) ?>" data-adult-only="<?= \Config\ClearanceDocuments::isAdultOnly($document['value']) ? '1' : '0' ?>" onclick="selectDocument(this)">
                                     <input type="radio" name="document_type" value="<?= esc($document['value']) ?>" disabled required>
                                     <div class="secretary-doc-icon" style="background:<?= $document['bg'] ?>;color:<?= $document['color'] ?>;"><i class="fas <?= $document['icon'] ?>"></i></div>
                                     <div>
                                         <div class="secretary-doc-name"><?= esc($document['value']) ?></div>
-                                        <div class="secretary-doc-fee"><?= $document['fee'] ?></div>
+                                        <div class="secretary-doc-fee"><?= esc(\Config\ClearanceDocuments::fee($document['value'])) ?></div>
                                         <div class="secretary-doc-reason" aria-live="polite"></div>
                                     </div>
                                 </label>
@@ -1068,7 +1072,7 @@
                         <span>Processing takes <strong>1–2 business days</strong>. You will be notified once your document is ready for pickup at the barangay hall.</span>
                     </div>
 
-                    <button type="submit" class="clr-submit-btn">
+                    <button type="submit" class="clr-submit-btn" id="clearanceSubmitBtn">
                         <i class="fas fa-paper-plane"></i> Submit Request
                     </button>
                 </div>
@@ -1098,11 +1102,12 @@
             openModal('cancelModal');
         }
 
-        function selectMember(el, name, rel) {
+        function selectMember(el, name, rel, isMinor) {
             document.querySelectorAll('.clr-member-pill').forEach(p => p.classList.remove('selected'));
             el.classList.add('selected');
             document.getElementById('forMember').value = name;
             document.getElementById('memberRel').value = rel;
+            applyDocumentRules(!!isMinor);
         }
 
         function selectDocument(card) {
@@ -1114,33 +1119,98 @@
             input.checked = true;
         }
 
-        // Enable document choices and apply the household-income indigency rule.
-        (function initResidentDocuments() {
-            const totalIncome = <?= (float) ($householdTotalIncome ?? 0) ?>;
+        const openRequestsByMember = <?= json_encode($openByMember ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+        const indigencyBlocked = <?= (float) ($householdTotalIncome ?? 0) > 12000 ? 'true' : 'false' ?>;
+        const soloParentBlocked = <?= empty($isSoloParent) ? 'true' : 'false' ?>;
+        const goodMoralCaseBlocked = <?= ! empty($goodMoralBlocked) ? 'true' : 'false' ?>;
+
+        function applyDocumentRules(isMinor) {
+            const memberName = (document.getElementById('forMember')?.value || '').trim().toLowerCase();
+            const openDocs = openRequestsByMember[memberName] || [];
             const note = document.getElementById('secretaryEligibilityNote');
 
             document.querySelectorAll('.secretary-doc-card').forEach(card => {
                 const input = card.querySelector('input[name="document_type"]');
                 const reason = card.querySelector('.secretary-doc-reason');
-                const isIndigency = card.dataset.document === 'Certificate of Indigency';
-
+                const type = card.dataset.document || '';
                 if (!input) return;
-                input.disabled = isIndigency && totalIncome > 12000;
-                card.classList.toggle('ineligible', input.disabled);
-                if (reason) {
-                    reason.textContent = input.disabled ? 'Household income exceeds the indigency limit.' : '';
+
+                let message = '';
+                if (card.dataset.adultOnly === '1' && isMinor) {
+                    message = 'Not available for minors.';
+                } else if (type === 'Certificate of Indigency' && indigencyBlocked) {
+                    message = 'Household income exceeds the indigency limit.';
+                } else if (type === 'Solo Parent Certificate' && soloParentBlocked) {
+                    message = 'A validated Solo Parent record is required.';
+                } else if (type === 'Certificate of Good Moral' && goodMoralCaseBlocked) {
+                    message = 'Not available while a blotter case is filed for action.';
+                } else if (openDocs.indexOf(type) !== -1) {
+                    message = 'You already have an open request for this document.';
                 }
+
+                input.disabled = message !== '';
+                card.classList.toggle('ineligible', message !== '');
+                if (message !== '' && (card.classList.contains('selected') || input.checked)) {
+                    card.classList.remove('selected');
+                    input.checked = false;
+                }
+                if (reason) reason.textContent = message;
             });
 
             if (note) {
-                note.textContent = totalIncome > 12000 ?
-                    'Certificate of Indigency is unavailable because household income exceeds the limit.' :
-                    'Select the document you want to request.';
+                if (isMinor) {
+                    note.textContent = 'Documents that do not apply to minors are turned off.';
+                } else if (indigencyBlocked) {
+                    note.textContent = 'Certificate of Indigency is unavailable because household income exceeds the limit.';
+                } else {
+                    note.textContent = 'Select the document you want to request.';
+                }
             }
-        })();
+        }
+
+        applyDocumentRules(document.querySelector('.clr-member-pill.selected')?.dataset.minor === '1');
+
+        const clearanceForm = document.getElementById('clearanceForm');
+        if (clearanceForm) {
+            clearanceForm.addEventListener('submit', function (event) {
+                const note = clearanceForm.querySelector('[data-offline-sync-status]');
+                const chosen = clearanceForm.querySelector('input[name="document_type"]:checked:not(:disabled)');
+                const purpose = clearanceForm.querySelector('[name="purpose"]');
+                if (!chosen || (purpose && purpose.value === '')) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                    clearanceForm.dataset.bisSaving = '';
+                    const button = document.getElementById('clearanceSubmitBtn');
+                    if (button) {
+                        button.disabled = false;
+                        button.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Request';
+                    }
+                    if (note) {
+                        note.style.color = '#b42318';
+                        note.textContent = !chosen
+                            ? 'Choose a document type before submitting.'
+                            : 'Choose a purpose before submitting.';
+                    }
+                    const target = !chosen ? document.getElementById('secretaryDocumentType') : purpose;
+                    if (target && typeof target.scrollIntoView === 'function') {
+                        target.scrollIntoView({ block: 'center' });
+                    }
+                    if (purpose && chosen && typeof purpose.reportValidity === 'function') {
+                        purpose.reportValidity();
+                    }
+                    return;
+                }
+                if (note) {
+                    note.style.color = '#16325c';
+                    note.textContent = 'Submitting your request...';
+                }
+            }, true);
+        }
 
         function filterRequests() {
-            const q = document.getElementById('searchInput').value.toLowerCase();
+            const input = document.getElementById('searchInput');
+            if (!input) return;
+            const q = input.value.toLowerCase();
             document.querySelectorAll('#requestsTable tbody tr').forEach(row => {
                 row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
             });

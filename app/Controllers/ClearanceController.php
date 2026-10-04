@@ -114,7 +114,7 @@ class ClearanceController extends BaseController
                     'name'          => trim($head['first_name'] . ' ' . $head['last_name']),
                     'relationship'  => 'Household Head',
                     'date_of_birth' => $head['date_of_birth'] ?? null,
-                    'is_minor'      => false,
+                    'is_minor'      => $this->personIsMinor($head['date_of_birth'] ?? null),
                 ];
                 $occupation = $head['occupation'] ?? '';
                 $isSoloParent = (int) ($head['is_solo_parent'] ?? 0) === 1;
@@ -124,7 +124,7 @@ class ClearanceController extends BaseController
                     'name'          => trim($ownerMemberRecord['first_name'] . ' ' . $ownerMemberRecord['last_name']),
                     'relationship'  => $relLabel,
                     'date_of_birth' => $ownerMemberRecord['date_of_birth'] ?? null,
-                    'is_minor'      => false,
+                    'is_minor'      => $this->personIsMinor($ownerMemberRecord['date_of_birth'] ?? null),
                 ];
                 $occupation = $ownerMemberRecord['occupation'] ?? '';
             } else {
@@ -167,7 +167,30 @@ class ClearanceController extends BaseController
             }
         }
 
-        $requests = $this->model->getByUser($userId);
+        $search = \App\Libraries\RecordSearch::term();
+        $requests = \App\Libraries\RecordSearch::filter(
+            $this->model->getByUser($userId),
+            $search,
+            static fn(array $row): string => implode(' ', [
+                (string) ($row['for_member'] ?? ''),
+                (string) ($row['member_relationship'] ?? ''),
+                (string) ($row['document_type'] ?? ''),
+                (string) ($row['purpose'] ?? ''),
+                (string) ($row['status'] ?? ''),
+            ]),
+            static fn(array $row): array => [
+                $row['created_at'] ?? null,
+                $row['est_release_date'] ?? null,
+            ]
+        );
+        $openByMember = [];
+        foreach ($requests as $request) {
+            if (! in_array($request['status'] ?? '', ['pending', 'approved'], true)) {
+                continue;
+            }
+            $memberKey = strtolower(trim((string) ($request['for_member'] ?? '')));
+            $openByMember[$memberKey][] = (string) ($request['document_type'] ?? '');
+        }
         $goodMoralBlocked = \Config\Database::connect()->table('blotter_reports')
             ->where('respondent_user_id', $userId)
             ->where('status', 'file_to_action')
@@ -175,12 +198,14 @@ class ClearanceController extends BaseController
 
         return view('dashboard/resident/clearance', [
             'requests'             => $requests,
+            'search'               => $search,
             'members'              => $members,
             'user'                 => $user,
             'householdTotalIncome' => $householdTotalIncome,
             'occupation'           => $occupation,
             'isSoloParent'         => $isSoloParent,
             'goodMoralBlocked'     => $goodMoralBlocked,
+            'openByMember'         => $openByMember,
         ]);
     }
 
@@ -208,6 +233,12 @@ class ClearanceController extends BaseController
 
         if (! in_array($docType, \Config\ClearanceDocuments::TYPES, true)) {
             return redirect()->back()->with('error', 'Please select a valid document type.')->withInput();
+        }
+
+        if ($this->model->hasOpenRequest($userId, $docType, (string) $forMember)) {
+            return redirect()->back()
+                ->with('error', 'You already have an open request for this document for the same person. Wait until it is released or rejected before requesting it again.')
+                ->withInput();
         }
 
         $head = null;
@@ -276,6 +307,12 @@ class ClearanceController extends BaseController
                     ->with('error', 'Document requests can only be made for yourself' . ($ownerIsHead || $ownerIsSpouse ? ' or any minor household member' : '') . '.')
                     ->withInput();
             }
+
+            if (\Config\ClearanceDocuments::isAdultOnly($docType) && $this->recipientIsMinor((string) $forMember, $head, $rawMembers)) {
+                return redirect()->back()
+                    ->with('error', $docType . ' is not available for a minor.')
+                    ->withInput();
+            }
         }
 
         // ── Indigency income qualification check ──────────────────────────────
@@ -290,6 +327,14 @@ class ClearanceController extends BaseController
             $totalIncome  = $headIncome + $memberIncome;
 
             if ($totalIncome > 12000) {
+                $slot = $this->model->claimOpenSlot($userId, $docType, (string) $forMember);
+                if ($slot === null) {
+                    return redirect()->back()->with('error', 'Please wait a moment and try again.')->withInput();
+                }
+                if ($slot === false) {
+                    return redirect()->back()->with('error', 'This request was already submitted. Check your list before sending it again.')->withInput();
+                }
+                try {
                 // Auto-reject: insert as rejected immediately
                 $autoRejectRemarks = 'Automatically rejected: household net monthly income of ₱' . number_format($totalIncome, 2) . ' exceeds the ₱12,000.00 indigency threshold.';
                 $this->model->insert([
@@ -331,6 +376,9 @@ class ClearanceController extends BaseController
                         'Your household\'s net monthly income (₱' . number_format($totalIncome, 2) . ') ' .
                         'exceeds the ₱12,000.00 eligibility threshold.'
                 );
+                } finally {
+                    $this->model->releaseOpenSlot($slot);
+                }
             }
         }
 
@@ -340,6 +388,15 @@ class ClearanceController extends BaseController
             ? date('Y-m-d')                                    // Mon–Fri → today
             : date('Y-m-d', strtotime('next Monday'));          // Sat/Sun  → next Monday
 
+        $slot = $this->model->claimOpenSlot($userId, $docType, (string) $forMember);
+        if ($slot === null) {
+            return redirect()->back()->with('error', 'Please wait a moment and try again.')->withInput();
+        }
+        if ($slot === false) {
+            return redirect()->back()->with('error', 'This request was already submitted. Check your list before sending it again.')->withInput();
+        }
+
+        try {
         $this->model->insert([
             'user_id'             => $userId,
             'household_no'        => $user['household_no'] ?? null,
@@ -375,6 +432,9 @@ class ClearanceController extends BaseController
             : 'Request submitted successfully! Estimated release: ' . $releaseLabel;
 
         return redirect()->to('/' . $role . '/clearance')->with('success', $message);
+        } finally {
+            $this->model->releaseOpenSlot($slot);
+        }
     }
 
     /**
@@ -461,16 +521,29 @@ class ClearanceController extends BaseController
             return redirect()->back()->with('error', 'Please select a valid document type.');
         }
 
+        $residentName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+        if ($this->model->hasOpenRequest($userId, $docType, $residentName)) {
+            return redirect()->back()->with('error', 'This resident already has an open request for that document.');
+        }
+
         $eligibility = $this->getSecretaryEligibility($user);
         if (! in_array($docType, $eligibility['documents'], true)) {
             $reason = $eligibility['reasons'][$docType] ?? 'The resident does not meet the requirements for this document type.';
             return redirect()->back()->with('error', $reason);
         }
 
-        $residentName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
         $todayDow     = (int) date('N');
         $estRelease   = $todayDow <= 5 ? date('Y-m-d') : date('Y-m-d', strtotime('next Monday'));
 
+        $slot = $this->model->claimOpenSlot($userId, $docType, $residentName);
+        if ($slot === null) {
+            return redirect()->back()->with('error', 'Please wait a moment and try again.');
+        }
+        if ($slot === false) {
+            return redirect()->back()->with('error', 'This resident already has an open request for that document.');
+        }
+
+        try {
         $this->model->insert([
             'user_id'             => $userId,
             'household_no'        => $user['household_no'] ?? null,
@@ -508,6 +581,9 @@ class ClearanceController extends BaseController
             : 'Request created and linked to ' . $residentName . '.';
 
         return redirect()->to('/' . session_role() . '/clearance')->with('success', $message);
+        } finally {
+            $this->model->releaseOpenSlot($slot);
+        }
     }
 
     // ── Admin (captain/secretary): list all requests — grouped by resident ───
@@ -556,10 +632,11 @@ class ClearanceController extends BaseController
             $builder->where('cr.document_type', $typeFilter);
         }
         if ($search !== '') {
-            $builder->groupStart()
-                ->like('u.first_name', $search)
-                ->orLike('u.last_name', $search)
-                ->groupEnd();
+            $builder->where(\App\Libraries\RecordSearch::clause([
+                'u.first_name',
+                'u.last_name',
+                'cr.document_type',
+            ], ['cr.created_at'], $search), null, false);
         }
 
         $perPage       = 10;
@@ -1060,6 +1137,7 @@ class ClearanceController extends BaseController
             $role = match (session()->get('role')) {
                 'sk' => 'sk',
                 'captain' => 'captain',
+                'council' => 'council',
                 default => 'resident'
             };
             return redirect()->to('/' . $role . '/clearance')->with('error', 'Cannot cancel this request.');
@@ -1069,8 +1147,36 @@ class ClearanceController extends BaseController
         $role = match (session()->get('role')) {
             'sk' => 'sk',
             'captain' => 'captain',
+            'council' => 'council',
             default => 'resident'
         };
         return redirect()->to('/' . $role . '/clearance')->with('success', 'Request cancelled successfully.');
+    }
+
+    private function personIsMinor(?string $dob): bool
+    {
+        if ($dob === null || trim($dob) === '') {
+            return false;
+        }
+        $cutoff = (new \DateTime('today'))->modify('-18 years')->format('Y-m-d');
+
+        return $dob > $cutoff;
+    }
+
+    /** @param array<string, mixed>|null $head @param list<array<string, mixed>> $members */
+    private function recipientIsMinor(string $forMember, ?array $head, array $members): bool
+    {
+        $target = strtolower(trim($forMember));
+        if ($head && strtolower(trim(($head['first_name'] ?? '') . ' ' . ($head['last_name'] ?? ''))) === $target) {
+            return $this->personIsMinor($head['date_of_birth'] ?? null);
+        }
+        foreach ($members as $member) {
+            $name = strtolower(trim(($member['first_name'] ?? '') . ' ' . ($member['last_name'] ?? '')));
+            if ($name === $target) {
+                return $this->personIsMinor($member['date_of_birth'] ?? null);
+            }
+        }
+
+        return false;
     }
 }

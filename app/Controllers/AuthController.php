@@ -173,7 +173,7 @@ class AuthController extends BaseController
             ]);
         }
 
-        return redirect()->to('/' . $userRole . '/dashboard');
+        return redirect()->to('/' . $userRole . '/dashboard')->withCookies();
     }
 
     // ── Logout ────────────────────────────────────────────────────────────────
@@ -187,12 +187,14 @@ class AuthController extends BaseController
             $role = SessionHelper::configureFromCookie() ?? '';
         }
 
+        session()->destroy();
+
+        $redirect = redirect()->to('/');
         if ($role !== '') {
-            $this->response->deleteCookie(SessionHelper::rememberCookieName($role));
+            $redirect->deleteCookie(SessionHelper::rememberCookieName($role));
         }
 
-        session()->destroy();
-        return redirect()->to('/');
+        return $redirect;
     }
 
     // ── Public Registration (Resident & SK only) ──────────────────────────────
@@ -765,11 +767,24 @@ class AuthController extends BaseController
 
     public function pendingAccounts()
     {
-        $pending = $this->userModel->getPendingAccounts();
+        $search = \App\Libraries\RecordSearch::term();
+        $pending = \App\Libraries\RecordSearch::filter(
+            $this->userModel->getPendingAccounts(),
+            $search,
+            static fn(array $user): string => implode(' ', [
+                (string) ($user['first_name'] ?? ''),
+                (string) ($user['last_name'] ?? ''),
+                (string) ($user['username'] ?? ''),
+                (string) ($user['email'] ?? ''),
+                (string) ($user['role'] ?? ''),
+            ]),
+            static fn(array $user): array => [$user['created_at'] ?? null]
+        );
         $role    = session()->get('role');
 
         return view('dashboard/' . staff_view_folder($role) . '/pending_accounts', [
             'pending' => $pending,
+            'search'  => $search,
         ]);
     }
 
@@ -805,13 +820,16 @@ class AuthController extends BaseController
     public function promoteResident()
     {
         $callerRole = session()->get('role');
-        if ($callerRole !== 'admin') {
-            return redirect()->back()->with('error', 'Only the admin can appoint officials.');
-        }
-
         $targetId  = (int) $this->request->getPost('user_id');
         $newRole   = strtolower(trim($this->request->getPost('role') ?? ''));
         $councilZone = trim((string) $this->request->getPost('council_zone'));
+
+        if ($callerRole === 'captain' && $newRole !== 'secretary') {
+            return redirect()->back()->with('error', 'The captain can appoint a Secretary only.')->withInput();
+        }
+        if (! in_array($callerRole, ['admin', 'captain'], true)) {
+            return redirect()->back()->with('error', 'Only the admin can appoint officials.');
+        }
 
         $allowed = ['admin', 'captain', 'secretary', 'sk', 'council'];
         if (! in_array($newRole, $allowed, true)) {
@@ -820,6 +838,16 @@ class AuthController extends BaseController
 
         if ($newRole === 'council' && ! in_array($councilZone, ['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4', 'Zone 5', 'Zone 6', 'Zone 7'], true)) {
             return redirect()->back()->with('error', 'Select a zone for the Barangay Council assignment.')->withInput();
+        }
+        if ($newRole === 'council') {
+            $zoneTaken = $this->userModel
+                ->where('role', 'council')
+                ->where('status', 'active')
+                ->where('council_zone', $councilZone)
+                ->first();
+            if ($zoneTaken) {
+                return redirect()->back()->with('error', $councilZone . ' already has an assigned council member.')->withInput();
+            }
         }
 
         // Load target user
@@ -910,7 +938,8 @@ class AuthController extends BaseController
         $this->logOfficialEvent($targetId, trim($target['first_name'] . ' ' . $target['last_name']), $newRole, 'appointed');
 
         $targetName = trim($target['first_name'] . ' ' . $target['last_name']);
-        return redirect()->to('/admin/create-account')
+        $back = $callerRole === 'captain' ? '/captain/create-account' : '/admin/create-account';
+        return redirect()->to($back)
             ->with('success', esc($targetName) . ' has been promoted to ' . ucfirst($newRole) . ' and can now access the ' . ucfirst($newRole) . ' dashboard.');
     }
 
@@ -918,7 +947,8 @@ class AuthController extends BaseController
 
     public function demoteOfficial(int $targetId)
     {
-        if (session()->get('role') !== 'admin') {
+        $callerRole = session()->get('role');
+        if (! in_array($callerRole, ['admin', 'captain'], true)) {
             return redirect()->back()->with('error', 'Only the admin can revoke official appointments.');
         }
 
@@ -941,29 +971,37 @@ class AuthController extends BaseController
         if (! in_array($target['role'], $officialRoles, true)) {
             return redirect()->back()->with('error', 'This user does not hold an official role.');
         }
+        if ($callerRole === 'captain' && $target['role'] !== 'secretary') {
+            return redirect()->back()->with('error', 'The captain can only revoke a Secretary appointment.');
+        }
 
         $oldRole    = $target['role'];
         $targetName = trim($target['first_name'] . ' ' . $target['last_name']);
 
         // Demote back to resident
-        $this->userModel->update($targetId, ['role' => 'resident']);
+        $this->userModel->update($targetId, ['role' => 'resident', 'council_zone' => null]);
 
         // Log the revocation in officials_history
         $this->logOfficialEvent($targetId, $targetName, $oldRole, 'revoked');
 
-        return redirect()->to('/admin/create-account')
+        $back = $callerRole === 'captain' ? '/captain/create-account' : '/admin/create-account';
+        return redirect()->to($back)
             ->with('success', esc($targetName) . ' has been demoted from ' . ucfirst($oldRole) . ' back to Resident.');
     }
 
     public function createOfficialAccount()
     {
-        if (session()->get('role') !== 'admin') {
+        $callerRole = session()->get('role');
+        if (! in_array($callerRole, ['admin', 'secretary'], true)) {
             return redirect()->back()
-                ->with('error', 'Only the admin can create official accounts.')
+                ->with('error', 'You cannot create accounts from this page.')
                 ->withInput();
         }
 
         $role = strtolower((string) $this->request->getPost('role'));
+        if ($callerRole === 'secretary') {
+            $role = 'resident';
+        }
         $allowed = ['admin', 'captain', 'secretary', 'resident', 'sk', 'council'];
 
         if (! in_array($role, $allowed, true)) {
@@ -1064,10 +1102,10 @@ class AuthController extends BaseController
                 ($this->request->getPost('first_name') ?? '') . ' ' .
                     ($this->request->getPost('last_name')  ?? '')
             );
-            $this->logOfficialEvent($newUserId, $fullName, $role, 'appointed', 'Account created directly by admin.');
+            $this->logOfficialEvent($newUserId, $fullName, $role, 'appointed', 'Account created from the official account page.');
         }
 
-        return redirect()->to('/admin/create-account')->with('success', ucfirst($role) . ' account created successfully.');
+        return redirect()->to('/' . $callerRole . '/create-account')->with('success', ucfirst($role) . ' account created successfully.');
     }
 
     // ── Officials history page (secretary only) ───────────────────────────────
@@ -1088,6 +1126,7 @@ class AuthController extends BaseController
                 'grouped'  => [],
                 'role'     => $role,
                 'pageTitle' => 'Officials History',
+                'search'   => \App\Libraries\RecordSearch::term(),
             ]);
         }
 
@@ -1152,11 +1191,28 @@ class AuthController extends BaseController
             return strcmp($b['appointed_at'], $a['appointed_at']);
         });
 
+        $search = \App\Libraries\RecordSearch::term();
+        $grouped = \App\Libraries\RecordSearch::filter(
+            $grouped,
+            $search,
+            static fn(array $rec): string => implode(' ', [
+                (string) ($rec['full_name'] ?? ''),
+                (string) ($rec['role'] ?? ''),
+                (string) ($rec['appointed_by'] ?? ''),
+                (string) ($rec['revoked_by'] ?? ''),
+            ]),
+            static fn(array $rec): array => [
+                $rec['appointed_at'] ?? null,
+                $rec['revoked_at'] ?? null,
+            ]
+        );
+
         return view('dashboard/secretary/officials_history', [
             'history'   => $raw,
             'grouped'   => $grouped,
             'role'      => $role,
             'pageTitle' => 'Officials History',
+            'search'    => $search,
         ]);
     }
 

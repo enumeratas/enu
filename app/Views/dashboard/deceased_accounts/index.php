@@ -138,6 +138,13 @@
                 </form>
             </div>
 
+            <form method="get" data-live-results="liveResults" style="margin-bottom:16px;">
+                <div class="db-search-wrap">
+                    <i class="fas fa-search"></i>
+                    <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search name, household, or year..." value="<?= esc($search ?? '') ?>">
+                </div>
+            </form>
+            <div id="liveResults">
             <div class="da-card">
                 <div class="da-card-head">
                     <h2>Deceased residents with an account</h2>
@@ -146,7 +153,7 @@
                 <?php if ($accounts === []): ?>
                     <div class="da-empty">
                         <i class="fas fa-user-slash" style="font-size:32px;color:#c5cdd8;display:block;margin-bottom:10px;"></i>
-                        No deceased resident currently has a matching website account.
+                        <?= ($search ?? '') !== '' ? 'No deceased accounts match your search.' : 'No deceased resident currently has a matching website account.' ?>
                     </div>
                 <?php else: ?>
                     <div class="db-table-wrap">
@@ -205,6 +212,7 @@
                         </table>
                     </div>
                 <?php endif; ?>
+            </div>
             </div>
         </div>
     </div>

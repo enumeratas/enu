@@ -413,8 +413,7 @@
 
     $total = $pendingRegistrations + $upcomingCount;
     $totalFeed = count($feed);
-    $unreadProfiling = count(array_filter($profilingNotifications, static fn($notification) => empty($notification['read_at'])));
-    $unreadPersonal = count(array_filter($personalNotifications, static fn($notification) => empty($notification['read_at'])));
+    $unreadDirect = (new \App\Models\NotificationModel())->countUnread((int) $skUserId, false);
 
     function skTimeStr(string $datetime): string
     {
@@ -469,11 +468,11 @@
                     <div class="notif-header-left">
                         <h3>
                             Notifications
-                            <?php if ($pendingRegistrations + $unreadProfiling + $unreadPersonal > 0): ?>
-                                <span class="notif-count-badge"><?= $pendingRegistrations + $unreadProfiling + $unreadPersonal ?></span>
+                            <?php if ($unreadDirect > 0): ?>
+                                <span class="notif-count-badge"><?= $unreadDirect ?></span>
                             <?php endif; ?>
                         </h3>
-                        <p><?= $totalFeed ?> total · <?= $pendingRegistrations ?> pending approval · <?= $unreadProfiling + $unreadPersonal ?> direct update<?= ($unreadProfiling + $unreadPersonal) === 1 ? '' : 's' ?></p>
+                        <p><?= $totalFeed ?> total · <?= $pendingRegistrations ?> pending approval · <?= $unreadDirect ?> unread</p>
                     </div>
                 </div>
 

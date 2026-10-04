@@ -1,4 +1,4 @@
-@import url("dashboard-theme.css");
+@import url("dashboard-theme.css?v=20261004b");
 
 :root {
     --light: #F8F1F1;
@@ -37,9 +37,15 @@ html {
 }
 
 input:not([type="hidden"]):not([type="password"]):not([type="email"]):not([type="date"]):not([type="datetime-local"]):not([type="month"]):not([type="time"]):not([type="number"]):not([type="tel"]):not([type="file"]):not([type="color"]),
-textarea,
-select {
+textarea {
     text-transform: uppercase;
+}
+
+/* Uppercase and max-width on select/option freeze the closed value in Chrome. */
+select,
+option {
+    text-transform: none;
+    max-width: none;
 }
 
 /* Passwords must preserve their exact casing, including when revealed. */
@@ -2988,14 +2994,17 @@ body.db-sidebar-collapsed .db-nav-section {
     color: #1a1d2e;
 }
 
-.db-nav-item.active {
-    background: #eef0fb;
-    color: #1d2448;
+.db-nav-item.active,
+.db-nav-item.active:hover {
+    background: #16325c;
+    color: #ffffff;
     font-weight: 600;
+    box-shadow: inset 3px 0 0 #e0b32a;
 }
 
-.db-nav-item.active i {
-    color: #1d2448;
+.db-nav-item.active i,
+.db-nav-item.active:hover i {
+    color: #e0b32a;
 }
 
 .db-logout {

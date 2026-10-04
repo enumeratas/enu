@@ -396,24 +396,35 @@
         if (!shouldQueueForm(form)) {
             return;
         }
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        if (!navigator.onLine || !nativeFetch) {
-            queueForm(form);
+        if (form.dataset.bisSaving === '1') {
+            event.preventDefault();
+            event.stopImmediatePropagation();
             return;
         }
-        nativeFetch(form.action, {
-            method: 'POST',
-            body: new FormData(form),
-            credentials: 'same-origin'
-        }).then(function (response) {
-            if (response.status === 0 || response.status >= 500) {
-                return queueForm(form);
+        if (navigator.onLine) {
+            if (form.id === 'clearanceForm') {
+                var chosenDocument = form.querySelector('input[name="document_type"]:checked:not(:disabled)');
+                var purposeField = form.querySelector('[name="purpose"]');
+                if (!chosenDocument || (purposeField && purposeField.value === '')) {
+                    return;
+                }
             }
-            window.location.assign(response.url || form.action);
-        }).catch(function () {
-            queueForm(form);
-        });
+            form.dataset.bisSaving = '1';
+            var submitButton = form.querySelector('button[type="submit"], input[type="submit"]');
+            window.setTimeout(function () {
+                if (!submitButton || submitButton.disabled) {
+                    return;
+                }
+                submitButton.disabled = true;
+                if (submitButton.tagName === 'BUTTON') {
+                    submitButton.textContent = 'Submitting...';
+                }
+            }, 0);
+            return;
+        }
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        queueForm(form);
     }, true);
 
     window.addEventListener('online', function () {

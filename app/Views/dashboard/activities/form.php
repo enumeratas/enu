@@ -110,21 +110,24 @@
                             <textarea class="sk-form-input" id="activityDescription" name="description" rows="3"><?= esc($field('description')) ?></textarea>
                         </div>
                     </div>
-                    <p class="sk-section-divider">Upload requirements</p>
-                    <div class="sk-requirement-checks">
-                        <?php foreach ($requirements as $requirement): ?>
-                            <label>
-                                <input type="checkbox" name="requirements[]" value="<?= esc($requirement) ?>" <?= in_array($requirement, $selectedReqs, true) ? 'checked' : '' ?>>
-                                <?= esc($requirement) ?>
-                            </label>
-                        <?php endforeach; ?>
+                    <?php $cleanupSelected = \App\Models\BarangayActivityModel::isCleanupDrive($field('category'), $field('title')); ?>
+                    <div id="activityRequirementsBlock" <?= $cleanupSelected ? 'hidden' : '' ?>>
+                        <p class="sk-section-divider">Upload requirements</p>
+                        <div class="sk-requirement-checks">
+                            <?php foreach ($requirements as $requirement): ?>
+                                <label>
+                                    <input type="checkbox" name="requirements[]" value="<?= esc($requirement) ?>" <?= in_array($requirement, $selectedReqs, true) ? 'checked' : '' ?>>
+                                    <?= esc($requirement) ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                        <p class="sk-form-hint" style="margin-bottom:16px;">Select documents or photos that residents must upload when they join.</p>
                     </div>
-                    <p class="sk-form-hint" style="margin-bottom:16px;">Select documents or photos that residents must upload when they join.</p>
                     <p class="sk-section-divider">Schedule and venue</p>
-                    <div class="sk-form-row">
+                    <div class="sk-form-row" id="activitySubmissionDates" <?= $cleanupSelected ? 'hidden' : '' ?>>
                         <div>
                             <label class="sk-form-label" for="activityStart">Start date of submission of requirements <span class="sk-required">*</span></label>
-                            <input class="sk-form-input" id="activityStart" name="start_date" type="date" required value="<?= esc($dateValue('start_date')) ?>">
+                            <input class="sk-form-input" id="activityStart" name="start_date" type="date" <?= $cleanupSelected ? '' : 'required' ?> value="<?= esc($dateValue('start_date')) ?>">
                         </div>
                         <div>
                             <label class="sk-form-label" for="activityEnd">End date of submission of requirements</label>
@@ -166,6 +169,7 @@
                             <?php endif; ?>
                         </div>
                     </div>
+                    <p id="activityCleanupNote" class="sk-form-hint" style="margin-bottom:16px;<?= $cleanupSelected ? '' : 'display:none;' ?>">A clean-up drive does not use a requirements submission period. The conducted date is added to the calendar.</p>
                     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;">
                         <a href="<?= esc($base) ?>" class="db-btn db-btn--outline">Cancel</a>
                         <button type="submit" class="db-btn db-btn--primary"><?= $isEdit ? 'Save changes' : 'Create activity' ?></button>
@@ -174,6 +178,40 @@
             </div>
         </div>
     </div>
+    <script>
+        (function () {
+            const category = document.getElementById('activityCategory');
+            const title = document.getElementById('activityTitle');
+            const requirements = document.getElementById('activityRequirementsBlock');
+            const dates = document.getElementById('activitySubmissionDates');
+            const note = document.getElementById('activityCleanupNote');
+            const start = document.getElementById('activityStart');
+            function isCleanup() {
+                const name = (title && title.value || '');
+                return (category && category.value === 'Clean-up Drive') || /clean[\s-]*up\s+drive/i.test(name);
+            }
+            function syncCleanup() {
+                const cleanup = isCleanup();
+                if (requirements) requirements.hidden = cleanup;
+                if (dates) dates.hidden = cleanup;
+                if (note) note.style.display = cleanup ? '' : 'none';
+                if (start) start.required = !cleanup;
+                if (dates) {
+                    dates.querySelectorAll('input').forEach(function (input) {
+                        input.disabled = cleanup;
+                    });
+                }
+                if (requirements) {
+                    requirements.querySelectorAll('input').forEach(function (input) {
+                        input.disabled = cleanup;
+                    });
+                }
+            }
+            category && category.addEventListener('change', syncCleanup);
+            title && title.addEventListener('input', syncCleanup);
+            syncCleanup();
+        })();
+    </script>
 </body>
 
 </html>

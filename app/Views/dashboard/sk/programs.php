@@ -352,12 +352,12 @@
             </div>
 
             <!-- Toolbar -->
-            <form method="get" action="" id="filterForm">
+            <form method="get" action="" id="filterForm" data-live-results="liveResults">
                 <div class="db-toolbar">
                     <div class="db-search-wrap">
                         <i class="fas fa-search"></i>
-                        <input type="text" name="search" placeholder="Search programs..."
-                            value="<?= esc($search) ?>" onchange="this.form.submit()">
+                        <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search programs or dates..."
+                            value="<?= esc($search) ?>">
                     </div>
                     <div class="db-toolbar-actions">
                         <select name="category" class="db-filter-select" onchange="this.form.submit()">
@@ -373,7 +373,7 @@
                             <?php endforeach; ?>
                         </select>
                         <?php if ($search || $catF || $statusF): ?>
-                            <a href="/sk/programs" class="db-btn db-btn--outline"><i class="fas fa-times"></i> Clear</a>
+                            <a href="/<?= esc($role) ?>/programs" class="db-btn db-btn--outline"><i class="fas fa-times"></i> Clear</a>
                         <?php endif; ?>
                         <?php if ($canManage): ?><a href="/<?= esc($role) ?>/programs/new" class="db-btn db-btn--primary">
                                 <i class="fas fa-plus"></i> Add Program
@@ -382,6 +382,7 @@
                 </div>
             </form>
 
+            <div id="liveResults">
             <!-- Table -->
             <div class="db-table-wrap">
                 <table class="db-table" id="programsTable">
@@ -436,7 +437,7 @@
                                     <td><?= $targetParticipants > 0 ? $approvedParticipants . '/' . $targetParticipants : ($approvedParticipants ?: '—') ?></td>
                                     <td>
                                         <?php if ($canManage): ?>
-                                            <form action="/sk/programs/status/<?= (int) $p['id'] ?>" method="post" style="margin:0;">
+                                            <form action="/<?= esc($role) ?>/programs/status/<?= (int) $p['id'] ?>" method="post" style="margin:0;">
                                                 <?= csrf_field() ?>
                                                 <select name="status" class="db-filter-select" style="min-width:108px;padding:5px 8px;font-size:11px;" onchange="this.form.submit()" title="Update program status">
                                                     <?php foreach ($statuses as $status): ?><option value="<?= esc($status) ?>" <?= $p['status'] === $status ? 'selected' : '' ?>><?= esc($status) ?></option><?php endforeach; ?>
@@ -446,7 +447,7 @@
                                     </td>
                                     <td>
                                         <div class="db-action-group">
-                                            <?php if ($canManage): ?><a href="/sk/programs/registrations/<?= $p['id'] ?>"
+                                            <?php if ($canManage): ?><a href="/<?= esc($role) ?>/programs/registrations/<?= $p['id'] ?>"
                                                     class="db-icon-btn" title="View Registrations"
                                                     style="color:#5b6fd6;">
                                                     <i class="fas fa-users"></i>
@@ -454,7 +455,7 @@
                                                 <a href="/<?= esc($role) ?>/programs/edit/<?= (int) $p['id'] ?>" class="db-icon-btn" title="Edit">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
-                                                <form action="/sk/programs/delete/<?= $p['id'] ?>" method="post" style="display:inline;"
+                                                <form action="/<?= esc($role) ?>/programs/delete/<?= $p['id'] ?>" method="post" style="display:inline;"
                                                     onsubmit="return confirm('Delete \'<?= esc(addslashes($p['name'])) ?>\'? This cannot be undone.')">
                                                     <?= csrf_field() ?>
                                                     <button type="submit" class="db-icon-btn" style="color:#dc3545;" title="Delete">
@@ -469,6 +470,7 @@
                         <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
             </div>
 
         </div><!-- /.db-content -->

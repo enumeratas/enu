@@ -30,6 +30,7 @@ $routes->get('/public/blotter/busy-slots', 'BlotterController::busySlots');
 
 // Public concern / inquiry submission
 $routes->post('/public/concern/store',      'ConcernController::storePublic');
+$routes->get('/public/concern/slots',       'ConcernController::slots');
 $routes->post('/api/offline-sync',         'OfflineSyncController::sync');
 $routes->post('/api/offline-sync',         'OfflineSyncController::sync', ['filter' => 'auth']);
 $routes->post('/public/concern/send-otp',   'ConcernController::sendOtp');
@@ -89,6 +90,9 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
 
     // ── Customer Service / Human Support ─────────────────────────────────
     $routes->get('customer-service',                        'UIController::customerService');
+    $routes->get('support-tickets',                         'SupportTicketController::staffIndex');
+    $routes->post('support-tickets/approve/(:num)',         'SupportTicketController::approve/$1');
+    $routes->post('support-tickets/decline/(:num)',         'SupportTicketController::decline/$1');
     $routes->get('chatbot/api/support-conversations',       'ChatbotController::getSupportConversations');
     $routes->get('chatbot/api/support-conversation',        'ChatbotController::getSupportConversation');
     $routes->post('chatbot/api/take-over',                  'ChatbotController::takeOverConversation');
@@ -100,6 +104,7 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
     $routes->post('blotter/status/(:num)',        'BlotterController::updateStatus/$1');
     $routes->post('blotter/summons/(:num)',       'BlotterController::sendSummons/$1');
     $routes->post('blotter/reschedule/(:num)',    'BlotterController::reschedule/$1');
+    $routes->get('blotter/evidence/(:num)/(:num)', 'BlotterController::evidence/$1/$2');
     $routes->get('blotter/letter/(:num)',         'BlotterController::viewLetter/$1');
     $routes->get('blotter/certificate/(:num)',    'BlotterController::viewCertificate/$1');
     $routes->get('settings',                     'UIController::captain_settings');
@@ -150,6 +155,7 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
     $routes->get('notifications/poll',  'AdminNotificationController::poll');
     $routes->post('notifications/read/(:num)', 'NotificationController::markRead/$1');
     $routes->post('notifications/read-all', 'NotificationController::markAllRead');
+    $routes->post('notifications/dismiss-feed', 'NotificationController::dismissFeed');
 
     // Concerns
     $routes->get('concerns',                      'ConcernController::index');
@@ -237,6 +243,9 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
 
     // ── Customer Service / Human Support ─────────────────────────────────
     $routes->get('customer-service',                        'UIController::customerService');
+    $routes->get('support-tickets',                         'SupportTicketController::staffIndex');
+    $routes->post('support-tickets/approve/(:num)',         'SupportTicketController::approve/$1');
+    $routes->post('support-tickets/decline/(:num)',         'SupportTicketController::decline/$1');
     $routes->get('chatbot/api/support-conversations',       'ChatbotController::getSupportConversations');
     $routes->get('chatbot/api/support-conversation',        'ChatbotController::getSupportConversation');
     $routes->post('chatbot/api/take-over',                  'ChatbotController::takeOverConversation');
@@ -253,6 +262,7 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
     $routes->post('blotter/hearing-narrative/(:num)', 'BlotterController::updateHearingNarrative/$1');
     $routes->post('blotter/summons/(:num)', 'BlotterController::sendSummons/$1');
     $routes->post('blotter/reschedule/(:num)', 'BlotterController::reschedule/$1');
+    $routes->get('blotter/evidence/(:num)/(:num)', 'BlotterController::evidence/$1/$2');
     $routes->get('blotter/letter/(:num)',   'BlotterController::viewLetter/$1');
     $routes->get('blotter/certificate/(:num)', 'BlotterController::viewCertificate/$1');
     $routes->get('settings',           'UIController::secretary_settings');
@@ -303,6 +313,7 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
     $routes->get('notifications/poll',  'AdminNotificationController::poll');
     $routes->post('notifications/read/(:num)', 'NotificationController::markRead/$1');
     $routes->post('notifications/read-all', 'NotificationController::markAllRead');
+    $routes->post('notifications/dismiss-feed', 'NotificationController::dismissFeed');
 
     // Concerns
     $routes->get('concerns',                      'ConcernController::index');
@@ -426,6 +437,9 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('chatbot/api/save-log',       'ChatbotController::saveLog');
     $routes->get('chatbot/api/logs',            'ChatbotController::getLogs');
     $routes->get('customer-service',                        'UIController::customerService');
+    $routes->get('support-tickets',                         'SupportTicketController::staffIndex');
+    $routes->post('support-tickets/approve/(:num)',         'SupportTicketController::approve/$1');
+    $routes->post('support-tickets/decline/(:num)',         'SupportTicketController::decline/$1');
     $routes->get('chatbot/api/support-conversations',       'ChatbotController::getSupportConversations');
     $routes->get('chatbot/api/support-conversation',        'ChatbotController::getSupportConversation');
     $routes->post('chatbot/api/take-over',                  'ChatbotController::takeOverConversation');
@@ -441,6 +455,7 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('blotter/hearing-narrative/(:num)', 'BlotterController::updateHearingNarrative/$1');
     $routes->post('blotter/summons/(:num)', 'BlotterController::sendSummons/$1');
     $routes->post('blotter/reschedule/(:num)', 'BlotterController::reschedule/$1');
+    $routes->get('blotter/evidence/(:num)/(:num)', 'BlotterController::evidence/$1/$2');
     $routes->get('blotter/letter/(:num)',   'BlotterController::viewLetter/$1');
     $routes->get('blotter/certificate/(:num)', 'BlotterController::viewCertificate/$1');
     $routes->get('settings',           'UIController::secretary_settings');
@@ -480,6 +495,7 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->get('notifications/poll',  'AdminNotificationController::poll');
     $routes->post('notifications/read/(:num)', 'NotificationController::markRead/$1');
     $routes->post('notifications/read-all', 'NotificationController::markAllRead');
+    $routes->post('notifications/dismiss-feed', 'NotificationController::dismissFeed');
     $routes->get('concerns',                      'ConcernController::index');
     $routes->get('concern/(:num)',                'ConcernController::show/$1');
     $routes->post('concern/schedule/(:num)',      'ConcernController::schedule/$1');
@@ -537,6 +553,7 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('profiling/update/(:num)', 'SkController::update/$1');
     $routes->post('profiling/photo/(:num)',  'SkController::uploadPhoto/$1');
     $routes->post('profiling/delete/(:num)', 'SkController::delete/$1');
+    $routes->post('profiling/schedule',   'SkController::saveProfilingWindow');
     $routes->get('programs',              'SkController::programs');
     $routes->get('programs/new',          'SkController::programForm');
     $routes->get('programs/edit/(:num)',  'SkController::editProgramForm/$1');
@@ -558,6 +575,11 @@ $routes->group('/council', ['filter' => ['auth', 'role:council']], function ($ro
     $routes->get('census', 'UIController::council_census');
     $routes->get('household/(:segment)', 'UIController::council_household/$1');
     $routes->get('programs', 'SkController::programs');
+    $routes->get('activities', 'BarangayActivityController::resident');
+    $routes->post('activities/join/(:num)', 'BarangayActivityController::join/$1');
+    $routes->post('activities/unjoin/(:num)', 'BarangayActivityController::unjoin/$1');
+    $routes->get('census-update', 'CensusController::residentCensusUpdateForm');
+    $routes->post('census-update', 'CensusController::saveResidentCensusUpdate');
     $routes->get('sk-profiling', 'SkController::residentProfilingForm');
     $routes->post('sk-profiling/store', 'SkController::storeResidentProfiling');
     $routes->post('sk-profiling/update/(:num)', 'SkController::update/$1');
@@ -591,6 +613,7 @@ $routes->group('/council', ['filter' => ['auth', 'role:council']], function ($ro
     $routes->get('notifications/poll', 'AdminNotificationController::poll');
     $routes->post('notifications/read/(:num)', 'NotificationController::markRead/$1');
     $routes->post('notifications/read-all', 'NotificationController::markAllRead');
+    $routes->post('notifications/dismiss-feed', 'NotificationController::dismissFeed');
     $routes->post('chatbot/api/chat', 'ChatbotController::chat');
     $routes->post('chatbot/api/save-log', 'ChatbotController::saveLog');
     $routes->get('chatbot/api/logs', 'ChatbotController::getLogs');
@@ -606,6 +629,9 @@ $routes->group('/resident', ['filter' => ['auth', 'role:resident']], function ($
     $routes->post('clearance/cancel/(:num)', 'ClearanceController::cancel/$1');
     $routes->get('profile',       'UIController::resident_profile');
     $routes->get('chatbot',       'UIController::resident_chatbot');
+    $routes->get('support-ticket',                'SupportTicketController::residentForm');
+    $routes->post('support-ticket',               'SupportTicketController::store');
+    $routes->get('support-ticket/live',           'SupportTicketController::live');
     $routes->post('chatbot/api/chat',           'ChatbotController::chat');
     $routes->post('chatbot/api/conversation',   'ChatbotController::newConversation');
     $routes->get('chatbot/api/history',         'ChatbotController::getHistory');
@@ -621,6 +647,7 @@ $routes->group('/resident', ['filter' => ['auth', 'role:resident']], function ($
     $routes->post('notifications/read-all',    'NotificationController::markAllRead');
     $routes->get('concerns',                   'ConcernController::residentForm');
     $routes->post('concerns/store',            'ConcernController::storeResident');
+    $routes->post('concerns/cancel/(:num)',    'ConcernController::cancelOwn/$1');
 
     $routes->get('activities',                        'BarangayActivityController::resident');
     $routes->post('activities/join/(:num)',           'BarangayActivityController::join/$1');
@@ -662,6 +689,16 @@ $routes->group('/sk', ['filter' => ['auth', 'role:sk']], function ($routes) use 
     $routes->post('profiling/update/(:num)', 'SkController::update/$1');
     $routes->post('profiling/photo/(:num)',  'SkController::uploadPhoto/$1');
     $routes->post('profiling/delete/(:num)', 'SkController::delete/$1');
+    $routes->post('profiling/schedule',   'SkController::saveProfilingWindow');
+
+    $routes->get('activities',                              'BarangayActivityController::index');
+    $routes->get('activities/new',                          'BarangayActivityController::create');
+    $routes->get('activities/edit/(:num)',                  'BarangayActivityController::edit/$1');
+    $routes->post('activities/store',                       'BarangayActivityController::store');
+    $routes->post('activities/update/(:num)',               'BarangayActivityController::update/$1');
+    $routes->post('activities/delete/(:num)',               'BarangayActivityController::delete/$1');
+    $routes->get('activities/registrations/(:num)',         'BarangayActivityController::registrations/$1');
+    $routes->post('activities/registrations/update/(:num)', 'BarangayActivityController::updateRegistration/$1');
 
     $routes->get('programs',              'SkController::programs');
     $routes->get('programs/new',          'SkController::programForm');
@@ -689,6 +726,7 @@ $routes->group('/sk', ['filter' => ['auth', 'role:sk']], function ($routes) use 
     $routes->post('blotter/store',               'BlotterController::store');
     $routes->get('concerns',                     'ConcernController::skForm');
     $routes->post('concerns/store',              'ConcernController::storeSk');
+    $routes->post('concerns/cancel/(:num)',      'ConcernController::cancelOwn/$1');
 
     // Settings — password change via OTP
     $routes->post('settings/request-otp',     'SettingsController::requestPasswordOtp');
@@ -702,6 +740,7 @@ $routes->group('/sk', ['filter' => ['auth', 'role:sk']], function ($routes) use 
     $routes->get('notifications/poll', 'AdminNotificationController::poll');
     $routes->post('notifications/read/(:num)', 'NotificationController::markRead/$1');
     $routes->post('notifications/read-all', 'NotificationController::markAllRead');
+    $routes->post('notifications/dismiss-feed', 'NotificationController::dismissFeed');
 
     $routes->get('test-env', 'TestEnv::index');
     $routes->get('test-openrouter', 'ChatbotController::testOpenRouter');

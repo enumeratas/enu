@@ -61,6 +61,29 @@
                 </div>
             <?php endif; ?>
 
+            <?php
+            $profilingOpen = is_string($profilingOpen ?? null) ? $profilingOpen : '';
+            $profilingClose = is_string($profilingClose ?? null) ? $profilingClose : '';
+            $scheduleRole = session()->get('role');
+            $scheduleRole = is_string($scheduleRole) && in_array($scheduleRole, ['sk', 'admin'], true) ? $scheduleRole : 'sk';
+            ?>
+            <div style="background:#fff;border:1px solid #e2e5ef;border-radius:10px;padding:16px 18px;margin-bottom:18px;">
+                <h3 style="margin:0 0 6px;font-size:14px;color:#1d2448;"><i class="fas fa-calendar-check"></i> When residents can open SK Profiling</h3>
+                <p style="margin:0 0 12px;font-size:12px;color:#6b7689;">Residents and council members can open the profiling form only between these dates.</p>
+                <form method="post" action="/<?= esc($scheduleRole) ?>/profiling/schedule" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+                    <?= csrf_field() ?>
+                    <div>
+                        <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Opens</label>
+                        <input type="date" name="profiling_open" required value="<?= esc($profilingOpen) ?>" style="padding:8px 10px;border:1.5px solid #e5e7eb;">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;">Closes</label>
+                        <input type="date" name="profiling_close" required value="<?= esc($profilingClose) ?>" style="padding:8px 10px;border:1.5px solid #e5e7eb;">
+                    </div>
+                    <button type="submit" class="db-btn db-btn--primary">Save dates</button>
+                </form>
+            </div>
+
             <!-- Stats -->
             <div class="db-stats db-stats--five" style="margin-bottom:24px;">
                 <div class="db-stat-card">
@@ -86,13 +109,12 @@
             </div>
 
             <!-- Toolbar + Filter Form -->
-            <form method="get" action="" id="filterForm">
+            <form method="get" action="" id="filterForm" data-live-results="liveResults">
                 <div class="db-toolbar">
                     <div class="db-search-wrap">
                         <i class="fas fa-search"></i>
-                        <input type="text" name="search" placeholder="Search by name or contact..."
-                            value="<?= esc($search) ?>"
-                            onchange="document.getElementById('filterForm').submit()">
+                        <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search by name, contact, or birth date..."
+                            value="<?= esc($search) ?>">
                     </div>
                     <div class="db-toolbar-actions">
                         <a href="/sk/profiling/add" class="db-btn db-btn--primary">
@@ -204,6 +226,7 @@
                 </div>
             </form>
 
+            <div id="liveResults">
             <!-- Table -->
             <div class="db-table-wrap">
                 <table class="db-table" id="youthTable">
@@ -298,6 +321,7 @@
                     </div>
                 </div>
             <?php endif; ?>
+            </div>
 
         </div>
     </div>

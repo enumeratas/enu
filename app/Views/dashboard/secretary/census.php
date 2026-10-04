@@ -18,8 +18,22 @@
     <div class="db-main">
         <?php include(APPPATH . 'Views/dashboard/topbar.php'); ?>
         <div class="db-content">
-            <?php $filters = $filters ?? [];
-            $censusYears = $censusYears ?? []; ?>
+            <?php
+            $filters = (isset($filters) && is_array($filters)) ? $filters : [];
+            $censusYears = (isset($censusYears) && is_array($censusYears)) ? $censusYears : [];
+            $totalHouseholds = (isset($totalHouseholds) && is_numeric($totalHouseholds)) ? (int) $totalHouseholds : 0;
+            $totalPopulation = (isset($totalPopulation) && is_numeric($totalPopulation)) ? (int) $totalPopulation : 0;
+            $totalMale = (isset($totalMale) && is_numeric($totalMale)) ? (int) $totalMale : 0;
+            $totalFemale = (isset($totalFemale) && is_numeric($totalFemale)) ? (int) $totalFemale : 0;
+            $outOfSchoolYouth = (isset($outOfSchoolYouth) && is_numeric($outOfSchoolYouth)) ? (int) $outOfSchoolYouth : 0;
+            $pwds = (isset($pwds) && is_numeric($pwds)) ? (int) $pwds : 0;
+            $fourPs = (isset($fourPs) && is_numeric($fourPs)) ? (int) $fourPs : 0;
+            $seniors = (isset($seniors) && is_numeric($seniors)) ? (int) $seniors : 0;
+            $soloParent = (isset($soloParent) && is_numeric($soloParent)) ? (int) $soloParent : 0;
+            $filteredTotal = (isset($filteredTotal) && is_numeric($filteredTotal)) ? (int) $filteredTotal : 0;
+            $perPage = (isset($perPage) && is_numeric($perPage) && (int) $perPage > 0) ? (int) $perPage : 15;
+            $currentPage = (isset($currentPage) && is_numeric($currentPage) && (int) $currentPage > 0) ? (int) $currentPage : 1;
+            ?>
 
             <!-- Census Year selector — prominent above the toolbar -->
             <?php $selectedYear = $filters['census_year'] ?? ''; ?>
@@ -57,13 +71,13 @@
             </div>
 
             <!-- Toolbar + Filter Form -->
-            <form method="get" action="" id="filterForm">
+            <form method="get" action="" id="filterForm" data-live-results="censusResults">
                 <div class="db-toolbar">
                     <div class="db-search-wrap">
                         <i class="fas fa-search"></i>
-                        <input type="text" name="search" placeholder="Search by name or household #..."
+                        <input type="text" id="censusSearch" name="search" data-live-query placeholder="Search by name, household #, or birth date..."
                             value="<?= esc($filters['search'] ?? '') ?>"
-                            onchange="document.getElementById('filterForm').submit()">
+                            autocomplete="off">
                     </div>
                     <div class="db-toolbar-actions">
                         <button class="db-btn db-btn--primary" type="button"
@@ -473,6 +487,7 @@
                 </script>
             <?php endif; ?>
 
+            <div id="censusResults">
             <!-- Table -->
             <?php
             $persons          = $persons          ?? [];
@@ -536,13 +551,32 @@
                                         <td><span class="hh-rel-badge" style="<?= $isHead ? 'background:#eef0fb;color:#1d2448;' : '' ?>"><?= esc(ucfirst($p['relationship'])) ?></span></td>
                                         <td><?= $dob ?></td>
                                         <td><?= $age ?></td>
-                                        <td><?= esc($p['occupation'] ?? '—') ?></td>
+                                        <td><?php
+                                            $occText = trim((string) ($p['occupation'] ?? ''));
+                                            $workText = trim((string) ($p['work_detail'] ?? ''));
+                                            $gradeText = trim((string) ($p['grade_level'] ?? ''));
+                                            if ($workText !== '' && stripos($occText, $workText) === false) {
+                                                $occText = trim($occText . ' — ' . $workText);
+                                            }
+                                            if ($gradeText !== '') {
+                                                $occText = trim($occText . ($occText !== '' ? ' · ' : '') . $gradeText);
+                                            }
+                                            echo esc($occText !== '' ? $occText : '—');
+                                        ?></td>
                                         <td><?= $inc ?></td>
                                         <td><?= esc($p['zone'] ?? '—') ?></td>
                                         <td>
                                             <?php if ($isHead): ?>
-                                                <?php $approvalStatus = $p['approval_status'] ?? 'approved'; ?>
-                                                <span class="db-badge <?= $approvalStatus === 'approved' ? 'db-badge--approved' : 'db-badge--pending' ?>"><?= esc(ucfirst($approvalStatus)) ?></span>
+                                                <?php
+                                                $approvalStatus = $p['approval_status'] ?? 'approved';
+                                                $isDraft = ($p['record_status'] ?? 'complete') === 'draft';
+                                                ?>
+                                                <?php if ($isDraft): ?>
+                                                    <span class="db-badge db-badge--pending">Draft</span>
+                                                <?php endif; ?>
+                                                <?php if ($approvalStatus !== 'approved' || ! $isDraft): ?>
+                                                    <span class="db-badge <?= $approvalStatus === 'approved' ? 'db-badge--approved' : 'db-badge--pending' ?>"><?= esc(ucfirst($approvalStatus)) ?></span>
+                                                <?php endif; ?>
                                                 <?php else: ?>—<?php endif; ?>
                                         </td>
                                         <td><?php if ($isHead): ?><div class="db-action-group"><a href="/<?= $roleVal ?>/household/<?= esc($p['household_no']) ?>" class="db-icon-btn db-icon-btn--view"><i class="fas fa-eye"></i></a>
@@ -597,10 +631,18 @@
                                         <td><?= esc($h['civil_status']) ?></td>
                                         <td><?= esc($h['contact_number'] ?? '—') ?></td>
                                         <td>
-                                            <?php $approvalStatus = $h['approval_status'] ?? 'approved'; ?>
-                                            <span class="db-badge <?= $approvalStatus === 'approved' ? 'db-badge--approved' : ($approvalStatus === 'pending' ? 'db-badge--pending' : 'db-badge--danger') ?>">
-                                                <?= esc(ucfirst($approvalStatus)) ?>
-                                            </span>
+                                            <?php
+                                            $approvalStatus = $h['approval_status'] ?? 'approved';
+                                            $isDraft = ($h['record_status'] ?? 'complete') === 'draft';
+                                            ?>
+                                            <?php if ($isDraft): ?>
+                                                <span class="db-badge db-badge--pending">Draft</span>
+                                            <?php endif; ?>
+                                            <?php if ($approvalStatus !== 'approved' || ! $isDraft): ?>
+                                                <span class="db-badge <?= $approvalStatus === 'approved' ? 'db-badge--approved' : ($approvalStatus === 'pending' ? 'db-badge--pending' : 'db-badge--danger') ?>">
+                                                    <?= esc(ucfirst($approvalStatus)) ?>
+                                                </span>
+                                            <?php endif; ?>
                                         </td>
                                         <td>
                                             <div class="db-action-group">
@@ -649,16 +691,10 @@
                     No households match the current filters. <a href="?" style="color:#1d2448;font-weight:600;">Clear filters</a>
                 </div>
             <?php endif; ?>
+            </div>
         </div>
     </div>
     <script>
-        function filterTable() {
-            const q = document.getElementById('searchInput').value.toLowerCase();
-            document.querySelectorAll('#censusTable tbody tr').forEach(row => {
-                row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
-            });
-        }
-
         function toggleFilters() {
             const panel = document.getElementById('filterPanel');
             panel.style.display = panel.style.display === 'none' ? '' : 'none';

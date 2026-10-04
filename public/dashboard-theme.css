@@ -106,10 +106,22 @@
     border-radius: 0 !important;
 }
 
-:is(.db-body, .bis-dash) .db-nav-item:hover,
-:is(.db-body, .bis-dash) .db-nav-item.active {
+:is(.db-body, .bis-dash) .db-nav-item:hover {
     background: #f4f6f9 !important;
     color: #16325c !important;
+}
+
+:is(.db-body, .bis-dash) .db-nav-item.active,
+:is(.db-body, .bis-dash) .db-nav-item.active:hover {
+    background: #16325c !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    box-shadow: inset 3px 0 0 #e0b32a;
+}
+
+:is(.db-body, .bis-dash) .db-nav-item.active i,
+:is(.db-body, .bis-dash) .db-nav-item.active:hover i {
+    color: #e0b32a !important;
 }
 
 :is(.db-body, .bis-dash) .db-nav-section-title {
@@ -418,6 +430,11 @@
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
+}
+
+:is(.db-body, .bis-dash) .db-notif-count.is-empty,
+:is(.db-body, .bis-dash) .db-notif-count[hidden] {
+    display: none !important;
 }
 
 :is(.db-body, .bis-dash) .db-notif-count {

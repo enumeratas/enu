@@ -567,13 +567,15 @@
                                             </div>
 
                                             <div class="rl-drawer-field-wrap" style="margin-bottom:12px;">
-                                                <label class="cr-action-label">Appointment Time <span style="font-size:11px;color:#b0b6cc;font-weight:400;">(optional)</span></label>
-                                                <input type="time" name="appointment_time"
+                                                <label class="cr-action-label">Appointment Time <span style="color:#c0392b;">*</span></label>
+                                                <select name="appointment_time"
                                                     id="scheduleAppointmentTime"
                                                     class="cr-textarea"
-                                                    style="min-height:unset;padding:10px 12px;resize:none;font-size:13px;"
-                                                    value="<?= esc($c['appointment_time'] ?? '') ?>"
-                                                    min="08:00" max="17:00">
+                                                    data-current="<?= ! empty($c['appointment_time']) ? esc(date('H:i', strtotime((string) $c['appointment_time']))) : '' ?>"
+                                                    style="min-height:unset;padding:10px 12px;font-size:13px;"
+                                                    disabled>
+                                                    <option value="">Select a date first</option>
+                                                </select>
                                                 <p id="scheduleAvailability" class="cr-hint" style="margin-top:6px;"></p>
                                             </div>
 
@@ -673,13 +675,15 @@
                                             </div>
 
                                             <div class="rl-drawer-field-wrap" style="margin-bottom:12px;">
-                                                <label class="cr-action-label">New Appointment Time <span style="font-size:11px;color:#b0b6cc;font-weight:400;">(optional)</span></label>
-                                                <input type="time" name="appointment_time"
+                                                <label class="cr-action-label">New Appointment Time <span style="color:#c0392b;">*</span></label>
+                                                <select name="appointment_time"
                                                     id="rescheduleAppointmentTime"
                                                     class="cr-textarea"
-                                                    style="min-height:unset;padding:10px 12px;resize:none;font-size:13px;"
-                                                    value="<?= esc($c['appointment_time'] ?? '') ?>"
-                                                    min="08:00" max="17:00">
+                                                    data-current="<?= ! empty($c['appointment_time']) ? esc(date('H:i', strtotime((string) $c['appointment_time']))) : '' ?>"
+                                                    style="min-height:unset;padding:10px 12px;font-size:13px;"
+                                                    disabled>
+                                                    <option value="">Select a date first</option>
+                                                </select>
                                                 <p id="rescheduleAvailability" class="cr-hint" style="margin-top:6px;"></p>
                                             </div>
 
@@ -734,6 +738,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="/js/appointment-slots.js?v=2"></script>
     <script>
         let _pendingAction = null;
 
@@ -832,99 +837,29 @@
             }
         }
 
-        function checkAppointmentAvailability(dateId, timeId, messageId, excludeScheduleId = 0) {
-            const dateInput = document.getElementById(dateId);
-            const timeInput = document.getElementById(timeId);
-            const date = dateInput?.value;
-            const time = timeInput?.value;
-            const message = document.getElementById(messageId);
-            const form = timeInput?.closest('form');
-            const submitButton = form?.querySelector('button[type="submit"]');
-            if (!message || !date) {
-                if (message) message.textContent = '';
-                dateInput?.classList.remove('cr-slot-unavailable');
-                timeInput?.classList.remove('cr-slot-unavailable');
-                if (submitButton) submitButton.disabled = false;
-                return;
-            }
-
-            if (!time) {
-                message.textContent = 'Select a time to check whether this appointment slot is available.';
-                message.style.color = '#9aa0b4';
-                dateInput.classList.remove('cr-slot-unavailable');
-                timeInput.classList.remove('cr-slot-unavailable');
-                if (submitButton) submitButton.disabled = false;
-                return;
-            }
-
-            const params = new URLSearchParams({
-                date,
-                time
-            });
-            if (excludeScheduleId) params.set('exclude_schedule_id', excludeScheduleId);
-            fetch('/<?= esc($role) ?>/concern/availability?' + params.toString())
-                .then(response => response.json())
-                .then(data => {
-                    message.textContent = data.message || '';
-                    const available = data.available === true;
-                    message.style.color = available ? '#0e9464' : '#c0392b';
-                    dateInput.classList.toggle('cr-slot-unavailable', !available);
-                    timeInput.classList.toggle('cr-slot-unavailable', !available);
-                    if (submitButton) submitButton.disabled = !available;
-                })
-                .catch(() => {
-                    message.textContent = 'Availability could not be checked. The server will validate the slot when saved.';
-                    message.style.color = '#9aa0b4';
-                    dateInput.classList.remove('cr-slot-unavailable');
-                    timeInput.classList.remove('cr-slot-unavailable');
-                    if (submitButton) submitButton.disabled = false;
-                });
-        }
-
-        function initializeAppointmentDatePicker(dateId, excludeScheduleId = 0) {
-            const dateInput = document.getElementById(dateId);
-            if (!dateInput || typeof flatpickr !== 'function') return;
-
-            const params = new URLSearchParams();
-            if (excludeScheduleId) params.set('exclude_schedule_id', excludeScheduleId);
-
-            fetch('/<?= esc($role) ?>/concern/unavailable-dates?' + params.toString())
-                .then(response => response.json())
-                .then(data => {
-                    flatpickr(dateInput, {
-                        dateFormat: 'Y-m-d',
-                        minDate: '<?= date('Y-m-d', strtotime('+1 day')) ?>',
-                        disable: data.dates || [],
-                        onChange: () => dateInput.dispatchEvent(new Event('change'))
-                    });
-                })
-                .catch(() => {
-                    flatpickr(dateInput, {
-                        dateFormat: 'Y-m-d',
-                        minDate: '<?= date('Y-m-d', strtotime('+1 day')) ?>',
-                        onChange: () => dateInput.dispatchEvent(new Event('change'))
-                    });
-                });
-        }
-
         [
             ['scheduleAppointmentDate', 'scheduleAppointmentTime', 'scheduleAvailability', <?= (int) ($c['schedule_id'] ?? 0) ?>],
             ['rescheduleAppointmentDate', 'rescheduleAppointmentTime', 'rescheduleAvailability', <?= (int) ($c['schedule_id'] ?? 0) ?>]
         ].forEach(([dateId, timeId, messageId, excludeScheduleId]) => {
             const dateInput = document.getElementById(dateId);
             const timeInput = document.getElementById(timeId);
-            if (!dateInput || !timeInput) return;
-            const check = () => checkAppointmentAvailability(dateId, timeId, messageId, excludeScheduleId);
-            dateInput.addEventListener('change', check);
-            timeInput.addEventListener('change', check);
+            if (!dateInput || !timeInput || !window.BISAppointmentSlots) return;
+            BISAppointmentSlots.bind(dateInput, timeInput, {
+                minDate: '<?= date('Y-m-d', strtotime('+1 day')) ?>',
+                message: document.getElementById(messageId),
+                excludeScheduleId: excludeScheduleId,
+                excludeConcernId: <?= (int) ($c['id'] ?? 0) ?>
+            });
             timeInput.closest('form')?.addEventListener('submit', event => {
-                const submitButton = event.currentTarget.querySelector('button[type="submit"]');
-                if (submitButton?.disabled) {
+                if (dateInput.value && !timeInput.value) {
                     event.preventDefault();
+                    const message = document.getElementById(messageId);
+                    if (message) {
+                        message.textContent = 'Choose an open time for that date.';
+                        message.style.color = '#c0392b';
+                    }
                 }
             });
-            initializeAppointmentDatePicker(dateId, excludeScheduleId);
-            check();
         });
     </script>
 </body>

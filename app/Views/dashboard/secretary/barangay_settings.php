@@ -12,8 +12,8 @@
 
 <body class="db-body">
     <?php
-    $role      = 'secretary';
-    $active    = 'clearance';
+    $role      = session()->get('role') === 'admin' ? 'admin' : 'secretary';
+    $active    = 'barangay_settings';
     $pageTitle = 'Barangay Settings';
     $savedSettings = (new \App\Models\BarangaySettingsModel())->getAll();
     $captainName = $savedSettings['captain_name'] ?? '';
@@ -41,7 +41,7 @@
             <?php endif; ?>
 
             <div style="margin-bottom:20px;">
-                <a href="<?= site_url('secretary/clearance') ?>" class="db-btn db-btn--outline" style="display:inline-flex;align-items:center;gap:8px;">
+                <a href="<?= site_url($role . '/clearance') ?>" class="db-btn db-btn--outline" style="display:inline-flex;align-items:center;gap:8px;">
                     <i class="fas fa-arrow-left"></i> Back to Templates
                 </a>
             </div>
@@ -75,14 +75,14 @@
                     </div>
                 </div>
 
-                <form method="post" action="<?= site_url('secretary/barangay-settings/save') ?>">
+                <form method="post" action="<?= site_url($role . '/barangay-settings/save') ?>">
                     <?= csrf_field() ?>
 
                     <?php
                     $groupLabels = [
                         'identity' => ['icon' => 'fa-landmark',   'title' => 'Barangay Identity',   'desc' => 'Name, location, and header text used on document letterheads.'],
                         'officials' => ['icon' => 'fa-user-tie',    'title' => 'Barangay Officials',  'desc' => 'Names displayed on document signatures.'],
-                        'fees'     => ['icon' => 'fa-peso-sign',   'title' => 'Document Fees',       'desc' => 'Default fees shown to residents when requesting documents.'],
+                        'fees'     => ['icon' => 'fa-peso-sign',   'title' => 'Document Fees',       'desc' => 'These amounts appear on the resident request form and on the document preview. Enter 100 or ₱100.00, or Free when there is no charge.'],
                     ];
 
                     foreach ($settingsGrouped as $group => $rows):

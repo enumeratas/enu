@@ -140,6 +140,13 @@
                 </form>
             </div>
 
+            <form method="get" data-live-results="liveResults" style="margin-bottom:16px;">
+                <div class="db-search-wrap">
+                    <i class="fas fa-search"></i>
+                    <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search notice or date..." value="<?= esc($search ?? '') ?>">
+                </div>
+            </form>
+            <div id="liveResults">
             <div class="db-table-wrap">
                 <table class="db-table">
                     <thead>
@@ -155,7 +162,7 @@
                         <?php if ($drives === []): ?>
                             <tr>
                                 <td colspan="5" style="text-align:center;color:#6b7689;padding:28px 16px;">
-                                    No census update drives have been sent yet.
+                                    <?= ($search ?? '') !== '' ? 'No notices match your search.' : 'No census update drives have been sent yet.' ?>
                                 </td>
                             </tr>
                         <?php else: ?>
@@ -188,6 +195,7 @@
                         <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
             </div>
         </div>
     </div>

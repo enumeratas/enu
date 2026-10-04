@@ -342,6 +342,144 @@
         .resident-assistant .gpt-bubble p { margin: 0 0 8px; }
         .resident-assistant .gpt-bubble p:last-child { margin-bottom: 0; }
 
+        .resident-assistant .gpt-ticket-link {
+            display: inline-flex;
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: #16325c;
+            color: #fff;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .resident-assistant .gpt-live {
+            margin: 0 16px;
+            padding: 14px 0 0;
+            background: transparent;
+            color: #1c2b45;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .resident-assistant .gpt-live[hidden],
+        .resident-assistant .gpt-live-notice[hidden] {
+            display: none;
+        }
+
+        .resident-assistant.is-history-collapsed .gpt-live {
+            padding-left: 52px;
+        }
+
+        .resident-assistant.is-history-collapsed .gpt-live-notice {
+            margin-left: 56px;
+            width: calc(100% - 72px);
+        }
+
+        .resident-assistant .gpt-live strong {
+            display: block;
+            font-size: 16px;
+            font-weight: 600;
+            line-height: 1.3;
+            color: #1c2b45;
+        }
+
+        .resident-assistant .gpt-live span {
+            display: block;
+            margin-top: 2px;
+            color: #667085;
+            font-size: 13px;
+        }
+
+        .resident-assistant .gpt-live-notice {
+            width: calc(100% - 32px);
+            margin: 12px 16px 0;
+            padding: 12px 14px;
+            border: 1px solid #e4e9f2;
+            border-left: 4px solid #e0b32a;
+            background: #fff;
+            color: #1c2b45;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-family: inherit;
+            text-align: left;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .resident-assistant .gpt-live-notice:hover {
+            background: #f7f9fc;
+        }
+
+        .resident-assistant .gpt-live-notice-mark {
+            width: 36px;
+            height: 36px;
+            flex: 0 0 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #16325c;
+            color: #e0b32a;
+            font-size: 14px;
+        }
+
+        .resident-assistant .gpt-live-notice-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .resident-assistant .gpt-live-notice-copy strong {
+            color: #16325c;
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        .resident-assistant .gpt-live-notice-copy span {
+            color: #667085;
+            font-size: 13px;
+            font-weight: 500;
+            line-height: 1.4;
+        }
+
+        .resident-assistant .gpt-live-notice-action {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #16325c;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .resident-assistant .gpt-row.staff .gpt-bubble {
+            background: #eef3fb;
+            border: 1px solid #d5e0f0;
+            border-radius: 18px;
+            padding: 10px 14px;
+        }
+
+        .resident-assistant .gpt-staff-label {
+            display: block;
+            margin-bottom: 4px;
+            color: #16325c;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .03em;
+            text-transform: uppercase;
+        }
+
+        .resident-assistant.is-live .gpt-empty {
+            display: none;
+        }
+
         .resident-assistant .gpt-typing {
             display: flex;
             gap: 5px;
@@ -518,6 +656,15 @@
                 top: 8px;
                 z-index: 6;
             }
+
+            .resident-assistant .gpt-live-notice {
+                align-items: flex-start;
+                flex-wrap: wrap;
+            }
+
+            .resident-assistant .gpt-live-notice-action {
+                margin-left: 48px;
+            }
         }
     </style>
 </head>
@@ -555,6 +702,20 @@
                 <div class="gpt-main">
                 <button class="gpt-expand" id="gptExpand" type="button" aria-label="Show chat history">
                     <i class="fas fa-chevron-right"></i>
+                </button>
+                <div class="gpt-live" id="gptLive" hidden>
+                    <div>
+                        <strong id="gptLiveTitle">Live conversation</strong>
+                        <span id="gptLiveSub"></span>
+                    </div>
+                </div>
+                <button class="gpt-live-notice" id="gptLiveNotice" type="button" hidden>
+                    <span class="gpt-live-notice-mark" aria-hidden="true"><i class="fas fa-check"></i></span>
+                    <span class="gpt-live-notice-copy">
+                        <strong>Ticket approved</strong>
+                        <span>The <span id="gptLiveNoticeRole">Barangay staff</span> approved your ticket.</span>
+                    </span>
+                    <span class="gpt-live-notice-action">Open live conversation <i class="fas fa-arrow-right" aria-hidden="true"></i></span>
                 </button>
                 <div class="gpt-scroll" id="gptScroll">
                     <div class="gpt-empty" id="gptEmpty">
@@ -599,8 +760,18 @@
         const sendBtn = document.getElementById('gptSend');
         const form = document.getElementById('gptForm');
         const savedChatKey = 'bisResidentChatId';
+        const liveBanner = document.getElementById('gptLive');
+        const liveTitle = document.getElementById('gptLiveTitle');
+        const liveSub = document.getElementById('gptLiveSub');
+        const liveNotice = document.getElementById('gptLiveNotice');
+        const liveNoticeRole = document.getElementById('gptLiveNoticeRole');
+        const assistant = document.querySelector('.resident-assistant');
         let conversationId = null;
         let sending = false;
+        let pinnedConversation = false;
+        let liveConversationId = 0;
+        let liveLabel = '';
+        let lastLiveMessageId = 0;
 
         function rememberChat(id) {
             if (id) {
@@ -624,19 +795,26 @@
             box.scrollTop = box.scrollHeight;
         }
 
-        function addMessage(text, isUser) {
+        function addMessage(text, sender) {
+            const kind = sender === true ? 'user' : (sender === false ? 'assistant' : String(sender || 'assistant'));
             showEmpty(false);
             const row = document.createElement('div');
-            row.className = 'gpt-row' + (isUser ? ' user' : '');
-            if (!isUser) {
+            row.className = 'gpt-row' + (kind === 'user' ? ' user' : (kind === 'staff' ? ' staff' : ''));
+            if (kind !== 'user') {
                 const avatar = document.createElement('div');
                 avatar.className = 'gpt-avatar';
-                avatar.innerHTML = '<i class="fas fa-robot"></i>';
+                avatar.innerHTML = kind === 'staff' ? '<i class="fas fa-headset"></i>' : '<i class="fas fa-robot"></i>';
                 row.appendChild(avatar);
             }
             const bubble = document.createElement('div');
             bubble.className = 'gpt-bubble';
-            if (isUser) {
+            if (kind === 'staff') {
+                const label = document.createElement('span');
+                label.className = 'gpt-staff-label';
+                label.textContent = liveLabel || 'Barangay staff';
+                bubble.appendChild(label);
+                bubble.appendChild(document.createTextNode(text));
+            } else if (kind === 'user') {
                 bubble.textContent = text;
             } else {
                 bubble.innerHTML = text;
@@ -685,9 +863,82 @@
             thread.innerHTML = '';
             (messages || []).forEach(function (item) {
                 const sender = String(item.sender || '').toLowerCase();
-                addMessage(item.message || '', sender === 'user' || sender === 'resident');
+                const kind = (sender === 'user' || sender === 'resident') ? 'user' : (sender === 'staff' ? 'staff' : 'assistant');
+                addMessage(item.message || '', kind);
             });
-            if ((messages || []).length === 0) showEmpty(true);
+            if ((messages || []).length === 0 && liveConversationId === 0) showEmpty(true);
+            const last = (messages || [])[(messages || []).length - 1];
+            lastLiveMessageId = last ? Number(last.id || 0) : 0;
+        }
+
+        function showLiveChrome(label, title) {
+            liveLabel = label || 'Barangay staff';
+            assistant.classList.add('is-live');
+            liveBanner.hidden = false;
+            liveNotice.hidden = true;
+            liveTitle.textContent = 'Live conversation with the ' + liveLabel;
+            liveSub.textContent = title ? title : 'Messages here go directly to that office.';
+            input.placeholder = 'Message the ' + liveLabel;
+        }
+
+        function hideLiveChrome() {
+            assistant.classList.remove('is-live');
+            liveBanner.hidden = true;
+            liveNotice.hidden = true;
+            liveConversationId = 0;
+            liveLabel = '';
+            input.placeholder = 'Message BIS Assistant';
+        }
+
+        async function openLiveConversation(data) {
+            liveConversationId = Number(data.conversation_id || 0);
+            conversationId = liveConversationId;
+            rememberChat(conversationId);
+            showLiveChrome(data.staff_label, data.title);
+            if (!sending) {
+                showMessages(data.messages || []);
+            }
+            loadHistory(false);
+        }
+
+        async function checkLiveDesk() {
+            try {
+                const response = await fetch('/resident/support-ticket/live?_=' + Date.now(), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                    cache: 'no-store'
+                });
+                const data = await response.json();
+                if (!data || data.live !== true) {
+                    if (liveConversationId > 0 && Number(conversationId) === liveConversationId) {
+                        hideLiveChrome();
+                    }
+                    return;
+                }
+                const incomingId = Number(data.conversation_id || 0);
+                const last = (data.messages || [])[(data.messages || []).length - 1];
+                const incomingLast = last ? Number(last.id || 0) : 0;
+                if (Number(conversationId) === incomingId) {
+                    showLiveChrome(data.staff_label, data.title);
+                    liveConversationId = incomingId;
+                    if (!sending && incomingLast !== lastLiveMessageId) {
+                        showMessages(data.messages || []);
+                    }
+                    return;
+                }
+                if (!pinnedConversation) {
+                    await openLiveConversation(data);
+                    return;
+                }
+                liveNotice.hidden = false;
+                if (liveNoticeRole) liveNoticeRole.textContent = data.staff_label || 'Barangay staff';
+                liveNotice.onclick = function () {
+                    pinnedConversation = false;
+                    openLiveConversation(data);
+                };
+            } catch (error) {
+                return;
+            }
         }
 
         async function loadHistory(openActive) {
@@ -725,9 +976,17 @@
             });
             const data = await response.json();
             if (!data || data.success !== true) return;
+            pinnedConversation = true;
             conversationId = Number(id);
             rememberChat(conversationId);
             showMessages(data.messages || []);
+            if (String(data.support_mode || '') === 'human') {
+                const staffRole = String((data.conversation && data.conversation.assigned_role) || '');
+                showLiveChrome(staffRole === 'admin' ? 'Barangay Admin' : (staffRole === 'secretary' ? 'Barangay Secretary' : 'Barangay staff'), data.conversation && data.conversation.title);
+                liveConversationId = conversationId;
+            } else if (liveConversationId !== conversationId) {
+                hideLiveChrome();
+            }
             const history = await fetch('/resident/chatbot/api/history?_=' + Date.now(), {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
@@ -738,6 +997,8 @@
         }
 
         async function startNewChat() {
+            pinnedConversation = true;
+            hideLiveChrome();
             if (conversationId && thread.childElementCount === 0) {
                 showEmpty(true);
                 closePhoneHistory();
@@ -797,10 +1058,14 @@
                     conversationId = Number(data.conversation_id);
                     rememberChat(conversationId);
                 }
-                addMessage(
-                    (data && data.response) ? data.response : 'Sorry, I could not answer that. Please try again.',
-                    false
-                );
+                if (data && data.support_mode === 'human' && !data.response) {
+                    await checkLiveDesk();
+                } else {
+                    addMessage(
+                        (data && data.response) ? data.response : 'Sorry, I could not answer that. Please try again.',
+                        false
+                    );
+                }
                 loadHistory(false);
             } catch (error) {
                 setTyping(false);
@@ -814,7 +1079,6 @@
 
         document.getElementById('gptNew').addEventListener('click', startNewChat);
         document.getElementById('gptNewSide').addEventListener('click', startNewChat);
-        const assistant = document.querySelector('.resident-assistant');
         const historyBackdrop = document.getElementById('gptSideBackdrop');
         function closePhoneHistory() {
             side.classList.remove('open');
@@ -889,6 +1153,7 @@
         });
 
         loadHistory(true).then(function () {
+            checkLiveDesk();
             const starter = new URLSearchParams(window.location.search).get('q');
             if (starter) {
                 history.replaceState({}, '', window.location.pathname);
@@ -897,6 +1162,7 @@
             }
             input.focus();
         });
+        window.setInterval(checkLiveDesk, 4000);
     </script>
 </body>
 

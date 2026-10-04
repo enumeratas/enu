@@ -160,6 +160,20 @@ class HouseholdMoveController extends BaseController
             $replacementHead = null;
         }
 
+        $designated = $this->resolveDesignatedHead(
+            trim((string) ($post['designated_head'] ?? '')),
+            $includeHead,
+            $memberIds,
+            $destinationType,
+            $sourceHousehold,
+            $memberIds === [] ? [] : $this->memberModel->whereIn('id', $memberIds)->where('household_no', $source)->findAll(),
+            $destinationType === 'existing' ? $this->householdModel->find($destinationNo) : null
+        );
+        if (is_string($designated)) {
+            return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
+                ->with('error', $designated);
+        }
+
         $payload = [
             'source_household_no'        => $source,
             'destination_type'           => $destinationType,
@@ -167,6 +181,9 @@ class HouseholdMoveController extends BaseController
             'includes_head'              => $includeHead ? 1 : 0,
             'member_ids'                 => json_encode($memberIds),
             'replacement_head_member_id' => $replacementHead,
+            'designated_head_type'       => $designated['type'],
+            'designated_head_member_id'  => $designated['member_id'],
+            'designated_head_name'       => $designated['name'],
             'move_reason'                => substr(trim((string) ($post['move_reason'] ?? '')), 0, 60) ?: null,
             'notes'                      => trim((string) ($post['notes'] ?? '')) ?: null,
             'new_zone'                   => $destinationType === 'new' ? $newZone : null,
@@ -273,110 +290,34 @@ class HouseholdMoveController extends BaseController
         }
 
         $includeHead = (int) $move['includes_head'] === 1;
-
-        // Resolve or create destination household.
-        if ($move['destination_type'] === 'new') {
-            $destinationNo = $this->householdModel->generateHouseholdNo();
-            $newHead       = $includeHead ? $source : ($movingRows[0] ?? null);
-            if (! $newHead) {
-                return ['ok' => false, 'message' => 'A new household needs at least one person moving.'];
-            }
-
-            $this->householdModel->insert($this->newHouseholdRow($newHead, $destinationNo, (string) $move['new_zone'], (string) $move['new_address'], $includeHead ? $source : null));
-
-            // If a moving member became the new head, drop their old member row.
-            $promotedMemberId = ! $includeHead ? (int) ($movingRows[0]['id'] ?? 0) : 0;
-            if ($promotedMemberId > 0) {
-                $this->memberModel->delete($promotedMemberId);
-            }
-
-            // Update remaining moving members to point at the new household.
-            foreach ($movingRows as $row) {
-                if ($promotedMemberId > 0 && (int) $row['id'] === $promotedMemberId) {
-                    continue;
-                }
-                $this->memberModel->update((int) $row['id'], ['household_no' => $destinationNo]);
-            }
-        } else {
-            $destinationNo = (string) $move['destination_household_no'];
-            $destination   = $this->householdModel->find($destinationNo);
-            if (! $destination) {
-                return ['ok' => false, 'message' => 'The destination household no longer exists.'];
-            }
-
-            foreach ($movingRows as $row) {
-                $this->memberModel->update((int) $row['id'], ['household_no' => $destinationNo]);
-            }
-
-            if ($includeHead) {
-                // Move the head over as a regular member of the destination household.
-                $this->memberModel->insert([
-                    'household_no'           => $destinationNo,
-                    'relationship'           => 'other',
-                    'last_name'              => $source['last_name'],
-                    'first_name'             => $source['first_name'],
-                    'middle_name'            => $source['middle_name']       ?? null,
-                    'suffix'                 => $source['suffix']            ?? null,
-                    'date_of_birth'          => $source['date_of_birth']     ?? null,
-                    'gender'                 => $source['gender']            ?? 'Male',
-                    'marital_status'         => $source['civil_status']      ?? 'Single',
-                    'occupation'             => $source['occupation']        ?? null,
-                    'monthly_income'         => $source['monthly_income']    ?? 0,
-                    'philhealth_no'          => $source['philhealth_no']     ?? null,
-                    'educational_attainment' => $source['educational_attainment'] ?? null,
-                    'is_pwd'                 => $source['is_pwd']            ?? 0,
-                    'pwd_type'               => $source['pwd_type']          ?? null,
-                    'id_pwd_path'            => $source['id_pwd_path']       ?? null,
-                    'id_senior_path'         => $source['id_senior_path']    ?? null,
-                ]);
-            }
+        $plan        = $this->planDesignatedHead($move, $includeHead, $movingRows);
+        if (is_string($plan)) {
+            return ['ok' => false, 'message' => $plan];
         }
 
-        // Handle the source household after the head moves.
-        if ($includeHead) {
-            $replacementId = (int) ($move['replacement_head_member_id'] ?? 0);
-            $stillThere    = $this->memberModel->where('household_no', $source['household_no'])->findAll();
-
-            if ($replacementId > 0) {
-                $replacement = null;
-                foreach ($stillThere as $row) {
-                    if ((int) $row['id'] === $replacementId) {
-                        $replacement = $row;
-                        break;
-                    }
-                }
-                if (! $replacement) {
-                    return ['ok' => false, 'message' => 'The picked replacement head is no longer in the source household.'];
-                }
-                $this->householdModel->update($source['household_no'], [
-                    'last_name'              => $replacement['last_name'],
-                    'first_name'             => $replacement['first_name'],
-                    'middle_name'            => $replacement['middle_name']     ?? null,
-                    'suffix'                 => $replacement['suffix']          ?? null,
-                    'date_of_birth'          => $replacement['date_of_birth']   ?? null,
-                    'gender'                 => $replacement['gender']          ?? 'Male',
-                    'civil_status'           => $replacement['marital_status']  ?? 'Single',
-                    'occupation'             => $replacement['occupation']      ?? null,
-                    'monthly_income'         => $replacement['monthly_income']  ?? 0,
-                    'philhealth_no'          => $replacement['philhealth_no']   ?? null,
-                    'educational_attainment' => $replacement['educational_attainment'] ?? null,
-                ]);
-                $this->memberModel->delete($replacementId);
-            } elseif ($stillThere === []) {
-                // Nobody is left in the source household after the head moves — remove it.
-                $this->householdModel->delete($source['household_no']);
+        $db->transBegin();
+        try {
+            $applied = $this->applyMove($move, $source, $movingRows, $includeHead, $plan);
+            if (is_string($applied)) {
+                $db->transRollback();
+                return ['ok' => false, 'message' => $applied];
             }
+            $destinationNo = $applied['destination_no'];
+            if ($db->transStatus() === false) {
+                $db->transRollback();
+                return ['ok' => false, 'message' => 'The move could not be applied.'];
+            }
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            $detail = $e->getMessage();
+            $message = str_contains($detail, 'philhealth')
+                ? 'That PhilHealth number is already on another household record.'
+                : 'The move could not be applied.';
+            return ['ok' => false, 'message' => $message];
         }
 
         $summary = $this->composeSummary($move, $source, $destinationNo);
-
-        $this->moveModel->update($moveId, [
-            'status'                   => 'approved',
-            'destination_household_no' => $destinationNo,
-            'processed_by'             => (int) session()->get('user_id') ?: null,
-            'processed_at'             => date('Y-m-d H:i:s'),
-            'summary'                  => $summary,
-        ]);
 
         if (! empty($move['requested_by']) && (int) $move['requested_by'] !== (int) session()->get('user_id')) {
             NotificationModel::push(
@@ -389,6 +330,285 @@ class HouseholdMoveController extends BaseController
         }
 
         return ['ok' => true, 'message' => $summary];
+    }
+
+    /**
+     * @param array<string, mixed> $move
+     * @param list<array<string, mixed>> $movingRows
+     * @return array{type:string,member:?array<string,mixed>}|string
+     */
+    private function planDesignatedHead(array $move, bool $includeHead, array $movingRows): array|string
+    {
+        $type = (string) ($move['designated_head_type'] ?? '');
+        $memberId = (int) ($move['designated_head_member_id'] ?? 0);
+
+        if ($type === '') {
+            if (($move['destination_type'] ?? '') === 'new') {
+                $type = $includeHead ? 'source_head' : 'member';
+                $memberId = $includeHead ? 0 : (int) ($movingRows[0]['id'] ?? 0);
+            } else {
+                $type = 'keep';
+            }
+        }
+
+        if ($type === 'keep') {
+            if (($move['destination_type'] ?? '') === 'new') {
+                return 'Choose who will serve as the household head of the new household.';
+            }
+            return ['type' => 'keep', 'member' => null];
+        }
+
+        if ($type === 'source_head') {
+            if (! $includeHead) {
+                return 'The current head was chosen as household head, but they are not part of this move.';
+            }
+            return ['type' => 'source_head', 'member' => null];
+        }
+
+        $member = null;
+        foreach ($movingRows as $row) {
+            if ((int) $row['id'] === $memberId) {
+                $member = $row;
+                break;
+            }
+        }
+        if ($member === null) {
+            return 'The person chosen as household head is no longer part of this move.';
+        }
+
+        return ['type' => 'member', 'member' => $member];
+    }
+
+    /**
+     * @param array<string, mixed> $move
+     * @param array<string, mixed> $source
+     * @param list<array<string, mixed>> $movingRows
+     * @param array{type:string,member:?array<string,mixed>} $plan
+     * @return array{destination_no:string}|string destination household number, or an error message
+     */
+    private function applyMove(array $move, array $source, array $movingRows, bool $includeHead, array $plan): array|string
+    {
+        $promotedMemberId = $plan['type'] === 'member' ? (int) ($plan['member']['id'] ?? 0) : 0;
+
+        if ($move['destination_type'] === 'new') {
+            if ($plan['type'] === 'keep') {
+                return 'Choose who will serve as the household head of the new household.';
+            }
+            $destinationNo = $this->householdModel->generateHouseholdNo();
+            $newHead = $plan['type'] === 'source_head' ? $source : $plan['member'];
+            if (! is_array($newHead)) {
+                return 'A new household needs a household head.';
+            }
+            if ($plan['type'] === 'source_head') {
+                $this->releaseHouseholdPhilhealth((string) $source['household_no']);
+            }
+            $this->householdModel->insert($this->newHouseholdRow(
+                $newHead,
+                $destinationNo,
+                (string) $move['new_zone'],
+                (string) $move['new_address'],
+                $source
+            ));
+            $this->relocateMovers($movingRows, $destinationNo, $promotedMemberId, $includeHead && $plan['type'] !== 'source_head', $source);
+        } else {
+            $destinationNo = (string) $move['destination_household_no'];
+            $destination   = $this->householdModel->find($destinationNo);
+            if (! $destination) {
+                return 'The destination household no longer exists.';
+            }
+
+            if ($plan['type'] === 'keep') {
+                $this->relocateMovers($movingRows, $destinationNo, 0, $includeHead, $source);
+            } else {
+                $this->memberModel->insert($this->headAsMember($destination, $destinationNo, 'former_head'));
+                $incoming = $plan['type'] === 'source_head' ? $source : $plan['member'];
+                if (! is_array($incoming)) {
+                    return 'Choose who will serve as the household head.';
+                }
+                if ($plan['type'] === 'source_head') {
+                    $this->releaseHouseholdPhilhealth((string) $source['household_no']);
+                }
+                $this->householdModel->update($destinationNo, $this->identityFromPerson($incoming, $plan['type'] === 'source_head'));
+                $this->relocateMovers($movingRows, $destinationNo, $promotedMemberId, $includeHead && $plan['type'] !== 'source_head', $source);
+            }
+        }
+
+        if ($includeHead) {
+            $leftBehind = $this->settleSourceHead($move, $source);
+            if (is_string($leftBehind)) {
+                return $leftBehind;
+            }
+        }
+
+        $summary = $this->composeSummary($move, $source, $destinationNo);
+        $this->moveModel->update((int) $move['id'], [
+            'status'                   => 'approved',
+            'destination_household_no' => $destinationNo,
+            'processed_by'             => (int) session()->get('user_id') ?: null,
+            'processed_at'             => date('Y-m-d H:i:s'),
+            'summary'                  => $summary,
+        ]);
+
+        return ['destination_no' => $destinationNo];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $movingRows
+     * @param array<string, mixed> $sourceHead
+     */
+    private function relocateMovers(array $movingRows, string $destinationNo, int $promotedMemberId, bool $insertSourceHead, array $sourceHead): void
+    {
+        foreach ($movingRows as $row) {
+            if ($promotedMemberId > 0 && (int) $row['id'] === $promotedMemberId) {
+                $this->memberModel->delete($promotedMemberId);
+                continue;
+            }
+            $this->memberModel->update((int) $row['id'], ['household_no' => $destinationNo]);
+        }
+        if ($insertSourceHead) {
+            $this->memberModel->insert($this->headAsMember($sourceHead, $destinationNo, 'former_head'));
+        }
+    }
+
+    /** @param array<string, mixed> $move @param array<string, mixed> $source */
+    private function settleSourceHead(array $move, array $source): ?string
+    {
+        $replacementId = (int) ($move['replacement_head_member_id'] ?? 0);
+        $stillThere    = $this->memberModel->where('household_no', $source['household_no'])->findAll();
+
+        if ($replacementId > 0) {
+            $replacement = null;
+            foreach ($stillThere as $row) {
+                if ((int) $row['id'] === $replacementId) {
+                    $replacement = $row;
+                    break;
+                }
+            }
+            if (! $replacement) {
+                return 'The picked replacement head is no longer in the source household.';
+            }
+            $this->householdModel->update($source['household_no'], $this->identityFromPerson($replacement, false));
+            $this->memberModel->delete($replacementId);
+        } elseif ($stillThere === []) {
+            $this->householdModel->delete($source['household_no']);
+        }
+
+        return null;
+    }
+
+    private function releaseHouseholdPhilhealth(string $householdNo): void
+    {
+        $this->householdModel->update($householdNo, ['philhealth_no' => null]);
+    }
+
+    /** @param array<string, mixed> $person */
+    private function identityFromPerson(array $person, bool $fromHousehold): array
+    {
+        $philhealth = trim((string) ($person['philhealth_no'] ?? ''));
+
+        return [
+            'last_name'              => $person['last_name'],
+            'first_name'             => $person['first_name'],
+            'middle_name'            => $person['middle_name'] ?? null,
+            'suffix'                 => $person['suffix'] ?? null,
+            'date_of_birth'          => $person['date_of_birth'] ?? null,
+            'gender'                 => $person['gender'] ?? 'Male',
+            'civil_status'           => $fromHousehold
+                ? ($person['civil_status'] ?? 'Single')
+                : ($person['marital_status'] ?? ($person['civil_status'] ?? 'Single')),
+            'occupation'             => $person['occupation'] ?? null,
+            'monthly_income'         => $person['monthly_income'] ?? 0,
+            'philhealth_no'          => $philhealth !== '' ? $philhealth : null,
+            'educational_attainment' => $person['educational_attainment'] ?? null,
+        ];
+    }
+
+    /** @param array<string, mixed> $head */
+    private function headAsMember(array $head, string $householdNo, string $relationship): array
+    {
+        $philhealth = trim((string) ($head['philhealth_no'] ?? ''));
+
+        return [
+            'household_no'           => $householdNo,
+            'relationship'           => $relationship,
+            'last_name'              => $head['last_name'],
+            'first_name'             => $head['first_name'],
+            'middle_name'            => $head['middle_name'] ?? null,
+            'suffix'                 => $head['suffix'] ?? null,
+            'date_of_birth'          => $head['date_of_birth'] ?? null,
+            'gender'                 => $head['gender'] ?? 'Male',
+            'marital_status'         => $head['civil_status'] ?? ($head['marital_status'] ?? 'Single'),
+            'occupation'             => $head['occupation'] ?? null,
+            'monthly_income'         => $head['monthly_income'] ?? 0,
+            'philhealth_no'          => $philhealth !== '' ? $philhealth : null,
+            'educational_attainment' => $head['educational_attainment'] ?? null,
+            'is_pwd'                 => $head['is_pwd'] ?? 0,
+            'pwd_type'               => $head['pwd_type'] ?? null,
+            'id_pwd_path'            => $head['id_pwd_path'] ?? null,
+            'id_senior_path'         => $head['id_senior_path'] ?? null,
+        ];
+    }
+
+    /**
+     * @param list<int> $memberIds
+     * @param list<array<string, mixed>> $movingMembers
+     * @param array<string, mixed>|null $destinationHousehold
+     * @return array{type:string,member_id:?int,name:string}|string
+     */
+    private function resolveDesignatedHead(
+        string $posted,
+        bool $includeHead,
+        array $memberIds,
+        string $destinationType,
+        array $sourceHousehold,
+        array $movingMembers,
+        ?array $destinationHousehold
+    ): array|string {
+        $sourceName = trim(($sourceHousehold['first_name'] ?? '') . ' ' . ($sourceHousehold['last_name'] ?? ''));
+
+        if ($posted === 'keep') {
+            if ($destinationType !== 'existing') {
+                return 'Choose who will serve as the household head of the new household.';
+            }
+            $current = trim((($destinationHousehold['first_name'] ?? '') . ' ' . ($destinationHousehold['last_name'] ?? '')));
+            return [
+                'type'      => 'keep',
+                'member_id' => null,
+                'name'      => $current !== '' ? $current : 'Current destination head',
+            ];
+        }
+
+        if ($posted === 'source_head') {
+            if (! $includeHead) {
+                return 'The current head can be the household head only when they are included in the move.';
+            }
+            return [
+                'type'      => 'source_head',
+                'member_id' => null,
+                'name'      => $sourceName !== '' ? $sourceName : 'Current household head',
+            ];
+        }
+
+        if (preg_match('/^member-(\d+)$/', $posted, $match) === 1) {
+            $memberId = (int) $match[1];
+            if (! in_array($memberId, $memberIds, true)) {
+                return 'The household head must be one of the people who are moving.';
+            }
+            $name = '';
+            foreach ($movingMembers as $member) {
+                if ((int) $member['id'] === $memberId) {
+                    $name = trim(($member['first_name'] ?? '') . ' ' . ($member['last_name'] ?? ''));
+                    break;
+                }
+            }
+            return [
+                'type'      => 'member',
+                'member_id' => $memberId,
+                'name'      => $name !== '' ? $name : 'Selected member',
+            ];
+        }
+
+        return 'Choose who will serve as the household head.';
     }
 
     /** @return array<string, mixed> */
@@ -453,8 +673,14 @@ class HouseholdMoveController extends BaseController
             ? 'a new household #' . ($destinationNo ?? '—')
             : 'household #' . ($destinationNo ?? '—');
 
-        return ucfirst($who) . ' moved from household #' . $source['household_no']
+        $line = ucfirst($who) . ' moved from household #' . $source['household_no']
             . ' to ' . $dest . ($move['move_reason'] ? ' (' . $move['move_reason'] . ')' : '') . '.';
+        $headName = trim((string) ($move['designated_head_name'] ?? ''));
+        if ($headName !== '' && ($move['designated_head_type'] ?? '') !== 'keep') {
+            $line .= ' ' . $headName . ' is the household head.';
+        }
+
+        return $line;
     }
 
     private function notifyCaptains(string $title, string $body): void

@@ -191,7 +191,7 @@
                         <p class="mv-hint">Source household #<?= esc($sourceHousehold['household_no']) ?> at <?= esc($sourceHousehold['address'] ?? '—') ?></p>
                         <div class="mv-people">
                             <label class="mv-people-row">
-                                <input type="checkbox" name="include_head" value="1" id="includeHead">
+                                <input type="checkbox" name="include_head" value="1" id="includeHead" data-name="<?= esc(trim(($sourceHousehold['first_name'] ?? '') . ' ' . ($sourceHousehold['last_name'] ?? '')), 'attr') ?>">
                                 <span>
                                     <span class="role-tag">Head</span>
                                     <strong><?= esc(trim(($sourceHousehold['first_name'] ?? '') . ' ' . ($sourceHousehold['middle_name'] ?? '') . ' ' . ($sourceHousehold['last_name'] ?? ''))) ?></strong>
@@ -300,7 +300,13 @@
                         </div>
                     </div>
 
-                    <?php if ($role !== 'captain'): ?>
+                    <div class="mv-card" id="designatedHeadCard">
+                        <h2>6. Who will serve as the household head?</h2>
+                        <p class="mv-hint" id="designatedHeadHint">Choose the person who will be recorded as the household head after this move.</p>
+                        <div class="mv-people" id="designatedHeadOptions"></div>
+                    </div>
+
+                    <?php if (! in_array($role, ['captain', 'admin'], true)): ?>
                         <div class="db-alert" style="margin-bottom:16px;background:#fff8e6;color:#8a5b00;border:1px solid #f1d89d;">
                             <i class="fas fa-hourglass-half"></i>
                             This move will be saved as <strong>Pending</strong>. The barangay captain must approve it before household numbers change.
@@ -343,8 +349,92 @@
                 }
             }
 
-            if (includeHead) includeHead.addEventListener('change', refreshReplacement);
-            document.querySelectorAll('.member-check').forEach(el => el.addEventListener('change', refreshReplacement));
+            const designatedOptions = document.getElementById('designatedHeadOptions');
+            const designatedHint = document.getElementById('designatedHeadHint');
+
+            function destinationKind() {
+                const checked = document.querySelector('#destinationRadios input[name="destination_type"]:checked');
+                return checked ? checked.value : 'new';
+            }
+
+            function refreshDesignatedHead() {
+                if (!designatedOptions) return;
+                const previous = (designatedOptions.querySelector('input[name="designated_head"]:checked') || {}).value || '';
+                const people = [];
+                if (includeHead && includeHead.checked) {
+                    people.push({ value: 'source_head', tag: 'Moving head', name: includeHead.dataset.name || 'Current household head' });
+                }
+                document.querySelectorAll('.member-check').forEach(el => {
+                    if (!el.checked) return;
+                    people.push({ value: 'member-' + el.dataset.id, tag: 'Moving member', name: el.dataset.name || 'Member' });
+                });
+                const existing = destinationKind() === 'existing';
+                designatedOptions.innerHTML = '';
+                if (existing) {
+                    const keep = document.createElement('label');
+                    keep.className = 'mv-people-row';
+                    keep.innerHTML = '<input type="radio" name="designated_head" value="keep"> <span><span class="role-tag">Current head</span> <strong>Keep the head of the destination household</strong></span>';
+                    designatedOptions.appendChild(keep);
+                }
+                people.forEach(person => {
+                    const row = document.createElement('label');
+                    row.className = 'mv-people-row';
+                    const input = document.createElement('input');
+                    input.type = 'radio';
+                    input.name = 'designated_head';
+                    input.value = person.value;
+                    const text = document.createElement('span');
+                    const tag = document.createElement('span');
+                    tag.className = 'role-tag';
+                    tag.textContent = person.tag;
+                    const name = document.createElement('strong');
+                    name.textContent = person.name;
+                    text.appendChild(tag);
+                    text.appendChild(document.createTextNode(' '));
+                    text.appendChild(name);
+                    row.appendChild(input);
+                    row.appendChild(text);
+                    designatedOptions.appendChild(row);
+                });
+                const radios = designatedOptions.querySelectorAll('input[name="designated_head"]');
+                let chosen = false;
+                radios.forEach(radio => {
+                    if (radio.value === previous) {
+                        radio.checked = true;
+                        chosen = true;
+                    }
+                });
+                if (!chosen && radios.length) {
+                    const preferred = existing
+                        ? 'keep'
+                        : (people.some(person => person.value === 'source_head') ? 'source_head' : people[0] && people[0].value);
+                    radios.forEach(radio => {
+                        if (radio.value === preferred) radio.checked = true;
+                    });
+                    if (!designatedOptions.querySelector('input[name="designated_head"]:checked')) {
+                        radios[0].checked = true;
+                    }
+                }
+                if (designatedHint) {
+                    designatedHint.textContent = existing
+                        ? 'Keep the destination household\'s current head, or choose one of the people who are moving to take that place.'
+                        : 'Choose which moving person will be recorded as the head of the new household.';
+                }
+            }
+
+            if (includeHead) includeHead.addEventListener('change', () => { refreshReplacement(); refreshDesignatedHead(); });
+            document.querySelectorAll('.member-check').forEach(el => el.addEventListener('change', () => { refreshReplacement(); refreshDesignatedHead(); }));
+            refreshDesignatedHead();
+            const moveForm = designatedOptions ? designatedOptions.closest('form') : null;
+            if (moveForm) {
+                moveForm.addEventListener('submit', function (event) {
+                    refreshDesignatedHead();
+                    if (!moveForm.querySelector('input[name="designated_head"]:checked')) {
+                        event.preventDefault();
+                        alert('Choose who will serve as the household head.');
+                    }
+                });
+            }
 
             // Destination radio behaviour.
             const radios = document.querySelectorAll('#destinationRadios .mv-radio');
@@ -352,6 +442,8 @@
             const existingFields = document.getElementById('existingDestFields');
             radios.forEach(label => label.addEventListener('click', () => {
                 const value = label.dataset.dest;
+                const input = label.querySelector('input[name="destination_type"]');
+                if (input) input.checked = true;
                 radios.forEach(l => l.classList.toggle('is-active', l === label));
                 if (value === 'existing') {
                     existingFields.style.display = 'block';
@@ -360,6 +452,7 @@
                     existingFields.style.display = 'none';
                     newFields.style.display = 'block';
                 }
+                refreshDesignatedHead();
             }));
 
             // Autocomplete helpers.
@@ -374,7 +467,7 @@
                     if (!q) { list.style.display = 'none'; list.innerHTML = ''; return; }
                     timer = setTimeout(async () => {
                         try {
-                            const rolePrefix = (location.pathname.match(/^\/(secretary|captain|council)(?=\/)/) || [null, 'secretary'])[1];
+                            const rolePrefix = (location.pathname.match(/^\/(admin|secretary|captain|council)(?=\/)/) || [null, 'secretary'])[1];
                             const response = await fetch('/' + rolePrefix + '/moves/search?q=' + encodeURIComponent(q), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                             if (!response.ok) return;
                             const rows = await response.json();

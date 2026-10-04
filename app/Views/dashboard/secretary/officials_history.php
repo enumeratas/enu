@@ -244,6 +244,13 @@
                 </div>
             </div>
 
+            <form method="get" data-live-results="ohList" style="margin-bottom:16px;">
+                <div class="db-search-wrap">
+                    <i class="fas fa-search"></i>
+                    <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search official name or date..." value="<?= esc($search ?? '') ?>">
+                </div>
+            </form>
+
             <!-- Filter tabs -->
             <div class="oh-tabs">
                 <button class="oh-tab active" onclick="filterRole('all',this)">All Officials</button>
@@ -266,7 +273,7 @@
                 <?php if (empty($grouped)): ?>
                     <div class="oh-empty">
                         <i class="fas fa-history"></i>
-                        <p>No history yet</p>
+                        <p><?= ($search ?? '') !== '' ? 'No officials match your search.' : 'No history yet' ?></p>
                         <span>Appointment and revocation records will appear here once officials are assigned or revoked.</span>
                     </div>
                 <?php else: ?>

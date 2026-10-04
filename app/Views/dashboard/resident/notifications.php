@@ -318,6 +318,22 @@
                             if (str_starts_with((string) ($n['type'] ?? ''), 'clearance_')) {
                                 $notificationLink = '/' . $role . '/clearance';
                             }
+                            if ($role === 'council') {
+                                $councilPath = (string) $notificationLink;
+                                if (preg_match('#^https?://#i', $councilPath) === 1) {
+                                    $councilPath = (string) (parse_url($councilPath, PHP_URL_PATH) ?? '');
+                                }
+                                if (str_starts_with($councilPath, '/resident/')) {
+                                    $councilPath = '/council/' . substr($councilPath, strlen('/resident/'));
+                                } elseif (str_starts_with($councilPath, '/sk/')) {
+                                    $councilPath = '/council/' . substr($councilPath, strlen('/sk/'));
+                                }
+                                $councilParts = explode('/', trim($councilPath, '/'));
+                                $councilPages = ['dashboard', 'census', 'household', 'programs', 'sk-profiling', 'settings', 'clearance', 'notifications', 'activities', 'census-update'];
+                                $notificationLink = (($councilParts[0] ?? '') === 'council' && in_array($councilParts[1] ?? '', $councilPages, true))
+                                    ? $councilPath
+                                    : '/council/notifications';
+                            }
                             if (strpos($notificationLink, '/') === 0) {
                                 $notificationLink = site_url(ltrim($notificationLink, '/'));
                             }
@@ -422,11 +438,15 @@
             const sub = document.getElementById('notifSubtitle');
             if (sub) sub.textContent = totalCount + ' total · ' + unreadCount + ' unread';
 
-            // Also sync topbar bell
             const topBell = document.getElementById('topbarUnreadCount');
             if (topBell) {
-                topBell.textContent = unreadCount;
-                topBell.style.display = unreadCount > 0 ? '' : 'none';
+                topBell.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
+                topBell.classList.toggle('is-empty', unreadCount <= 0);
+                topBell.hidden = unreadCount <= 0;
+            }
+            const topDot = document.getElementById('topbarNotifDot');
+            if (topDot) {
+                topDot.hidden = unreadCount <= 0;
             }
         }
 

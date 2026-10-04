@@ -307,15 +307,14 @@
             </div>
 
             <!-- ── Search / filter toolbar ── -->
-            <form method="get" id="filterForm">
+            <form method="get" id="filterForm" data-live-results="liveResults">
                 <input type="hidden" name="status" value="<?= esc($filterStatus) ?>">
                 <div class="db-toolbar" style="margin-bottom:16px;">
                     <div class="db-search-wrap">
                         <i class="fas fa-search"></i>
-                        <input type="text" name="search"
-                            placeholder="Search name, email or subject…"
-                            value="<?= esc($search) ?>"
-                            onchange="this.form.submit()">
+                        <input type="text" name="search" data-live-query autocomplete="off"
+                            placeholder="Search name, email, subject, or date…"
+                            value="<?= esc($search) ?>">
                     </div>
                     <div class="db-toolbar-actions">
                         <?php if ($search !== '' || $filterStatus !== ''): ?>
@@ -330,6 +329,7 @@
                 </div>
             </form>
 
+            <div id="liveResults">
             <!-- ── Concerns table ── -->
             <div class="db-table-wrap">
                 <table class="db-table">
@@ -477,6 +477,7 @@
                     </div>
                 </div>
             <?php endif; ?>
+            </div>
 
         </div><!-- /.db-content -->
     </div><!-- /.db-main -->
@@ -538,11 +539,13 @@
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                         <div>
                             <label style="display:block;font-size:11px;font-weight:700;color:#9aa0b4;text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;">Preferred Date</label>
-                            <input type="date" name="appointment_date" id="quickAppointmentDate" min="<?= date('Y-m-d', strtotime('+1 day')) ?>" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #dfe4f0;border-radius:9px;font:13px 'Poppins',sans-serif;">
+                            <input type="text" name="appointment_date" id="quickAppointmentDate" placeholder="Select a date" autocomplete="off" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #dfe4f0;border-radius:9px;font:13px 'Poppins',sans-serif;">
                         </div>
                         <div>
                             <label style="display:block;font-size:11px;font-weight:700;color:#9aa0b4;text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;">Preferred Time</label>
-                            <input type="time" name="appointment_time" id="quickAppointmentTime" min="08:00" max="17:00" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #dfe4f0;border-radius:9px;font:13px 'Poppins',sans-serif;">
+                            <select name="appointment_time" id="quickAppointmentTime" disabled style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #dfe4f0;border-radius:9px;font:13px 'Poppins',sans-serif;">
+                                <option value="">Select a date first</option>
+                            </select>
                             <p id="quickAppointmentAvailability" style="margin:6px 0 0;font-size:11px;min-height:16px;"></p>
                         </div>
                     </div>
@@ -555,6 +558,7 @@
         </div>
     </div>
 
+    <script src="/js/appointment-slots.js?v=2"></script>
     <script>
         function openAppointmentForm() {
             document.getElementById('appointmentFormModal').style.display = 'flex';
@@ -566,52 +570,26 @@
             document.body.style.overflow = '';
         }
 
-        function checkQuickAppointmentAvailability() {
+        if (window.BISAppointmentSlots) {
+            BISAppointmentSlots.bind(
+                document.getElementById('quickAppointmentDate'),
+                document.getElementById('quickAppointmentTime'),
+                {
+                    minDate: '<?= date('Y-m-d', strtotime('+1 day')) ?>',
+                    message: document.getElementById('quickAppointmentAvailability')
+                }
+            );
+        }
+        document.getElementById('quickAppointmentSubmit')?.closest('form')?.addEventListener('submit', event => {
             const date = document.getElementById('quickAppointmentDate');
             const time = document.getElementById('quickAppointmentTime');
             const message = document.getElementById('quickAppointmentAvailability');
-            const submit = document.getElementById('quickAppointmentSubmit');
-            if (!date || !time || !message || !submit) return;
-
-            date.classList.remove('cr-slot-unavailable');
-            time.classList.remove('cr-slot-unavailable');
-            submit.disabled = false;
-
-            if (!date.value) {
-                message.textContent = '';
-                message.style.color = '#9aa0b4';
-                return;
-            }
-
-            message.textContent = 'Checking date availability...';
-            message.style.color = '#9aa0b4';
-            const params = new URLSearchParams({
-                date: date.value
-            });
-            if (time.value) params.set('time', time.value);
-            fetch('/<?= esc($role) ?>/concern/availability?' + params.toString())
-                .then(response => response.json())
-                .then(data => {
-                    const available = data.available === true;
-                    message.textContent = available ?
-                        (time.value ? 'Available schedule.' : 'Date available. Select a time if needed.') :
-                        (data.message || 'Unavailable: this date is fully booked. Please choose another date.');
-                    message.style.color = available ? '#0e9464' : '#c0392b';
-                    date.classList.toggle('cr-slot-unavailable', !available);
-                    time.classList.toggle('cr-slot-unavailable', !available);
-                    submit.disabled = !available;
-                })
-                .catch(() => {
-                    message.textContent = 'Availability will be verified when submitted.';
-                    message.style.color = '#9aa0b4';
-                });
-        }
-
-        document.getElementById('quickAppointmentDate')?.addEventListener('change', checkQuickAppointmentAvailability);
-        document.getElementById('quickAppointmentTime')?.addEventListener('change', checkQuickAppointmentAvailability);
-        document.getElementById('quickAppointmentSubmit')?.closest('form')?.addEventListener('submit', event => {
-            if (document.getElementById('quickAppointmentSubmit')?.disabled) {
+            if (date?.value && time && !time.value) {
                 event.preventDefault();
+                if (message) {
+                    message.textContent = 'Choose an open time for that date.';
+                    message.style.color = '#c0392b';
+                }
             }
         });
 

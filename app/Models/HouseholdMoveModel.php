@@ -17,6 +17,9 @@ class HouseholdMoveModel extends Model
         'includes_head',
         'member_ids',
         'replacement_head_member_id',
+        'designated_head_type',
+        'designated_head_member_id',
+        'designated_head_name',
         'move_reason',
         'notes',
         'new_zone',
@@ -46,14 +49,16 @@ class HouseholdMoveModel extends Model
         }
 
         if ($search !== null && $search !== '') {
-            $builder->groupStart()
-                ->like('mv.source_household_no', $search)
-                ->orLike('mv.destination_household_no', $search)
-                ->orLike('sh.last_name', $search)
-                ->orLike('sh.first_name', $search)
-                ->orLike('dh.last_name', $search)
-                ->orLike('dh.first_name', $search)
-                ->groupEnd();
+            $builder->where(\App\Libraries\RecordSearch::clause([
+                'mv.source_household_no',
+                'mv.destination_household_no',
+                'mv.move_reason',
+                'mv.notes',
+                'sh.last_name',
+                'sh.first_name',
+                'dh.last_name',
+                'dh.first_name',
+            ], ['mv.created_at'], $search), null, false);
         }
 
         return $builder->get()->getResultArray();

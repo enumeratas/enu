@@ -177,9 +177,8 @@ class UIController extends BaseController
             $mw[] = "h2.zone = '{$z}'";
         }
         if ($filters['search'] !== '') {
-            $s    = $db->escapeLikeString($filters['search']);
-            $hw[] = "(h.last_name LIKE '%{$s}%' OR h.first_name LIKE '%{$s}%' OR h.household_no LIKE '%{$s}%')";
-            $mw[] = "(m.last_name LIKE '%{$s}%' OR m.first_name LIKE '%{$s}%' OR m.household_no LIKE '%{$s}%')";
+            $hw[] = $this->censusTextSearchSql('h', $filters['search']);
+            $mw[] = $this->censusTextSearchSql('m', $filters['search']);
         }
         if ($filters['gender'] !== '') {
             $g    = $db->escapeString($filters['gender']);
@@ -326,16 +325,18 @@ class UIController extends BaseController
 
             $headSql = "SELECT h.household_no, h.last_name, h.first_name, h.middle_name,
                 h.suffix, h.date_of_birth, h.gender, h.civil_status, h.occupation,
+                '' AS work_detail, '' AS grade_level,
                 h.monthly_income, h.philhealth_no, h.educational_attainment,
                 h.contact_number, h.zone, h.is_pwd, h.is_senior_citizen, h.id_senior_path,
-                h.is_solo_parent, h.is_4ps, h.approval_status, 'Household Head' AS relationship
+                h.is_solo_parent, h.is_4ps, h.approval_status, h.record_status, 'Household Head' AS relationship
                 FROM households h{$hwSql}";
 
             $memberSql = "SELECT m.household_no, m.last_name, m.first_name, m.middle_name,
                 m.suffix, m.date_of_birth, m.gender, '' AS civil_status, m.occupation,
+                m.work_detail, m.grade_level,
                 m.monthly_income, m.philhealth_no, m.educational_attainment,
                 '' AS contact_number, h2.zone, 0 AS is_pwd, 0 AS is_senior_citizen, m.id_senior_path,
-                0 AS is_solo_parent, 0 AS is_4ps, h2.approval_status, m.relationship
+                0 AS is_solo_parent, 0 AS is_4ps, h2.approval_status, h2.record_status, m.relationship
                 FROM household_members m
                 INNER JOIN households h2 ON h2.household_no = m.household_no{$mwSql}";
 
@@ -391,6 +392,11 @@ class UIController extends BaseController
     }
     public function login()
     {
+        $rememberedRole = \App\Libraries\SessionHelper::rememberedDashboard();
+        if (is_string($rememberedRole) && $rememberedRole !== '') {
+            return redirect()->to('/' . $rememberedRole . '/dashboard');
+        }
+
         return view('login');
     }
     public function select_role()
@@ -837,10 +843,78 @@ class UIController extends BaseController
 
     public function captain_create_account()
     {
-        $role = session()->get('role') ?: 'login';
+        $role = session()->get('role');
+        if ($role === 'admin') {
+            return redirect()->to('/admin/create-account');
+        }
+        if ($role !== 'captain') {
+            return redirect()->to('/' . ($role ?: 'login') . '/dashboard')
+                ->with('error', 'Only the captain can appoint a Secretary from this page.');
+        }
 
-        return redirect()->to('/' . $role . '/dashboard')
-            ->with('error', 'Only the admin can create official accounts.');
+        return view('dashboard/captain/create_account', $this->officialAccountPageData());
+    }
+
+    private function censusTextSearchSql(string $alias, string $raw): string
+    {
+        $like = \Config\Database::connect()->escapeLikeString($raw);
+        $parts = [
+            "{$alias}.last_name LIKE '%{$like}%'",
+            "{$alias}.first_name LIKE '%{$like}%'",
+            "{$alias}.middle_name LIKE '%{$like}%'",
+            "{$alias}.household_no LIKE '%{$like}%'",
+            "DATE_FORMAT({$alias}.date_of_birth, '%Y-%m-%d') LIKE '%{$like}%'",
+            "DATE_FORMAT({$alias}.date_of_birth, '%m/%d/%Y') LIKE '%{$like}%'",
+            "DATE_FORMAT({$alias}.date_of_birth, '%c/%e/%Y') LIKE '%{$like}%'",
+        ];
+        $parsed = $this->censusDateEqualsSql($alias . '.date_of_birth', $raw);
+        if ($parsed !== '') {
+            $parts[] = $parsed;
+        }
+
+        return '(' . implode(' OR ', $parts) . ')';
+    }
+
+    private function censusDateEqualsSql(string $column, string $raw): string
+    {
+        $term = trim($raw);
+        $months = [
+            'jan' => 1, 'january' => 1, 'feb' => 2, 'february' => 2,
+            'mar' => 3, 'march' => 3, 'apr' => 4, 'april' => 4,
+            'may' => 5, 'jun' => 6, 'june' => 6, 'jul' => 7, 'july' => 7,
+            'aug' => 8, 'august' => 8, 'sep' => 9, 'sept' => 9, 'september' => 9,
+            'oct' => 10, 'october' => 10, 'nov' => 11, 'november' => 11,
+            'dec' => 12, 'december' => 12,
+        ];
+        $clauses = [];
+        if (preg_match('/^(19|20)\d{2}$/', $term) === 1) {
+            $clauses[] = 'YEAR(' . $column . ') = ' . (int) $term;
+        }
+        $lower = strtolower($term);
+        if (isset($months[$lower])) {
+            $clauses[] = 'MONTH(' . $column . ') = ' . $months[$lower];
+        }
+        if (preg_match('/^([a-z]+)\s+(\d{1,2})(?:,?\s*(\d{4}))?$/i', $term, $match) === 1) {
+            $month = $months[strtolower($match[1])] ?? 0;
+            $day = (int) $match[2];
+            if ($month >= 1 && $day >= 1 && $day <= 31) {
+                $sql = "MONTH({$column}) = {$month} AND DAY({$column}) = {$day}";
+                if (($match[3] ?? '') !== '') {
+                    $sql .= ' AND YEAR(' . $column . ') = ' . (int) $match[3];
+                }
+                $clauses[] = '(' . $sql . ')';
+            }
+        }
+        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $term, $match) === 1) {
+            $month = (int) $match[1];
+            $day = (int) $match[2];
+            $year = (int) $match[3];
+            if ($month >= 1 && $month <= 12 && $day >= 1 && $day <= 31) {
+                $clauses[] = sprintf("%s = '%04d-%02d-%02d'", $column, $year, $month, $day);
+            }
+        }
+
+        return implode(' OR ', $clauses);
     }
 
     // ── Secretary ─────────────────────────────────────
@@ -902,9 +976,16 @@ class UIController extends BaseController
         $mwhere = [];
 
         if ($search !== '') {
-            $s        = $db->escapeLikeString($search);
-            $hwhere[] = "(h.last_name LIKE '%{$s}%' OR h.first_name LIKE '%{$s}%' OR h.household_no LIKE '%{$s}%')";
-            $mwhere[] = "(m.last_name LIKE '%{$s}%' OR m.first_name LIKE '%{$s}%' OR m.household_no LIKE '%{$s}%')";
+            $hwhere[] = \App\Libraries\RecordSearch::clause(
+                ['h.last_name', 'h.first_name', 'h.middle_name', 'h.household_no'],
+                ['h.date_of_birth'],
+                $search
+            );
+            $mwhere[] = \App\Libraries\RecordSearch::clause(
+                ['m.last_name', 'm.first_name', 'm.middle_name', 'm.household_no'],
+                ['m.date_of_birth'],
+                $search
+            );
         }
         if ($householdNo !== '') {
             $householdNoEscaped = $db->escapeLikeString($householdNo);
@@ -1172,11 +1253,21 @@ class UIController extends BaseController
     }
     public function secretary_create_account()
     {
-        if (session()->get('role') !== 'admin') {
-            return redirect()->to('/' . (session()->get('role') ?: 'login') . '/dashboard')
-                ->with('error', 'Only the admin can create official accounts.');
+        $role = session()->get('role');
+        if ($role === 'captain') {
+            return redirect()->to('/captain/create-account');
+        }
+        if (! in_array($role, ['admin', 'secretary'], true)) {
+            return redirect()->to('/' . ($role ?: 'login') . '/dashboard')
+                ->with('error', 'You cannot create accounts from this page.');
         }
 
+        return view('dashboard/secretary/create_account', $this->officialAccountPageData());
+    }
+
+    /** @return array<string, mixed> */
+    private function officialAccountPageData(): array
+    {
         $userModel = new \App\Models\UserModel();
         $db        = \Config\Database::connect();
 
@@ -1211,6 +1302,9 @@ class UIController extends BaseController
 
             // Accurate age: TIMESTAMPDIFF logic in PHP
             $birthDate = date_create($dob);
+            if ($birthDate === false) {
+                continue;
+            }
             $today     = date_create('today');
             $age       = (int) date_diff($birthDate, $today)->y;
 
@@ -1242,14 +1336,14 @@ class UIController extends BaseController
             ->orderBy('last_name', 'ASC')
             ->findAll();
 
-        return view('dashboard/secretary/create_account', [
+        return [
             'activeCaptain'      => $userModel->getActiveByRole('captain'),
             'activeSecretaries'  => $activeSecretaries,
             'activeSk'           => $userModel->getActiveByRole('sk'),
             'activeCouncils'     => $activeCouncils,
             'activeAdmins'       => $activeAdmins,
             'eligibleResidents'  => $eligibleResidents,
-        ]);
+        ];
     }
 
     // ── Resident ──────────────────────────────────────
@@ -1386,8 +1480,8 @@ class UIController extends BaseController
         }
 
         // ── Fetch all notifications for this user ─────────────────────────────
-        $notifs      = $notifModel->getForUser($userId);
-        $unreadCount = $notifModel->countUnread($userId);
+        $notifs      = $notifModel->getForUser($userId, true);
+        $unreadCount = $notifModel->countUnread($userId, true);
 
         return view('dashboard/resident/notifications', [
             'notifs'      => $notifs,

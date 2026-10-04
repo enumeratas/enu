@@ -77,7 +77,15 @@
             margin-bottom: 10px;
             border: 1.5px solid #f0f2f8;
             transition: border-color .2s, box-shadow .2s;
-            cursor: pointer;
+        }
+
+        .notif-card.unread {
+            border-color: #e8ecf4;
+            background: #f8f9ff;
+        }
+
+        .notif-card.read {
+            opacity: .92;
         }
 
         .notif-card:hover {
@@ -163,6 +171,68 @@
 
         .notif-action-btn.primary:hover {
             opacity: .85;
+        }
+
+        .notif-card-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .notif-mark-read-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            border: 1.5px solid #e2e5ef;
+            background: #fff;
+            color: #667085;
+            cursor: pointer;
+            transition: all .15s;
+        }
+
+        .notif-mark-read-btn:hover {
+            border-color: #1d2448;
+            color: #1d2448;
+        }
+
+        .notif-mark-all {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #1d2448;
+            background: none;
+            border: 1.5px solid #1d2448;
+            border-radius: 7px;
+            padding: 7px 14px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background .2s, color .2s;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .notif-mark-all:hover {
+            background: #1d2448;
+            color: #fff;
+        }
+
+        .notif-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #1d2448;
+            flex: 0 0 auto;
+            margin-top: 8px;
+        }
+
+        .notif-card.read .notif-dot {
+            opacity: 0;
         }
 
         /* ── Header ── */
@@ -271,18 +341,12 @@
     // Unified feed (sorted newest-first by controller)
     $feedItems  = $feedItems  ?? [];
     $personalNotifications = $personalNotifications ?? [];
-    $unreadPersonal = count(array_filter($personalNotifications, static fn($notification) => empty($notification['read_at'])));
-
-    // Individual counts for stat cards
-    $pendingAccounts   = $pendingAccounts   ?? 0;
-    $pendingClearances = $pendingClearances ?? 0;
-    $newBlotters       = $newBlotters       ?? 0;
-    $upcomingHearings  = $upcomingHearings  ?? 0;
-    $upcomingSchedules = $upcomingSchedules ?? 0;
-    $pendingConcerns   = $pendingConcerns   ?? 0;
-
-    $total = $pendingAccounts + $pendingClearances + $newBlotters
-        + $upcomingHearings + $upcomingSchedules + $pendingConcerns + $unreadPersonal;
+    $unreadCount = (int) ($unreadCount ?? 0);
+    $totalItems  = (int) ($totalItems ?? (count($feedItems) + count($personalNotifications)));
+    $bellUnreadCount = (new \App\Models\NotificationModel())->countUnread(
+        (int) session()->get('user_id'),
+        false
+    );
 
     function timeAgo(string $datetime): string
     {
@@ -312,20 +376,25 @@
                 <div>
                     <h3>
                         Notifications
-                        <?php if ($total > 0): ?>
-                            <span class="notif-count-badge"><?= $total ?></span>
-                        <?php endif; ?>
+                        <span class="notif-count-badge" id="unreadBadge"
+                            style="<?= $unreadCount === 0 ? 'display:none;' : '' ?>">
+                            <?= $unreadCount ?>
+                        </span>
                     </h3>
-                    <p>
-                        <?= $total > 0
-                            ? $total . ' item' . ($total !== 1 ? 's' : '') . ' need your attention'
-                            : 'Everything is up to date' ?>
+                    <p id="notifSubtitle">
+                        <?= $totalItems ?> total · <?= $unreadCount ?> unread
                     </p>
                 </div>
-                <button class="db-btn db-btn--outline" onclick="location.reload()"
-                    style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;">
-                    <i class="fas fa-sync-alt"></i> Refresh
-                </button>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <button class="notif-mark-all" id="markAllBtn" type="button" onclick="markAllRead()"
+                        style="<?= $unreadCount === 0 ? 'display:none;' : '' ?>">
+                        <i class="fas fa-check-double"></i> Mark all as read
+                    </button>
+                    <button class="db-btn db-btn--outline" type="button" onclick="location.reload()"
+                        style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
             </div>
 
             <!-- ── Filter tabs ── -->
@@ -345,7 +414,9 @@
                         $cfg = $typeConfig['personal'];
                         $actionHref = $notification['link'] ?: '/' . $role . '/notifications';
                     ?>
-                        <div class="notif-card <?= $isUnread ? 'unread' : 'read' ?>" data-type="personal">
+                        <div class="notif-card <?= $isUnread ? 'unread' : 'read' ?>" data-type="personal"
+                            data-unread="<?= $isUnread ? '1' : '0' ?>"
+                            id="notif-personal-<?= (int) $notification['id'] ?>">
                             <div class="notif-card-inner">
                                 <div class="notif-icon-wrap" style="background:<?= $cfg['bg'] ?>;color:<?= $cfg['color'] ?>;">
                                     <i class="fas <?= $cfg['icon'] ?>"></i>
@@ -359,12 +430,24 @@
                                         <i class="fas fa-clock"></i>
                                         <time class="js-local-notification-time" datetime="<?= esc(notification_time_iso($notification['created_at'] ?? null)) ?>"><?= esc(notification_time($notification['created_at'] ?? null)) ?></time>
                                         <span style="font-weight:600;color:<?= $cfg['color'] ?>;">· <?= $cfg['label'] ?></span>
+                                        <?php if ($isUnread): ?>
+                                            <span style="color:#1d2448;font-weight:600;">· Unread</span>
+                                        <?php endif; ?>
                                     </div>
-                                    <a href="<?= esc($actionHref) ?>" class="notif-action-btn <?= $isUnread ? 'primary' : '' ?>" onclick="markNotificationRead(event, <?= (int) $notification['id'] ?>, this.href);">
-                                        <i class="fas fa-eye"></i> View
-                                    </a>
+                                    <div class="notif-card-actions">
+                                        <?php if ($isUnread): ?>
+                                            <button type="button" class="notif-mark-read-btn"
+                                                onclick="markPersonalRead(<?= (int) $notification['id'] ?>)">
+                                                <i class="fas fa-check"></i> Mark as read
+                                            </button>
+                                        <?php endif; ?>
+                                        <a href="<?= esc($actionHref) ?>" class="notif-action-btn <?= $isUnread ? 'primary' : '' ?>"
+                                            onclick="markPersonalRead(<?= (int) $notification['id'] ?>, this.href); return false;">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                    </div>
                                 </div>
-                                <div class="notif-dot" style="<?= $isUnread ? '' : 'opacity:0;' ?>"></div>
+                                <div class="notif-dot"></div>
                             </div>
                         </div>
                     <?php endforeach; ?>
@@ -409,7 +492,11 @@
                             $actionLabel = 'Calendar';
                         }
                     ?>
-                        <div class="notif-card" data-type="<?= esc($item['type']) ?>">
+                        <?php $isUnread = empty($item['is_read']); ?>
+                        <div class="notif-card <?= $isUnread ? 'unread' : 'read' ?>"
+                            data-type="<?= esc($item['type']) ?>"
+                            data-unread="<?= $isUnread ? '1' : '0' ?>"
+                            id="notif-feed-<?= esc($item['type']) ?>-<?= esc((string) ($item['ref_id'] ?? '')) ?>">
                             <div class="notif-card-inner">
                                 <div class="notif-icon-wrap" style="background:<?= $cfg['bg'] ?>;color:<?= $cfg['color'] ?>;">
                                     <i class="fas <?= $cfg['icon'] ?>"></i>
@@ -424,14 +511,26 @@
                                         <span style="font-weight:600;color:<?= $cfg['color'] ?>;">
                                             · <?= $cfg['label'] ?>
                                         </span>
+                                        <?php if ($isUnread): ?>
+                                            <span style="color:#1d2448;font-weight:600;">· Unread</span>
+                                        <?php endif; ?>
                                     </div>
-                                    <a href="<?= esc($actionHref) ?>"
-                                        class="notif-action-btn <?= $isPrimary ? 'primary' : '' ?>"
-                                        onclick="event.stopPropagation();">
-                                        <i class="fas <?= $isPrimary ? 'fa-arrow-right' : 'fa-eye' ?>"></i>
-                                        <?= $actionLabel ?>
-                                    </a>
+                                    <div class="notif-card-actions">
+                                        <?php if ($isUnread): ?>
+                                            <button type="button" class="notif-mark-read-btn"
+                                                onclick="markFeedRead('<?= esc($item['type'], 'js') ?>', '<?= esc((string) ($item['ref_id'] ?? ''), 'js') ?>')">
+                                                <i class="fas fa-check"></i> Mark as read
+                                            </button>
+                                        <?php endif; ?>
+                                        <a href="<?= esc($actionHref) ?>"
+                                            class="notif-action-btn <?= $isPrimary ? 'primary' : '' ?>"
+                                            onclick="event.stopPropagation();">
+                                            <i class="fas <?= $isPrimary ? 'fa-arrow-right' : 'fa-eye' ?>"></i>
+                                            <?= $actionLabel ?>
+                                        </a>
+                                    </div>
                                 </div>
+                                <div class="notif-dot"></div>
                             </div>
                         </div>
                     <?php endforeach; ?>
@@ -442,25 +541,177 @@
     </div><!-- /.db-main -->
 
     <script>
-        function markNotificationRead(event, id, link) {
-            event.preventDefault();
-            fetch('<?= esc(site_url($role . '/notifications/read/')) ?>' + id, {
+        const CSRF_NAME = '<?= csrf_token() ?>';
+        const CSRF_HASH = '<?= csrf_hash() ?>';
+        let unreadCount = <?= (int) $unreadCount ?>;
+        let bellUnreadCount = <?= (int) $bellUnreadCount ?>;
+        const totalCount = <?= (int) $totalItems ?>;
+        const readNotificationUrl = '<?= esc(site_url($role . '/notifications/read/')) ?>';
+        const readAllNotificationsUrl = '<?= esc(site_url($role . '/notifications/read-all')) ?>';
+        const dismissFeedUrl = '<?= esc(site_url($role . '/notifications/dismiss-feed')) ?>';
+
+        function csrfHeaders() {
+            const headers = {'Content-Type': 'application/x-www-form-urlencoded'};
+            headers[CSRF_NAME] = CSRF_HASH;
+            return headers;
+        }
+
+        function csrfBody(extra) {
+            const params = new URLSearchParams(extra || {});
+            params.set(CSRF_NAME, CSRF_HASH);
+            return params.toString();
+        }
+
+        function markCardVisual(card) {
+            if (!card || card.dataset.unread !== '1') {
+                return false;
+            }
+
+            card.classList.remove('unread');
+            card.classList.add('read');
+            card.dataset.unread = '0';
+
+            const unreadLabel = card.querySelector('.notif-meta span[style*="Unread"]');
+            if (unreadLabel) {
+                unreadLabel.remove();
+            }
+
+            const markBtn = card.querySelector('.notif-mark-read-btn');
+            if (markBtn) {
+                markBtn.remove();
+            }
+
+            const viewBtn = card.querySelector('.notif-action-btn.primary');
+            if (viewBtn) {
+                viewBtn.classList.remove('primary');
+            }
+
+            return true;
+        }
+
+        function markCardRead(card, affectBell) {
+            if (!markCardVisual(card)) {
+                return;
+            }
+
+            unreadCount = Math.max(0, unreadCount - 1);
+            if (affectBell) {
+                bellUnreadCount = Math.max(0, bellUnreadCount - 1);
+            }
+            updateBadge();
+        }
+
+        function syncBellUnreadCount(count) {
+            bellUnreadCount = Math.max(0, Number(count) || 0);
+            window.__bisNotifPollMutedUntil = Date.now() + 120000;
+            updateBadge();
+        }
+
+        function markPersonalRead(id, link) {
+            const card = document.getElementById('notif-personal-' + id);
+            if (card && card.dataset.unread === '1') {
+                markCardRead(card, true);
+                fetch(readNotificationUrl + id, {
+                    method: 'POST',
+                    headers: csrfHeaders(),
+                    body: csrfBody(),
+                    credentials: 'same-origin',
+                }).catch(function () {});
+            }
+
+            if (link) {
+                setTimeout(function () {
+                    window.location.href = link;
+                }, 180);
+            }
+        }
+
+        function markFeedRead(type, ref) {
+            const card = document.getElementById('notif-feed-' + type + '-' + ref);
+            markCardRead(card, false);
+
+            fetch(dismissFeedUrl, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'}
-            }).finally(() => { window.location.href = link; });
+                headers: csrfHeaders(),
+                body: csrfBody({type: type, ref: ref}),
+                credentials: 'same-origin',
+            }).catch(function () {});
+        }
+
+        function markAllRead() {
+            const btn = document.getElementById('markAllBtn');
+            if (btn) {
+                btn.disabled = true;
+            }
+
+            fetch(readAllNotificationsUrl, {
+                method: 'POST',
+                headers: csrfHeaders(),
+                body: csrfBody(),
+                credentials: 'same-origin',
+            })
+                .then(function (response) {
+                    return response.json();
+                })
+                .then(function (data) {
+                    document.querySelectorAll('.notif-card.unread').forEach(function (card) {
+                        markCardVisual(card);
+                    });
+                    unreadCount = 0;
+                    syncBellUnreadCount(data && typeof data.unread === 'number' ? data.unread : 0);
+                })
+                .catch(function () {
+                    if (btn) {
+                        btn.disabled = false;
+                    }
+                });
+        }
+
+        function updateBadge() {
+            const badge = document.getElementById('unreadBadge');
+            if (badge) {
+                badge.textContent = unreadCount;
+                badge.style.display = unreadCount > 0 ? '' : 'none';
+            }
+
+            const btn = document.getElementById('markAllBtn');
+            if (btn) {
+                btn.style.display = unreadCount > 0 ? '' : 'none';
+            }
+
+            const sub = document.getElementById('notifSubtitle');
+            if (sub) {
+                sub.textContent = totalCount + ' total · ' + unreadCount + ' unread';
+            }
+
+            const topBell = document.getElementById('topbarUnreadCount');
+            if (topBell) {
+                topBell.textContent = bellUnreadCount > 9 ? '9+' : String(bellUnreadCount);
+                topBell.classList.toggle('is-empty', bellUnreadCount <= 0);
+                topBell.hidden = bellUnreadCount <= 0;
+            }
+
+            const topDot = document.getElementById('topbarNotifDot');
+            if (topDot) {
+                topDot.hidden = bellUnreadCount <= 0;
+            }
         }
 
         function filterNotifs(type, btn) {
-            document.querySelectorAll('.notif-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.notif-tab').forEach(function (tab) {
+                tab.classList.remove('active');
+            });
             btn.classList.add('active');
-            document.querySelectorAll('#notifList .notif-card').forEach(card => {
+            document.querySelectorAll('.notif-wrap .notif-card, #notifList .notif-card').forEach(function (card) {
                 card.style.display = type === 'all' || card.dataset.type === type ? '' : 'none';
             });
         }
 
-        document.querySelectorAll('.db-nav-item').forEach(i =>
-            i.addEventListener('click', () => document.getElementById('sidebar').classList.remove('open'))
-        );
+        document.querySelectorAll('.db-nav-item').forEach(function (item) {
+            item.addEventListener('click', function () {
+                document.getElementById('sidebar').classList.remove('open');
+            });
+        });
     </script>
 
 

@@ -126,18 +126,18 @@
 
             <div class="mv-toolbar">
                 <div class="mv-tabs">
-                    <a class="<?= $status === '' ? 'is-active' : '' ?>" href="/<?= esc($role) ?>/moves">All</a>
-                    <a class="<?= $status === 'pending' ? 'is-active' : '' ?>" href="/<?= esc($role) ?>/moves?status=pending">Pending <span class="count"><?= (int) $counts['pending'] ?></span></a>
-                    <a class="<?= $status === 'approved' ? 'is-active' : '' ?>" href="/<?= esc($role) ?>/moves?status=approved">Approved <span class="count"><?= (int) $counts['approved'] ?></span></a>
-                    <a class="<?= $status === 'rejected' ? 'is-active' : '' ?>" href="/<?= esc($role) ?>/moves?status=rejected">Rejected <span class="count"><?= (int) $counts['rejected'] ?></span></a>
+                    <?php $moveQuery = $search !== '' ? '&q=' . rawurlencode($search) : ''; ?>
+                    <a class="<?= $status === '' ? 'is-active' : '' ?>" href="/<?= esc($role) ?>/moves<?= $search !== '' ? '?q=' . rawurlencode($search) : '' ?>">All</a>
+                    <a class="<?= $status === 'pending' ? 'is-active' : '' ?>" href="/<?= esc($role) ?>/moves?status=pending<?= $moveQuery ?>">Pending <span class="count"><?= (int) $counts['pending'] ?></span></a>
+                    <a class="<?= $status === 'approved' ? 'is-active' : '' ?>" href="/<?= esc($role) ?>/moves?status=approved<?= $moveQuery ?>">Approved <span class="count"><?= (int) $counts['approved'] ?></span></a>
+                    <a class="<?= $status === 'rejected' ? 'is-active' : '' ?>" href="/<?= esc($role) ?>/moves?status=rejected<?= $moveQuery ?>">Rejected <span class="count"><?= (int) $counts['rejected'] ?></span></a>
                 </div>
                 <div style="display:flex;gap:10px;align-items:center;">
-                    <form class="mv-search" method="get">
+                    <form class="mv-search" method="get" data-live-results="liveResults">
                         <?php if ($status !== ''): ?>
                             <input type="hidden" name="status" value="<?= esc($status) ?>">
                         <?php endif; ?>
-                        <input type="text" name="q" placeholder="Search household # or head name" value="<?= esc($search) ?>">
-                        <button type="submit" class="db-btn db-btn--outline db-btn--sm"><i class="fas fa-search"></i> Search</button>
+                        <input type="text" name="q" data-live-query autocomplete="off" placeholder="Search household #, head name, or date" value="<?= esc($search) ?>">
                     </form>
                     <a class="db-btn db-btn--primary" href="/<?= esc($role) ?>/moves/new">
                         <i class="fas fa-exchange-alt"></i> File a Move
@@ -145,10 +145,11 @@
                 </div>
             </div>
 
+            <div id="liveResults">
             <?php if ($moves === []): ?>
                 <div class="mv-empty">
                     <i class="fas fa-exchange-alt" style="font-size:36px;color:#c5cdd8;display:block;margin-bottom:12px;"></i>
-                    <p style="margin:0;font-weight:600;color:#1c2b45;">No household moves yet</p>
+                    <p style="margin:0;font-weight:600;color:#1c2b45;"><?= $search !== '' ? 'No household moves match your search.' : 'No household moves yet' ?></p>
                     <p style="margin:6px 0 0;font-size:13px;">Use <strong>File a Move</strong> when a family or member moves to another house.</p>
                 </div>
             <?php else: ?>
@@ -187,6 +188,9 @@
                                         </div>
                                         <div class="mv-summary" style="margin-top:2px;">
                                             <?= (int) $move['includes_head'] === 1 ? '<span class="dbadge dbadge--approved" style="margin-right:4px;">Head moves</span>' : '' ?>
+                                            <?php if (! empty($move['designated_head_name'])): ?>
+                                                <span class="dbadge dbadge--pending">Head: <?= esc($move['designated_head_name']) ?></span>
+                                            <?php endif; ?>
                                             <?= $mCount > 0 ? ($mCount . ' member' . ($mCount === 1 ? '' : 's')) : ((int) $move['includes_head'] === 1 ? '' : 'No members selected') ?>
                                         </div>
                                         <?php if (! empty($move['summary'])): ?>
@@ -212,7 +216,7 @@
                                     <td><span class="dbadge <?= $badge ?>"><?= esc(ucfirst($move['status'])) ?></span></td>
                                     <td class="mv-actions" style="white-space:nowrap;">
                                         <?php if ($move['status'] === 'pending' && $canApprove): ?>
-                                            <form method="post" action="/captain/moves/approve/<?= (int) $move['id'] ?>" onsubmit="return confirm('Apply this move now?');">
+                                            <form method="post" action="/<?= esc($role) ?>/moves/approve/<?= (int) $move['id'] ?>" onsubmit="return confirm('Apply this move now?');">
                                                 <?= csrf_field() ?>
                                                 <button type="submit" class="db-btn db-btn--primary db-btn--sm"><i class="fas fa-check"></i> Approve</button>
                                             </form>
@@ -229,6 +233,7 @@
                     </table>
                 </div>
             <?php endif; ?>
+            </div>
         </div>
     </div>
 
@@ -256,7 +261,7 @@
         function openReject(id) {
             const modal = document.getElementById('rejectModal');
             const form = document.getElementById('rejectForm');
-            form.action = '/captain/moves/reject/' + id;
+            form.action = '/<?= esc($role) ?>/moves/reject/' + id;
             modal.style.display = 'flex';
         }
 

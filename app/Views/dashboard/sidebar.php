@@ -1,5 +1,5 @@
 <?php
-$role   = $role   ?? 'resident';
+$role   = $role   ?? (session()->get('role') ?: 'resident');
 $active = $active ?? 'dashboard';
 
 $menus = [
@@ -20,6 +20,7 @@ $menus = [
         ['icon' => 'fas fa-comments',        'label' => 'Appointment / Concerns Management', 'key' => 'concerns',        'href' => '/captain/concerns'],
         ['icon' => 'fas fa-headset',         'label' => 'Customer Service',                'key' => 'customer_service', 'href' => '/captain/customer-service'],
         ['divider' => 'Account'],
+        ['icon' => 'fas fa-user-plus',       'label' => 'Appoint Secretary',               'key' => 'create_account',   'href' => '/captain/create-account'],
         ['icon' => 'fas fa-cog',             'label' => 'Settings',                        'key' => 'settings',         'href' => '/captain/settings'],
         ['icon' => 'fas fa-sign-out-alt',    'label' => 'Logout',                          'key' => 'logout',          'href' => '/logout'],
     ],
@@ -36,11 +37,14 @@ $menus = [
         ['icon' => 'fas fa-id-card',         'label' => 'Residents',                       'key' => 'residents',        'href' => '/secretary/residents'],
         ['divider' => 'Services'],
         ['icon' => 'fas fa-file-alt',        'label' => 'Clearance',                       'key' => 'clearance',        'href' => '/secretary/clearance'],
+        ['icon' => 'fas fa-peso-sign',       'label' => 'Document Fees',                   'key' => 'barangay_settings', 'href' => '/secretary/barangay-settings'],
         ['icon' => 'fas fa-book',            'label' => 'Blotter Reports',                 'key' => 'blotter',          'href' => '/secretary/blotter'],
         ['icon' => 'fas fa-chart-bar',       'label' => 'Reports',                         'key' => 'reports',          'href' => '/secretary/reports'],
         ['icon' => 'fas fa-comments',        'label' => 'Appointment / Concerns Management', 'key' => 'concerns',        'href' => '/secretary/concerns'],
         ['icon' => 'fas fa-headset',         'label' => 'Customer Service',                'key' => 'customer_service', 'href' => '/secretary/customer-service'],
+        ['icon' => 'fas fa-ticket-alt',      'label' => 'Support Tickets',                 'key' => 'support_tickets',  'href' => '/secretary/support-tickets'],
         ['divider' => 'Account'],
+        ['icon' => 'fas fa-user-plus',       'label' => 'Create Resident Account',         'key' => 'create_account',   'href' => '/secretary/create-account'],
         ['icon' => 'fas fa-sign-out-alt',    'label' => 'Logout',                          'key' => 'logout',          'href' => '/logout'],
     ],
     'admin' => [
@@ -56,10 +60,12 @@ $menus = [
         ['icon' => 'fas fa-bell',            'label' => 'Census Update Drive',             'key' => 'census_updates',   'href' => '/admin/census-updates'],
         ['divider' => 'Services'],
         ['icon' => 'fas fa-file-alt',        'label' => 'Clearance',                       'key' => 'clearance',        'href' => '/admin/clearance'],
+        ['icon' => 'fas fa-peso-sign',       'label' => 'Document Fees',                   'key' => 'barangay_settings', 'href' => '/admin/barangay-settings'],
         ['icon' => 'fas fa-book',            'label' => 'Blotter Reports',                 'key' => 'blotter',          'href' => '/admin/blotter'],
         ['icon' => 'fas fa-chart-bar',       'label' => 'Reports',                         'key' => 'reports',          'href' => '/admin/reports'],
         ['icon' => 'fas fa-comments',        'label' => 'Appointment / Concerns Management', 'key' => 'concerns',      'href' => '/admin/concerns'],
         ['icon' => 'fas fa-headset',         'label' => 'Customer Service',                'key' => 'customer_service', 'href' => '/admin/customer-service'],
+        ['icon' => 'fas fa-ticket-alt',      'label' => 'Support Tickets',                 'key' => 'support_tickets',  'href' => '/admin/support-tickets'],
         ['divider' => 'Youth'],
         ['icon' => 'fas fa-id-card',         'label' => 'SK Profiling',                    'key' => 'profiling',        'href' => '/admin/profiling'],
         ['icon' => 'fas fa-calendar-alt',    'label' => 'Programs & Events',               'key' => 'programs',         'href' => '/admin/programs'],
@@ -89,6 +95,7 @@ $menus = [
         ['icon' => 'fas fa-tachometer-alt', 'label' => 'Dashboard',         'key' => 'dashboard',      'href' => '/sk/dashboard'],
         ['divider' => 'Youth'],
         ['icon' => 'fas fa-id-card',         'label' => 'SK Profiling',     'key' => 'profiling',      'href' => '/sk/profiling'],
+        ['icon' => 'fas fa-bullhorn',        'label' => 'Brgy Activities',  'key' => 'activities',     'href' => '/sk/activities'],
         ['icon' => 'fas fa-calendar-alt',    'label' => 'Programs & Events', 'key' => 'programs',      'href' => '/sk/programs'],
         ['icon' => 'fas fa-chart-bar',       'label' => 'Reports',           'key' => 'reports',       'href' => '/sk/reports'],
         ['divider' => 'Services'],
@@ -100,6 +107,8 @@ $menus = [
     'council' => [
         ['divider' => 'Overview'],
         ['icon' => 'fas fa-tachometer-alt', 'label' => 'Dashboard',      'key' => 'dashboard', 'href' => '/council/dashboard'],
+        ['icon' => 'fas fa-bullhorn',       'label' => 'Brgy Activities', 'key' => 'activities', 'href' => '/council/activities'],
+        ['icon' => 'fas fa-file-alt',       'label' => 'Document Request', 'key' => 'clearance', 'href' => '/council/clearance'],
         ['divider' => 'Census'],
         ['icon' => 'fas fa-users',          'label' => 'Census Records', 'key' => 'census',    'href' => '/council/census'],
         ['divider' => 'Youth'],
@@ -107,6 +116,7 @@ $menus = [
         ['icon' => 'fas fa-star',           'label' => 'SK Profiling',   'key' => 'sk_profiling', 'href' => '/council/sk-profiling'],
         ['divider' => 'Account'],
         ['icon' => 'fas fa-bell',           'label' => 'Notifications',  'key' => 'notifications', 'href' => '/council/notifications'],
+        ['icon' => 'fas fa-cog',            'label' => 'Settings',       'key' => 'settings',  'href' => '/council/settings'],
         ['icon' => 'fas fa-sign-out-alt',   'label' => 'Logout',          'key' => 'logout',        'href' => '/logout'],
     ],
 ];
@@ -130,12 +140,55 @@ foreach ($roleMenu as $index => $item) {
     $visibleMenu[] = $item;
 }
 $roleMenu = $visibleMenu;
+$requestPath = trim((string) service('request')->getUri()->getPath(), '/');
+$requestPath = preg_replace('#^index\.php/?#', '', $requestPath) ?? $requestPath;
+$pathParts = $requestPath === '' ? [] : explode('/', $requestPath);
+$section = strtolower((string) ($pathParts[1] ?? ''));
+$menuKeys = [];
+$activeKey = '';
+$bestLength = -1;
+foreach ($roleMenu as $item) {
+    $itemKey = (string) ($item['key'] ?? '');
+    $itemHref = (string) ($item['href'] ?? '');
+    if ($itemKey === '' || $itemKey === 'logout' || $itemHref === '' || ! empty($item['divider'])) {
+        continue;
+    }
+    $menuKeys[$itemKey] = true;
+    $hrefPath = trim($itemHref, '/');
+    if ($requestPath === $hrefPath || str_starts_with($requestPath, $hrefPath . '/')) {
+        if (strlen($hrefPath) > $bestLength) {
+            $bestLength = strlen($hrefPath);
+            $activeKey = $itemKey;
+        }
+    }
+}
+if ($activeKey === '' && $section !== '') {
+    $sectionKeys = [
+        'concern' => 'concerns',
+        'household' => strtolower((string) $role) === 'sk' ? 'profiling' : 'census',
+        'households' => 'census',
+        'officials-history' => 'create_account',
+        'document-templates' => 'clearance',
+        'pending-accounts' => 'settings',
+    ];
+    if (strtolower((string) $role) === 'resident' && $section === 'clearance') {
+        $sectionKeys['clearance'] = 'document_request';
+    }
+    $candidate = $sectionKeys[$section] ?? str_replace('-', '_', $section);
+    if (isset($menuKeys[$candidate])) {
+        $activeKey = $candidate;
+    }
+}
+if ($activeKey === '' && isset($menuKeys[(string) $active])) {
+    $activeKey = (string) $active;
+}
+$active = $activeKey;
 $roleLabel = ucfirst($role);
 $roleIcons = ['admin' => 'fas fa-user-shield', 'captain' => 'fas fa-user-tie', 'secretary' => 'fas fa-user-edit', 'resident' => 'fas fa-users', 'sk' => 'fas fa-star', 'council' => 'fas fa-users'];
 $roleIcon = $roleIcons[strtolower($role)] ?? 'fas fa-user';
 ?>
 
-<link rel="stylesheet" href="/dashboard-theme.css?v=20260927p">
+<link rel="stylesheet" href="/dashboard-theme.css?v=20261004b">
 <script src="/pii-protect.js?v=20260927b" defer></script>
 
 <aside class="db-sidebar" id="sidebar">
@@ -166,7 +219,7 @@ $roleIcon = $roleIcons[strtolower($role)] ?? 'fas fa-user';
                     <span class="db-nav-section-line"></span>
                 </div>
             <?php else: ?>
-                <a href="<?= $item['href'] ?>" class="db-nav-item <?= $active === $item['key'] ? 'active' : '' ?>" <?= $item['key'] === 'logout' ? ' onclick="return openLogoutModal(event, this.href);"' : '' ?>>
+                <a href="<?= $item['href'] ?>" class="db-nav-item <?= $active === $item['key'] ? 'active' : '' ?>" <?= $active === $item['key'] ? 'aria-current="page"' : '' ?> <?= $item['key'] === 'logout' ? ' onclick="return openLogoutModal(event, this.href);"' : '' ?>>
                     <i class="<?= $item['icon'] ?>"></i>
                     <span><?= $item['label'] ?></span>
                 </a>
@@ -201,6 +254,16 @@ $roleIcon = $roleIcons[strtolower($role)] ?? 'fas fa-user';
 
 <script>
     (function() {
+        const current = document.querySelector('.db-nav-item.active');
+        const nav = document.querySelector('.db-nav');
+        if (current && nav) {
+            const itemTop = current.offsetTop;
+            const itemBottom = itemTop + current.offsetHeight;
+            if (itemTop < nav.scrollTop || itemBottom > nav.scrollTop + nav.clientHeight) {
+                nav.scrollTop = Math.max(0, itemTop - 48);
+            }
+        }
+
         const modal = document.getElementById('logoutModal');
         const confirmButton = document.getElementById('confirmLogoutButton');
 

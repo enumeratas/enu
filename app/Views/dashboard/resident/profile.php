@@ -388,7 +388,7 @@
 <body class="db-body">
     <?php
     $role      = strtolower((string) (session()->get('role') ?? 'resident'));
-    $active    = 'profile';
+    $active    = $role === 'resident' ? 'profile' : 'settings';
     $pageTitle = 'My Profile';
     include(APPPATH . 'Views/dashboard/sidebar.php');
 

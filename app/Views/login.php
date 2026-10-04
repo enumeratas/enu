@@ -707,7 +707,7 @@
         });
 
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js?v=8', { updateViaCache: 'none' }).catch(function () {});
+            navigator.serviceWorker.register('/sw.js?v=10', { updateViaCache: 'none' }).catch(function () {});
         }
 
         document.getElementById('signInBtn').closest('form').addEventListener('submit', function (event) {

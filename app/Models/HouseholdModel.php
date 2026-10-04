@@ -61,7 +61,10 @@ class HouseholdModel extends Model
         'ownership_notes',
         'shared_address_group',
         'family_number',
+        'linked_household_no',
         'family_type',
+        'record_status',
+        'supporting_doc_path',
         'is_deceased',
         'year_of_death',
     ];

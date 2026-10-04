@@ -461,6 +461,18 @@ class BlotterController extends BaseController
             return redirect()->back()->with('error', 'The complainant and respondent cannot have the same email address.')->withInput();
         }
 
+        if ($incidentDate && $incidentDate > date('Y-m-d')) {
+            return redirect()->back()->with('error', 'The incident date cannot be a future date.')->withInput();
+        }
+
+        if ($isExternalComplainant && $externalComplainantEmail !== '' && $userModel->residentOwnsEmail($externalComplainantEmail)) {
+            return redirect()->back()->with('error', 'A non-resident complainant cannot use an email that belongs to a resident account.')->withInput();
+        }
+
+        if ($isExternalRespondent && $externalRespondentEmail !== '' && $userModel->residentOwnsEmail($externalRespondentEmail)) {
+            return redirect()->back()->with('error', 'A non-resident respondent cannot use an email that belongs to a resident account.')->withInput();
+        }
+
         if ((! $isExternalComplainant && ! $complainant)) {
             return redirect()->back()->with('error', 'Select a resident complainant or enter a name for a non-resident.')->withInput();
         }
@@ -577,7 +589,14 @@ class BlotterController extends BaseController
             );
         }
 
-        return redirect()->to('/secretary/blotter')->with('success', 'Blotter report created and linked to both residents.');
+        $savedPhotos = count($evidencePaths);
+        $role = (string) (session()->get('role') ?: 'secretary');
+        $message = 'Blotter report created.';
+        if ($savedPhotos > 0) {
+            $message .= ' ' . $savedPhotos . ' evidence photo' . ($savedPhotos === 1 ? ' is' : 's are') . ' saved and can be viewed on this report.';
+        }
+
+        return redirect()->to('/' . $role . '/blotter/' . $blotterId)->with('success', $message);
     }
 
     // ── Resident / SK: submit blotter report ─────────────────────────────────
@@ -682,15 +701,15 @@ class BlotterController extends BaseController
             $builder->where('b.status', $statusFilter);
         }
         if ($search !== '') {
-            $search = trim($search); // strip leading/trailing spaces from URL encoding
-            $builder->groupStart()
-                ->like('b.complainant_name', $search)
-                ->orLike('u.last_name',      $search)
-                ->orLike('u.first_name',     $search)
-                ->orLike('b.incident_type',  $search)
-                ->orLike('b.persons_involved', $search)
-                ->orLike('b.respondent_name',  $search)
-                ->groupEnd();
+            $search = trim($search);
+            $builder->where(\App\Libraries\RecordSearch::clause([
+                'b.complainant_name',
+                'u.last_name',
+                'u.first_name',
+                'b.incident_type',
+                'b.persons_involved',
+                'b.respondent_name',
+            ], ['b.incident_date', 'b.created_at'], $search), null, false);
         }
 
         $reports = $builder->get()->getResultArray();
@@ -890,7 +909,7 @@ class BlotterController extends BaseController
             )))
             : 'PUNONG BARANGAY';
 
-        $secretaryRow  = $userModel->getActiveByRole('secretary');
+        $secretaryRow  = $userModel->getAppointedSecretary();
         $secretaryName = $secretaryRow
             ? strtoupper(preg_replace('/\s+/', ' ', trim(
                 ($secretaryRow['first_name'] ?? '') . ' ' .
@@ -1037,7 +1056,7 @@ class BlotterController extends BaseController
             )))
             : 'PUNONG BARANGAY';
 
-        $secretaryRow  = $userModel->getActiveByRole('secretary');
+        $secretaryRow  = $userModel->getAppointedSecretary();
         $secretaryName = $secretaryRow
             ? strtoupper(preg_replace('/\s+/', ' ', trim(
                 ($secretaryRow['first_name'] ?? '') . ' ' .
@@ -1052,6 +1071,45 @@ class BlotterController extends BaseController
             'captainName'   => $captainName,
             'secretaryName' => $secretaryName,
         ]);
+    }
+
+    public function evidence(int $id, int $index)
+    {
+        $role = (string) (session()->get('role') ?? '');
+        if (! in_array($role, ['secretary', 'captain', 'admin'], true)) {
+            return $this->response->setStatusCode(403);
+        }
+
+        $report = $this->model->find($id);
+        if (! is_array($report)) {
+            return $this->response->setStatusCode(404);
+        }
+        $photos = json_decode((string) ($report['evidence_photos'] ?? ''), true);
+        $path = is_array($photos) ? ($photos[$index] ?? '') : '';
+        $path = \App\Controllers\HouseholdUploadController::normalizeUploadPath(is_string($path) ? $path : '');
+        if ($path === '' || str_contains($path, '..') || ! str_starts_with($path, 'uploads/blotter_evidence/')) {
+            return $this->response->setStatusCode(404);
+        }
+
+        foreach ([FCPATH . $path, WRITEPATH . $path] as $localPath) {
+            if (is_file($localPath)) {
+                $mimeType = mime_content_type($localPath) ?: 'application/octet-stream';
+
+                return $this->response->setContentType($mimeType)->setBody((string) file_get_contents($localPath));
+            }
+        }
+
+        $storage = new \App\Libraries\HouseholdUploadStorage();
+        $object = $storage->download($path);
+        if ($object !== null) {
+            return $this->response->setContentType($object['mime'])->setBody($object['body']);
+        }
+
+        $signedUrl = $storage->signedUrl($path);
+
+        return $signedUrl === null
+            ? $this->response->setStatusCode(404)
+            : redirect()->to($signedUrl);
     }
 
     // ── Admin: view/print summons letter ─────────────────────────────────────
@@ -1082,7 +1140,7 @@ class BlotterController extends BaseController
             ))
             : 'PUNONG BARANGAY';
 
-        $secretaryRow  = $userModel->getActiveByRole('secretary');
+        $secretaryRow  = $userModel->getAppointedSecretary();
         $secretaryName = $secretaryRow
             ? strtoupper(trim(
                 ($secretaryRow['first_name']  ?? '') . ' ' .

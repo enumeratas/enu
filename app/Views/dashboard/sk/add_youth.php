@@ -199,9 +199,11 @@
             transition: border-color .2s, box-shadow .2s;
         }
 
-        .kk-profile-option.selected {
+        .kk-profile-option.selected,
+        .kk-profile-option:has(input:checked) {
             border-color: #1d2448;
             box-shadow: 0 4px 14px rgba(29, 36, 72, .08);
+            background: #f7f8fc;
         }
 
         .kk-profile-option input {
@@ -309,9 +311,20 @@
         <?php include(APPPATH . 'Views/dashboard/topbar.php'); ?>
         <div class="db-content">
 
-            <?php if ($successMessage): ?>
+            <?php
+            $flashSuccess = session()->getFlashdata('success');
+            $flashError = session()->getFlashdata('error');
+            $postedSuccess = (isset($successMessage) && is_string($successMessage)) ? $successMessage : '';
+            $confirmMessage = $postedSuccess !== '' ? $postedSuccess : (is_string($flashSuccess) ? $flashSuccess : '');
+            ?>
+            <?php if ($confirmMessage !== ''): ?>
                 <div class="db-alert db-alert--success" style="margin-bottom:18px;">
-                    <i class="fas fa-check-circle"></i> <?= esc($successMessage) ?>
+                    <i class="fas fa-check-circle"></i> <?= esc($confirmMessage) ?>
+                </div>
+            <?php endif; ?>
+            <?php if (is_string($flashError) && $flashError !== ''): ?>
+                <div class="db-alert db-alert--error" style="margin-bottom:18px;">
+                    <i class="fas fa-exclamation-circle"></i> <?= esc($flashError) ?>
                 </div>
             <?php endif; ?>
 
@@ -789,7 +802,17 @@
             });
         });
 
+        function markProfileOption(optionId) {
+            document.querySelectorAll('.kk-profile-option').forEach(card => {
+                const on = card.dataset.optionId === optionId;
+                card.classList.toggle('selected', on);
+                const radio = card.querySelector('input[type="radio"]');
+                if (radio) radio.checked = on;
+            });
+        }
+
         function applyResidentProfileChoice(optionId) {
+            markProfileOption(optionId);
             const option = residentProfileData.find(item => item.id === optionId);
             if (!option || !option.data) return;
 
@@ -831,11 +854,7 @@
                 }
             });
 
-            if (document.querySelector('[name="profile_option"]').value === optionId) {
-                document.querySelectorAll('.kk-profile-option').forEach(card => {
-                    card.classList.toggle('selected', card.dataset.optionId === optionId);
-                });
-            }
+            markProfileOption(optionId);
 
             calcAge();
         }

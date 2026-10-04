@@ -64,12 +64,12 @@
             </div>
 
             <!-- Toolbar -->
-            <form method="get" action="">
+            <form method="get" action="" data-live-results="liveResults">
                 <div class="db-toolbar">
                     <div class="db-search-wrap">
                         <i class="fas fa-search"></i>
-                        <input type="text" name="search" placeholder="Search by name or incident type..."
-                            value="<?= esc($search) ?>" onchange="this.form.submit()">
+                        <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search by name, incident, or date..."
+                            value="<?= esc($search) ?>">
                     </div>
                     <div class="db-toolbar-actions">
                         <?php if ($role === 'secretary'): ?>
@@ -87,6 +87,7 @@
                 </div>
             </form>
 
+            <div id="liveResults">
             <!-- Table -->
             <div class="db-table-wrap">
                 <table class="db-table">
@@ -148,6 +149,7 @@
                         endif; ?>
                     </tbody>
                 </table>
+            </div>
             </div>
 
         </div>

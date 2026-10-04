@@ -503,8 +503,14 @@
             display: none;
         }
 
-        .pf-grade-wrap.visible {
+        .pf-grade-wrap.visible,
+        .pf-work-wrap.visible {
             display: block;
+        }
+
+        .pf-work-wrap {
+            display: none;
+            margin-top: 8px;
         }
 
         .pf-grade-label {
@@ -1059,14 +1065,32 @@
                                     <div>
                                         <div class="pf-label">Years of Residency</div>
                                         <input type="number" class="pf-ctrl" name="years_of_residency" placeholder="0" min="0" required>
+                                        <div class="pf-file-hint">This count increases by 1 every January.</div>
                                     </div>
                                     <div>
                                         <div class="pf-label">House Ownership</div>
                                         <select class="pf-ctrl" name="house_ownership" id="houseOwnershipSelect" onchange="toggleNumFamilies(this.value)">
                                             <option>Owned</option>
                                             <option>Rented</option>
+                                            <option>Shared</option>
                                         </select>
                                     </div>
+                                </div>
+
+                                <div id="sharedLinkRow" style="display:none;margin-top:12px;padding:12px 14px;background:#f5f7ff;border:1px solid #dde2f5;border-radius:9px;">
+                                    <div class="pf-label">Household number this family belongs to <span class="pf-req">*</span></div>
+                                    <input type="text" class="pf-ctrl" name="linked_household_no" id="linkedHouseholdNo" placeholder="e.g. 12345" maxlength="5" inputmode="numeric" style="max-width:180px;">
+                                    <div class="pf-file-hint">Required when ownership is Shared. This family is linked to that household number.</div>
+                                </div>
+
+                                <div class="pf-id-upload" style="margin-top:12px;">
+                                    <label class="pf-id-label"><i class="fas fa-id-card"></i> Head ID or Birth Certificate <span class="pf-req">* REQUIRED</span></label>
+                                    <label class="pf-file-drop">
+                                        <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                                        <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose one ID or birth certificate</span><span class="pf-file-name">No file selected</span></span>
+                                        <input type="file" name="head_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input">
+                                    </label>
+                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> Every member needs one ID or birth certificate. Use Save as Draft if a document is not available yet.</div>
                                 </div>
 
                                 <div class="pf-check-row">
@@ -1096,7 +1120,7 @@
                                     </div>
                                     <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - maximum 5 MB each. OCR will compare the ID with the personal information.</div>
                                     <input type="hidden" name="id_4ps_verified" value="0" data-ocr-flag>
-                                    <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and date of birth, then upload the front and back of the ID.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
+                                    <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
                                 </div>
                                 <div id="id_senior_wrap" class="pf-id-upload" style="display:none;" data-id-block data-id-key="senior">
                                     <label class="pf-id-label"><i class="fas fa-id-card"></i> Senior Citizen ID / Photo <span style="font-weight:400;color:#6b7291;">(optional)</span></label>
@@ -1114,7 +1138,7 @@
                                     </div>
                                     <div class="pf-file-hint"><i class="fas fa-info-circle"></i> Optional. PDF, JPG, or PNG - maximum 5 MB each. OCR will compare the ID with the personal information.</div>
                                     <input type="hidden" name="id_senior_verified" value="0" data-ocr-flag>
-                                    <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and date of birth, then upload the front and back of the ID.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
+                                    <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
                                 </div>
                                 <div id="id_solo_wrap" class="pf-id-upload" style="display:none;" data-id-block data-id-key="solo">
                                     <label class="pf-id-label">
@@ -1134,7 +1158,7 @@
                                     </div>
                                     <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - maximum 5 MB each. OCR will compare the ID with the personal information.</div>
                                     <input type="hidden" name="id_solo_parent_verified" value="0" data-ocr-flag>
-                                    <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and date of birth, then upload the front and back of the ID.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
+                                    <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
                                 </div>
 
                                 <div style="margin-top:10px;">
@@ -1163,7 +1187,7 @@
                                         </div>
                                         <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - maximum 5 MB each. OCR will compare the ID with the personal information.</div>
                                         <input type="hidden" name="id_pwd_verified" value="0" data-ocr-flag>
-                                        <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and date of birth, then upload the front and back of the ID.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
+                                        <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
                                     </div>
                                 </div>
 
@@ -1334,6 +1358,15 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="pf-id-upload" style="margin-top:12px;">
+                                    <label class="pf-id-label"><i class="fas fa-id-card"></i> Spouse ID or Birth Certificate</label>
+                                    <label class="pf-file-drop">
+                                        <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                                        <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose one ID or birth certificate</span><span class="pf-file-name">No file selected</span></span>
+                                        <input type="file" name="spouse_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input">
+                                    </label>
+                                    <div class="pf-file-hint">Required when a spouse is recorded. Save as Draft if the document is not available yet.</div>
+                                </div>
                             </div>
 
                             <!-- Children -->
@@ -1392,7 +1425,10 @@
                             <a href="/<?= esc(session()->get('role')) ?>/census" class="pf-page-btn pf-page-btn--outline">
                                 <i class="fas fa-times"></i> Cancel
                             </a>
-                            <button class="pf-page-btn pf-page-btn--primary" id="saveBtn" type="submit" style="display:none;">
+                            <button class="pf-page-btn pf-page-btn--outline" id="draftBtn" name="save_mode" value="draft" type="submit" style="display:none;">
+                                <i class="fas fa-file-alt"></i> Save as Draft
+                            </button>
+                            <button class="pf-page-btn pf-page-btn--primary" id="saveBtn" name="save_mode" value="complete" type="submit" style="display:none;">
                                 <i class="fas fa-save"></i> Save Record
                             </button>
                         </div>
@@ -1431,6 +1467,7 @@
                         </div>
                         <input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_occupation[]" placeholder="OR TYPE EXACT OCCUPATION">
                         <div class="pf-grade-wrap"><div class="pf-grade-label">Current Grade / Year</div><select class="pf-ctrl" name="child_grade[]">' . $gradeOpts . '</select></div>
+                        <div class="pf-work-wrap"><div class="pf-grade-label">Specify Work</div><input type="text" class="pf-ctrl pf-upper" name="child_work[]" placeholder="WHAT WORK DO THEY DO?" maxlength="120"></div>
                     </div>
                 </div>
                 <div class="pf-field-sm"><div class="pf-label">Monthly Income (₱)</div><input type="number" class="pf-ctrl" name="child_income[]" placeholder="0.00" min="0" step="0.01"></div>
@@ -1462,6 +1499,7 @@
                             <label class="pf-check"><input type="checkbox" name="child_senior[' . $i . ']" value="1"> <span>Senior (60+)</span></label>
                             <input type="file" name="child_id_senior[]" accept="image/*,application/pdf" style="width:100%;margin-top:5px;font-size:11px;">
                         </div>
+                        <div class="pf-field-wrap" style="margin-top:8px;"><div class="pf-label">ID or Birth Certificate</div><input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input"><div class="pf-file-hint">One ID or birth certificate. Save as Draft if it is not available yet.</div></div>
             </div>
             <button type="button" class="pf-member-del" onclick="removeRow(this)"><i class="fas fa-times"></i></button>
         </div>';
@@ -1513,6 +1551,7 @@
                     <div id="other_senior_type_wrap_' . $i . '" style="display:none;margin-top:6px;">
                         <input type="file" name="other_id_senior[]" accept="image/*,application/pdf" style="width:100%;margin-top:5px;font-size:11px;">
                     </div>
+                    <div class="pf-field-wrap" style="margin-top:8px;"><div class="pf-label">ID or Birth Certificate</div><input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input"><div class="pf-file-hint">One ID or birth certificate. Save as Draft if it is not available yet.</div></div>
                 </div>
             </div>
             <button type="button" class="pf-member-del" onclick="removeRow(this)"><i class="fas fa-times"></i></button>
@@ -1541,30 +1580,14 @@
         }
 
         function toggleNumFamilies(val) {
-            const row = document.getElementById('numFamiliesRow');
-            const input = document.getElementById('numFamiliesInput');
-            const grpIn = document.getElementById('sharedGroupInput');
-            const grpDis = document.getElementById('sharedGroupDisplay');
-            const famIn = document.getElementById('familyNumberInput');
+            const row = document.getElementById('sharedLinkRow');
+            const input = document.getElementById('linkedHouseholdNo');
             if (!row) return;
-            if (val === 'Shared') {
-                row.style.display = 'block';
-                if (input && (!input.value || parseInt(input.value) < 2)) input.value = 2;
-                if (grpIn && !grpIn.value) {
-                    const code = genGroupCode();
-                    grpIn.value = code;
-                    if (grpDis) grpDis.textContent = code;
-                }
-                if (famIn) famIn.value = 1;
-                const familySelect = document.getElementById('familyNumberSelect');
-                if (familySelect) familySelect.value = 1;
-                rebuildFamilyCards(input ? input.value : 2);
-            } else {
-                row.style.display = 'none';
-                if (input) input.value = 1;
-                if (grpIn) grpIn.value = '';
-                if (grpDis) grpDis.textContent = '';
-                if (famIn) famIn.value = 1;
+            const shared = val === 'Shared';
+            row.style.display = shared ? 'block' : 'none';
+            if (input) {
+                input.required = shared;
+                if (!shared) input.value = '';
             }
         }
 
@@ -1709,7 +1732,7 @@
         function resetOcrStatus(block) {
             const flag = block.querySelector('[data-ocr-flag]');
             if (flag) flag.value = '0';
-            setOcrStatus(block, null, 'Fill in the name and date of birth, then upload the front and back of the ID.');
+            setOcrStatus(block, null, 'Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.');
         }
 
         async function runOcr(block) {
@@ -1735,6 +1758,9 @@
                 form.append('id_back', back.files[0]);
             }
             form.append('full_name', name);
+            form.append('first_name', (document.querySelector('input[name="first_name"]')?.value || '').trim());
+            form.append('middle_name', (document.querySelector('input[name="middle_name"]')?.value || '').trim());
+            form.append('last_name', (document.querySelector('input[name="last_name"]')?.value || '').trim());
             if (dob) form.append('date_of_birth', dob);
 
             setOcrStatus(block, 'is-pending', 'Reading the ID with OCR…');
@@ -1834,6 +1860,8 @@
             document.getElementById('prevBtn').style.display = step > 1 ? '' : 'none';
             document.getElementById('nextBtn').style.display = step < 2 ? '' : 'none';
             document.getElementById('saveBtn').style.display = step === 2 ? '' : 'none';
+            const draftBtn = document.getElementById('draftBtn');
+            if (draftBtn) draftBtn.style.display = step === 2 ? '' : 'none';
             window.scrollTo({
                 top: 0,
                 behavior: 'smooth'
@@ -1885,6 +1913,7 @@
                                 </div>
                                 <input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_occupation[]" placeholder="OR TYPE EXACT OCCUPATION">
                                 <div class="pf-grade-wrap"><div class="pf-grade-label">Current Grade / Year</div><select class="pf-ctrl" name="child_grade[]">${gradeOptions()}</select></div>
+                                <div class="pf-work-wrap"><div class="pf-grade-label">Specify Work</div><input type="text" class="pf-ctrl pf-upper" name="child_work[]" placeholder="WHAT WORK DO THEY DO?" maxlength="120"></div>
                             </div>
                         </div>
                         <div class="pf-field-sm"><div class="pf-label">Monthly Income (₱)</div><input type="number" class="pf-ctrl" name="child_income[]" placeholder="0.00" min="0" step="0.01"></div>
@@ -1912,6 +1941,7 @@
                                 <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - maximum 5 MB</div>
                             </div>
                         </div>
+                        <div class="pf-field-wrap" style="margin-top:8px;"><div class="pf-label">ID or Birth Certificate</div><input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input"></div>
                 </div>
                     </div>
                     <button type="button" class="pf-member-del" onclick="removeRow(this)"><i class="fas fa-times"></i></button>
@@ -1951,6 +1981,7 @@
                     <div id="other_pwd_type_wrap_${i}" style="display:none;margin-top:6px;">
                         <input type="text" class="pf-ctrl" name="other_pwd_type[]" placeholder="Specify disability (e.g. Visual, Hearing...)" maxlength="120">
                     </div>
+                    <div class="pf-field-wrap" style="margin-top:8px;"><div class="pf-label">ID or Birth Certificate</div><input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input"></div>
                 </div>
                     </div>
                     <button type="button" class="pf-member-del" onclick="removeRow(this)"><i class="fas fa-times"></i></button>
@@ -2039,8 +2070,11 @@
         }
 
         function toggleGradeField(wrap, val) {
+            const normalized = (val || '').trim().toUpperCase();
             const gw = wrap.querySelector('.pf-grade-wrap');
-            if (gw) gw.classList.toggle('visible', val.trim().toUpperCase() === 'STUDENT');
+            const ww = wrap.querySelector('.pf-work-wrap');
+            if (gw) gw.classList.toggle('visible', normalized === 'STUDENT' || normalized === 'WORKING STUDENT');
+            if (ww) ww.classList.toggle('visible', normalized === 'WORKING STUDENT');
         }
 
         // ── Solo Parent validation + highlight ───────────────────────────────
@@ -2178,6 +2212,16 @@
 
         // ── Form submit validation ────────────────────────────────────────────
         document.getElementById('censusForm').addEventListener('submit', function(e) {
+            const savingDraft = e.submitter && e.submitter.value === 'draft';
+            const ownership = document.getElementById('houseOwnershipSelect');
+            const linkedHousehold = document.getElementById('linkedHouseholdNo');
+            if (ownership && ownership.value === 'Shared' && linkedHousehold && linkedHousehold.value.trim() === '') {
+                e.preventDefault();
+                goTo(1);
+                alert('Enter the household number this shared family belongs to.');
+                linkedHousehold.focus();
+                return;
+            }
             // Validate step 1 fields before final submission
             if (!validateStep(1)) {
                 e.preventDefault();
@@ -2218,7 +2262,7 @@
             ];
             let idErrors = [];
             let firstMissingWrap = null;
-            idChecks.forEach(cfg => {
+            if (!savingDraft) idChecks.forEach(cfg => {
                 const cbEl = document.querySelector(cfg.cb);
                 if (cbEl && cbEl.checked) {
                     const fileEl = document.querySelector(cfg.file);
@@ -2267,6 +2311,35 @@
             }
             const prevErr = document.getElementById('idUploadsError');
             if (prevErr) prevErr.remove();
+
+            if (!savingDraft) {
+                const fileMissing = (selector) => {
+                    const el = document.querySelector(selector);
+                    return !el || !el.files || el.files.length === 0;
+                };
+                const headCovered = !fileMissing('input[name="head_supporting_doc"]')
+                    || (document.querySelector('input[name="is_4ps"]')?.checked && !fileMissing('input[name="id_4ps"]'))
+                    || (document.querySelector('input[name="is_senior_citizen"]')?.checked && !fileMissing('input[name="id_senior"]'))
+                    || (document.querySelector('input[name="is_solo_parent"]')?.checked && !fileMissing('input[name="id_solo_parent"]'))
+                    || (document.querySelector('input[name="is_pwd"]')?.checked && !fileMissing('input[name="id_pwd"]'));
+                if (!headCovered) {
+                    e.preventDefault();
+                    goTo(1);
+                    alert('The household head needs one ID or birth certificate, or save the household as a draft.');
+                    return;
+                }
+                document.querySelectorAll('#childrenRows .pf-member-card').forEach(row => {
+                    const last = row.querySelector('input[name="child_last_name[]"]');
+                    const occ = row.querySelector('input[name="child_occupation[]"]');
+                    const work = row.querySelector('input[name="child_work[]"]');
+                    if (last && last.value.trim() !== '' && occ && occ.value.trim().toUpperCase() === 'WORKING STUDENT' && work && work.value.trim() === '') {
+                        e.preventDefault();
+                        goTo(2);
+                        alert('Specify the work of each working student. That work is saved on the census record.');
+                    }
+                });
+                if (e.defaultPrevented) return;
+            }
 
             // Solo Parent requires at least one child
             const isSoloParent = document.querySelector('input[name="is_solo_parent"]')?.checked;

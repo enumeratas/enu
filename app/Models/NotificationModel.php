@@ -22,30 +22,47 @@ class NotificationModel extends Model
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**
-     * Get all notifications for a user (own + broadcasts).
+     * Get notifications for a user.
+     * Residents include broadcasts; staff see only rows addressed to them.
      */
-    public function getForUser(int $userId): array
+    public function getForUser(int $userId, bool $includeBroadcasts = true): array
     {
-        return $this->db->table('notifications')
-            ->where('user_id', $userId)
-            ->orWhere('user_id IS NULL')
+        $builder = $this->db->table('notifications');
+
+        if ($includeBroadcasts) {
+            $builder->groupStart()
+                ->where('user_id', $userId)
+                ->orWhere('user_id IS NULL')
+                ->groupEnd();
+        } else {
+            $builder->where('user_id', $userId);
+        }
+
+        return $builder
             ->orderBy('created_at', 'DESC')
             ->limit(50)
-            ->get()->getResultArray();
+            ->get()
+            ->getResultArray();
     }
 
     /**
      * Count unread notifications for a user.
      */
-    public function countUnread(int $userId): int
+    public function countUnread(int $userId, bool $includeBroadcasts = true): int
     {
-        return (int) $this->db->table('notifications')
-            ->where('read_at IS NULL')
-            ->groupStart()
-            ->where('user_id', $userId)
-            ->orWhere('user_id IS NULL')
-            ->groupEnd()
-            ->countAllResults();
+        $builder = $this->db->table('notifications')
+            ->where('read_at IS NULL');
+
+        if ($includeBroadcasts) {
+            $builder->groupStart()
+                ->where('user_id', $userId)
+                ->orWhere('user_id IS NULL')
+                ->groupEnd();
+        } else {
+            $builder->where('user_id', $userId);
+        }
+
+        return (int) $builder->countAllResults();
     }
 
     /**
@@ -54,29 +71,46 @@ class NotificationModel extends Model
      * by inserting a per-user copy only when creating notifications, so we can
      * simply update by id + user_id / null.
      */
-    public function markReadById(int $notifId, int $userId): void
+    public function markReadById(int $notifId, int $userId, bool $includeBroadcasts = true): void
     {
-        $this->db->table('notifications')
-            ->where('id', $notifId)
-            ->groupStart()
-            ->where('user_id', $userId)
-            ->orWhere('user_id IS NULL')
-            ->groupEnd()
-            ->update(['read_at' => date('Y-m-d H:i:s')]);
+        $builder = $this->db->table('notifications')
+            ->where('id', $notifId);
+
+        if ($includeBroadcasts) {
+            $builder->groupStart()
+                ->where('user_id', $userId)
+                ->orWhere('user_id IS NULL')
+                ->groupEnd();
+        } else {
+            $builder->where('user_id', $userId);
+        }
+
+        $builder->update(['read_at' => date('Y-m-d H:i:s')]);
     }
 
     /**
      * Mark all unread notifications read for a user.
      */
-    public function markAllRead(int $userId): void
+    public function markAllRead(int $userId, bool $includeBroadcasts = true): void
     {
-        $this->db->table('notifications')
-            ->where('read_at IS NULL')
-            ->groupStart()
-            ->where('user_id', $userId)
-            ->orWhere('user_id IS NULL')
-            ->groupEnd()
-            ->update(['read_at' => date('Y-m-d H:i:s')]);
+        $builder = $this->db->table('notifications')
+            ->where('read_at IS NULL');
+
+        if ($includeBroadcasts) {
+            $builder->groupStart()
+                ->where('user_id', $userId)
+                ->orWhere('user_id IS NULL')
+                ->groupEnd();
+        } else {
+            $builder->where('user_id', $userId);
+        }
+
+        $builder->update(['read_at' => date('Y-m-d H:i:s')]);
+    }
+
+    public static function includesBroadcastsForRole(?string $role): bool
+    {
+        return strtolower(trim((string) $role)) === 'resident';
     }
 
     /**

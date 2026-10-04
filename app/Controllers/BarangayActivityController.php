@@ -14,12 +14,33 @@ class BarangayActivityController extends BaseController
         $activities = $model->forOfficials();
         foreach ($activities as &$activity) {
             $activity['registration_count'] = $model->registrationCount((int) $activity['id']);
+            $this->syncActivityCalendar($activity);
         }
         unset($activity);
+
+        $search = \App\Libraries\RecordSearch::term();
+        $activities = \App\Libraries\RecordSearch::filter(
+            $activities,
+            $search,
+            static fn(array $activity): string => implode(' ', [
+                (string) ($activity['title'] ?? ''),
+                (string) ($activity['category'] ?? ''),
+                (string) ($activity['venue'] ?? ''),
+                (string) ($activity['status'] ?? ''),
+                (string) ($activity['description'] ?? ''),
+            ]),
+            static fn(array $activity): array => [
+                $activity['conducted_date'] ?? null,
+                $activity['activity_date'] ?? null,
+                $activity['start_date'] ?? null,
+                $activity['end_date'] ?? null,
+            ]
+        );
 
         return view('dashboard/activities/manage', [
             'role'       => $this->manageRole(),
             'activities' => $activities,
+            'search'     => $search,
         ]);
     }
 
@@ -59,11 +80,13 @@ class BarangayActivityController extends BaseController
         }
 
         $model = new BarangayActivityModel();
-        $model->insert($payload + [
+        $createdBy = (int) session()->get('user_id') ?: null;
+        $activityId = (int) $model->insert($payload + [
             'banner_path'      => $banner,
             'notify_residents' => 0,
-            'created_by'       => (int) session()->get('user_id') ?: null,
+            'created_by'       => $createdBy,
         ]);
+        $this->syncActivityCalendar($payload + ['id' => $activityId, 'created_by' => $createdBy]);
 
         $this->notifyResidents($payload['title'], $payload['conducted_date'], $payload['status']);
 
@@ -91,6 +114,10 @@ class BarangayActivityController extends BaseController
         }
 
         $model->update($id, $payload + ['banner_path' => $banner]);
+        $this->syncActivityCalendar($payload + [
+            'id'         => $id,
+            'created_by' => $existing['created_by'] ?? session()->get('user_id'),
+        ]);
 
         return redirect()->to('/' . $role . '/activities')
             ->with('success', 'Activity updated.');
@@ -104,6 +131,7 @@ class BarangayActivityController extends BaseController
         if ($existing) {
             $this->deleteBannerFile($existing['banner_path'] ?? null);
             $model->delete($id);
+            (new \App\Models\ScheduleModel())->deleteMarkedEvent('[activity:' . $id . ']');
         }
 
         return redirect()->to('/' . $role . '/activities')
@@ -123,8 +151,28 @@ class BarangayActivityController extends BaseController
         }
         unset($activity);
 
+        $search = \App\Libraries\RecordSearch::term();
+        $activities = \App\Libraries\RecordSearch::filter(
+            $activities,
+            $search,
+            static fn(array $activity): string => implode(' ', [
+                (string) ($activity['title'] ?? ''),
+                (string) ($activity['category'] ?? ''),
+                (string) ($activity['venue'] ?? ''),
+                (string) ($activity['status'] ?? ''),
+                (string) ($activity['description'] ?? ''),
+            ]),
+            static fn(array $activity): array => [
+                $activity['conducted_date'] ?? null,
+                $activity['activity_date'] ?? null,
+                $activity['start_date'] ?? null,
+                $activity['end_date'] ?? null,
+            ]
+        );
+
         return view('dashboard/resident/activities', [
             'activities' => $activities,
+            'search'     => $search,
         ]);
     }
 
@@ -149,11 +197,28 @@ class BarangayActivityController extends BaseController
                 ->getResultArray();
         }
 
+        $search = \App\Libraries\RecordSearch::term();
+        $rows = \App\Libraries\RecordSearch::filter(
+            $rows,
+            $search,
+            static fn(array $row): string => implode(' ', [
+                (string) ($row['first_name'] ?? ''),
+                (string) ($row['last_name'] ?? ''),
+                (string) ($row['username'] ?? ''),
+                (string) ($row['email'] ?? ''),
+                (string) ($row['notes'] ?? ''),
+                (string) ($row['status'] ?? ''),
+                (string) ($row['requirements_submitted'] ?? ''),
+            ]),
+            static fn(array $row): array => [$row['created_at'] ?? null]
+        );
+
         return view('dashboard/activities/registrations', [
             'role'          => $role,
             'activity'      => $activity,
             'registrations' => $rows,
             'reqList'       => BarangayActivityModel::parseRequirements($activity['requirements'] ?? null),
+            'search'        => $search,
         ]);
     }
 
@@ -186,12 +251,16 @@ class BarangayActivityController extends BaseController
             $message = $newStatus === 'approved'
                 ? 'Your registration for "' . $activity['title'] . '" has been approved.'
                 : 'Your registration for "' . $activity['title'] . '" was not approved. Reason: ' . $reason;
+            $registrant = (new \App\Models\UserModel())->select('role')->find((int) $reg['user_id']);
+            $activityLink = strtolower((string) ($registrant['role'] ?? '')) === 'council'
+                ? '/council/activities'
+                : '/resident/activities';
             NotificationModel::push(
                 (int) $reg['user_id'],
                 'activity_registration_' . $newStatus,
                 'Registration ' . ucfirst($newStatus) . ' — ' . $activity['title'],
                 $message,
-                '/resident/activities'
+                $activityLink
             );
         }
 
@@ -206,7 +275,7 @@ class BarangayActivityController extends BaseController
         $activity = $model->find($id);
 
         if (! $activity || ! in_array($activity['status'] ?? '', ['Active', 'Upcoming', 'Posted'], true)) {
-            return redirect()->to('/resident/activities')->with('error', 'This activity is not open for registration.');
+            return redirect()->to($this->activitiesHome())->with('error', 'This activity is not open for registration.');
         }
 
         $age = $this->residentAge((new \App\Models\UserModel())->find($userId));
@@ -215,15 +284,15 @@ class BarangayActivityController extends BaseController
         if (($min !== null && $min !== '' && ($age === null || $age < (int) $min))
             || ($max !== null && $max !== '' && ($age === null || $age > (int) $max))
         ) {
-            return redirect()->to('/resident/activities')->with('error', 'You are not within the required age range for this activity.');
+            return redirect()->to($this->activitiesHome())->with('error', 'You are not within the required age range for this activity.');
         }
 
         if (! empty($activity['end_date']) && $activity['end_date'] < date('Y-m-d')) {
-            return redirect()->to('/resident/activities')->with('error', 'Registration for this activity has already closed.');
+            return redirect()->to($this->activitiesHome())->with('error', 'Registration for this activity has already closed.');
         }
 
         if ($model->registrationFor($id, $userId)) {
-            return redirect()->to('/resident/activities')->with('error', 'You are already registered for this activity.');
+            return redirect()->to($this->activitiesHome())->with('error', 'You are already registered for this activity.');
         }
 
         $requirements = BarangayActivityModel::parseRequirements($activity['requirements'] ?? null);
@@ -236,14 +305,14 @@ class BarangayActivityController extends BaseController
         foreach ($uploads as $index => $requirement) {
             $file = $files[$index] ?? null;
             if (! $file || ! $file->isValid() || $file->getError() === UPLOAD_ERR_NO_FILE) {
-                return redirect()->to('/resident/activities')->with('error', 'Please attach all required documents and photos before joining.');
+                return redirect()->to($this->activitiesHome())->with('error', 'Please attach all required documents and photos before joining.');
             }
             if ($file->getSize() > 5 * 1024 * 1024 || ! in_array($file->getMimeType(), ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'], true)) {
-                return redirect()->to('/resident/activities')->with('error', 'Each attachment must be a JPG, PNG, WebP, or PDF file up to 5 MB.');
+                return redirect()->to($this->activitiesHome())->with('error', 'Each attachment must be a JPG, PNG, WebP, or PDF file up to 5 MB.');
             }
             $directory = FCPATH . 'uploads/barangay_activities/';
             if (! is_dir($directory) && ! mkdir($directory, 0755, true) && ! is_dir($directory)) {
-                return redirect()->to('/resident/activities')->with('error', 'The upload folder could not be created.');
+                return redirect()->to($this->activitiesHome())->with('error', 'The upload folder could not be created.');
             }
             $fileName = $file->getRandomName();
             $file->move($directory, $fileName);
@@ -266,7 +335,7 @@ class BarangayActivityController extends BaseController
 
         $this->notifyOfficeOfJoin($activity, $userId);
 
-        return redirect()->to('/resident/activities')->with('success', 'You registered for "' . $activity['title'] . '". The barangay office will review it.');
+        return redirect()->to($this->activitiesHome())->with('success', 'You registered for "' . $activity['title'] . '". The barangay office will review it.');
     }
 
     public function unjoin(int $id)
@@ -284,14 +353,19 @@ class BarangayActivityController extends BaseController
             $db->table('barangay_activity_registrations')->where('id', $row['id'])->delete();
         }
 
-        return redirect()->to('/resident/activities')->with('success', 'Registration cancelled.');
+        return redirect()->to($this->activitiesHome())->with('success', 'Registration cancelled.');
+    }
+
+    private function activitiesHome(): string
+    {
+        return session()->get('role') === 'council' ? '/council/activities' : '/resident/activities';
     }
 
     private function manageRole(): string
     {
         $role = strtolower((string) session()->get('role'));
 
-        return in_array($role, ['admin', 'secretary', 'captain'], true) ? $role : 'secretary';
+        return in_array($role, ['admin', 'secretary', 'captain', 'sk'], true) ? $role : 'secretary';
     }
 
     /** @return array<string, mixed>|null */
@@ -308,13 +382,14 @@ class BarangayActivityController extends BaseController
             return null;
         }
 
-        $startDate     = trim((string) $this->request->getPost('start_date'));
-        $endDate       = trim((string) $this->request->getPost('end_date'));
+        $cleanup       = BarangayActivityModel::isCleanupDrive($category, $title);
+        $startDate     = $cleanup ? '' : trim((string) $this->request->getPost('start_date'));
+        $endDate       = $cleanup ? '' : trim((string) $this->request->getPost('end_date'));
         $conductedDate = trim((string) $this->request->getPost('conducted_date'));
         $venue         = trim((string) $this->request->getPost('venue'));
         $description   = trim((string) $this->request->getPost('description'));
 
-        if ($startDate === '' || ! $this->validDate($startDate)) {
+        if (! $cleanup && ($startDate === '' || ! $this->validDate($startDate))) {
             session()->setFlashdata('error', 'A valid start date for submitting requirements is required.');
             return null;
         }
@@ -326,7 +401,7 @@ class BarangayActivityController extends BaseController
             session()->setFlashdata('error', 'The date the activity will be conducted is required.');
             return null;
         }
-        if ($conductedDate < $startDate) {
+        if (! $cleanup && $conductedDate < $startDate) {
             session()->setFlashdata('error', 'The conducted date cannot be before the start date.');
             return null;
         }
@@ -350,7 +425,7 @@ class BarangayActivityController extends BaseController
             return null;
         }
 
-        $rawRequirements = $this->request->getPost('requirements') ?? [];
+        $rawRequirements = $cleanup ? [] : ($this->request->getPost('requirements') ?? []);
         $requirements = is_array($rawRequirements)
             ? array_values(array_filter(array_map('trim', $rawRequirements)))
             : [];
@@ -368,7 +443,7 @@ class BarangayActivityController extends BaseController
             'category'            => $category,
             'description'         => $description !== '' ? $description : null,
             'requirements'        => $requirements !== [] ? implode(', ', $requirements) : null,
-            'start_date'          => $startDate,
+            'start_date'          => $startDate !== '' ? $startDate : null,
             'end_date'            => $endDate !== '' ? $endDate : null,
             'conducted_date'      => $conductedDate,
             'activity_date'       => $conductedDate,
@@ -434,6 +509,23 @@ class BarangayActivityController extends BaseController
                 $link
             );
         }
+    }
+
+    private function syncActivityCalendar(array $activity): void
+    {
+        $id = (int) ($activity['id'] ?? 0);
+        $date = $activity['conducted_date'] ?? $activity['activity_date'] ?? '';
+        if ($id <= 0 || $date === '') {
+            return;
+        }
+
+        (new \App\Models\ScheduleModel())->upsertMarkedEvent('[activity:' . $id . ']', [
+            'title'       => (string) ($activity['title'] ?? 'Barangay activity'),
+            'description' => trim((string) ($activity['category'] ?? 'Activity') . ' at ' . ((string) ($activity['venue'] ?? 'Barangay Hall'))),
+            'event_date'  => $date,
+            'location'    => $activity['venue'] ?? 'Barangay Hall',
+            'created_by'  => $activity['created_by'] ?? null,
+        ]);
     }
 
     private function validDate(string $date): bool

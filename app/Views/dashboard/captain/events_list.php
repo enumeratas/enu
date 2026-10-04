@@ -44,12 +44,11 @@
             <?php endif; ?>
 
             <!-- Toolbar -->
-            <form method="get" action="" id="filterForm">
+            <form method="get" action="" id="filterForm" data-live-results="liveResults">
                 <div class="db-toolbar" style="margin-bottom:20px;">
                     <div class="db-search-wrap">
                         <i class="fas fa-search"></i>
-                        <input type="text" name="search" placeholder="Search events..." value="<?= esc($search) ?>"
-                            onchange="document.getElementById('filterForm').submit()">
+                        <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search events or dates..." value="<?= esc($search) ?>">
                     </div>
                     <div class="db-toolbar-actions">
                         <select name="type" class="db-filter-select" onchange="this.form.submit()">
@@ -72,6 +71,7 @@
                 </div>
             </form>
 
+            <div id="liveResults">
             <!-- Events table -->
             <div class="db-table-wrap">
                 <table class="db-table">
@@ -111,7 +111,7 @@
                                             <div>
                                                 <div style="font-weight:600;color:#1a1d2e;font-size:13.5px;"><?= esc($ev['title']) ?></div>
                                                 <?php if (! empty($ev['description'])): ?>
-                                                    <div style="font-size:11.5px;color:#9aa0b4;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;"><?= esc($ev['description']) ?></div>
+                                                    <div style="font-size:11.5px;color:#9aa0b4;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;"><?= esc(\App\Models\ScheduleModel::visibleDescription($ev['description'])) ?></div>
                                                 <?php endif; ?>
                                             </div>
                                         </div>
@@ -151,6 +151,7 @@
                         <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
             </div>
 
         </div>

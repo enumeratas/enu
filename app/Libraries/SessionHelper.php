@@ -173,6 +173,61 @@ class SessionHelper
         self::setLifetime($remembered);
     }
 
+    /**
+     * Role whose Remember me cookie still points at a live sign-in.
+     * The newest session wins when more than one account is saved.
+     */
+    public static function rememberedDashboard(): ?string
+    {
+        try {
+            $db = \Config\Database::connect();
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        $bestRole = null;
+        $bestTime = 0;
+
+        foreach (array_keys(self::COOKIE_NAMES) as $role) {
+            if (($_COOKIE[self::rememberCookieName($role)] ?? '') !== '1') {
+                continue;
+            }
+
+            $sessionId = (string) ($_COOKIE[self::cookieNameForRole($role)] ?? '');
+            if ($sessionId === '') {
+                continue;
+            }
+
+            $row = $db->table('ci_sessions')
+                ->select('data, timestamp')
+                ->where('id', self::cookieNameForRole($role) . ':' . $sessionId)
+                ->get()
+                ->getRowArray();
+
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $data = (string) ($row['data'] ?? '');
+            if (! str_contains($data, 'user_id')) {
+                continue;
+            }
+
+            $savedAt = strtotime((string) ($row['timestamp'] ?? ''));
+            if ($savedAt !== false && $savedAt < time() - self::REMEMBER_SECONDS) {
+                continue;
+            }
+
+            $savedAt = $savedAt === false ? time() : $savedAt;
+            if ($bestRole === null || $savedAt >= $bestTime) {
+                $bestRole = $role;
+                $bestTime = $savedAt;
+            }
+        }
+
+        return $bestRole;
+    }
+
     public static function configureFromPath(string $uriPath): ?string
     {
         $path = ltrim($uriPath, '/');

@@ -99,6 +99,12 @@
                         }
                     }
                     ?>
+                    <?php
+                    $evidenceUrls = [];
+                    foreach ($evidencePhotos as $idx => $path) {
+                        $evidenceUrls[] = '/' . $role . '/blotter/evidence/' . (int) ($r['id'] ?? 0) . '/' . (int) $idx;
+                    }
+                    ?>
                     <?php if (! empty($evidencePhotos)): ?>
                         <div class="bl-card">
                             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
@@ -113,7 +119,7 @@
                                 <?php foreach ($evidencePhotos as $idx => $path): ?>
                                     <div style="position:relative;border-radius:10px;overflow:hidden;aspect-ratio:1;background:#f0f2f8;cursor:pointer;"
                                         onclick="openLightbox(<?= $idx ?>)">
-                                        <img src="/<?= esc(ltrim($path, '/')) ?>"
+                                        <img src="<?= esc($evidenceUrls[$idx] ?? '') ?>"
                                             alt="Evidence <?= $idx + 1 ?>"
                                             loading="lazy"
                                             style="width:100%;height:100%;object-fit:cover;transition:transform .2s;"
@@ -145,7 +151,7 @@
                         </div>
 
                         <script>
-                            const EVIDENCE_PHOTOS = <?= json_encode(array_values($evidencePhotos)) ?>;
+                            const EVIDENCE_PHOTOS = <?= json_encode(array_values($evidenceUrls)) ?>;
                             let lightboxIdx = 0;
 
                             function openLightbox(idx) {

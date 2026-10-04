@@ -35,9 +35,16 @@ class SkController extends BaseController
         $mw = ["m.date_of_birth IS NOT NULL", "m.date_of_birth <= '{$youthMax}'", "m.date_of_birth >= '{$youthMin}'"];
 
         if ($search !== '') {
-            $s    = $db->escapeLikeString($search);
-            $hw[] = "(h.last_name LIKE '%{$s}%' OR h.first_name LIKE '%{$s}%' OR h.contact_number LIKE '%{$s}%')";
-            $mw[] = "(m.last_name LIKE '%{$s}%' OR m.first_name LIKE '%{$s}%')";
+            $hw[] = \App\Libraries\RecordSearch::clause(
+                ['h.last_name', 'h.first_name', 'h.middle_name', 'h.contact_number'],
+                ['h.date_of_birth'],
+                $search
+            );
+            $mw[] = \App\Libraries\RecordSearch::clause(
+                ['m.last_name', 'm.first_name', 'm.middle_name'],
+                ['m.date_of_birth'],
+                $search
+            );
         }
         if ($gender !== '') {
             $g    = $db->escapeString($gender);
@@ -155,6 +162,8 @@ class SkController extends BaseController
             'status'      => $status,
             'zone'        => $zone,
             'civil'       => $civil,
+            'profilingOpen' => $this->profilingWindow()['open'],
+            'profilingClose' => $this->profilingWindow()['close'],
         ]);
     }
 
@@ -180,13 +189,19 @@ class SkController extends BaseController
         }
 
         $redirectBase = $role === 'council' ? '/council/sk-profiling' : '/resident/sk-profiling';
+        $closedMessage = $this->profilingClosedMessage();
+        if ($closedMessage !== null) {
+            $dashboard = $role === 'council' ? '/council/dashboard' : '/resident/dashboard';
+
+            return redirect()->to($dashboard)->with('error', $closedMessage);
+        }
 
         $userId = (int) session()->get('user_id');
         $userModel = new \App\Models\UserModel();
         $user = $userModel->find($userId);
 
         if (empty($user['household_no'])) {
-            return redirect()->to('/resident/dashboard')->with('error', 'Your household record is not linked yet. Please update your profile first.');
+            return redirect()->to($redirectBase === '/council/sk-profiling' ? '/council/dashboard' : '/resident/dashboard')->with('error', 'Your household record is not linked yet. Please update your profile first.');
         }
 
         $db = \Config\Database::connect();
@@ -260,7 +275,7 @@ class SkController extends BaseController
         }
 
         if (empty($options)) {
-            return redirect()->to('/resident/dashboard')->with('error', 'No valid profile option found in your household census record.');
+            return redirect()->to($role === 'council' ? '/council/dashboard' : '/resident/dashboard')->with('error', 'No valid profile option found in your household census record.');
         }
 
         $youth = $savedProfile ?? [];
@@ -451,6 +466,13 @@ class SkController extends BaseController
             return redirect()->to('/sk/profiling')->with('error', 'Only residents and barangay council members aged 15 to 30 can submit this form.');
         }
 
+        $closedMessage = $this->profilingClosedMessage();
+        if ($closedMessage !== null) {
+            $dashboard = $role === 'council' ? '/council/dashboard' : '/resident/dashboard';
+
+            return redirect()->to($dashboard)->with('error', $closedMessage);
+        }
+
         $redirectBase = $role === 'council' ? '/council/sk-profiling' : '/resident/sk-profiling';
 
         $userId = (int) session()->get('user_id');
@@ -524,7 +546,7 @@ class SkController extends BaseController
         $post['health_concerns'] = ! empty($post['health']) ? json_encode((array) $post['health']) : ($saved['health_concerns'] ?? null);
         $post['social_inclusion'] = ! empty($post['social']) ? json_encode((array) $post['social']) : ($saved['social_inclusion'] ?? null);
         return $this->residentProfilingForm(
-            'Profile saved. You can now upload a photo below.',
+            'Changes saved.',
             $post,
             $selectedProfile
         );
@@ -678,6 +700,15 @@ class SkController extends BaseController
             }
         }
 
+        if (in_array($role, ['resident', 'council'], true)) {
+            $closedMessage = $this->profilingClosedMessage();
+            if ($closedMessage !== null) {
+                $dashboard = $role === 'council' ? '/council/dashboard' : '/resident/dashboard';
+
+                return redirect()->to($dashboard)->with('error', $closedMessage);
+            }
+        }
+
         if (($age === null || $age < 15 || $age > 30) && ! $allowMinorProfile) {
             $redirect = $role === 'resident' ? '/resident/sk-profiling' : ($role === 'council' ? '/council/sk-profiling' : '/sk/profiling');
             return redirect()->to($redirect)->with('error', 'Only youth ages 15 to 30 may submit the SK Profiling form, except for a parent submitting a minor child profile.');
@@ -747,10 +778,10 @@ class SkController extends BaseController
             $post['social_inclusion'] = ! empty($post['social']) ? json_encode((array) $post['social']) : null;
             $saved = $this->model->find($id) ?: ['id' => $id];
             $post = array_merge($saved, $post, ['id' => $id]);
-            return $this->residentProfilingForm('Profile saved. You can now upload a photo below.', $post, $post['profile_option'] ?? 'self');
+            return $this->residentProfilingForm('Changes saved.', $post, $post['profile_option'] ?? 'self');
         }
 
-        return redirect()->to('/sk/profiling/edit/' . $id)->with('success', 'Profile saved. You can now upload a photo.');
+        return redirect()->to('/sk/profiling/edit/' . $id)->with('success', 'Changes saved.');
     }
 
     public function uploadPhoto(int $id)
@@ -908,13 +939,20 @@ class SkController extends BaseController
             ->orderBy('conducted_date IS NULL', 'ASC', false)
             ->orderBy('conducted_date', 'DESC')
             ->orderBy('start_date', 'DESC');
-        if ($search !== '')  $builder->groupStart()->like('name', $search)->orLike('venue', $search)->groupEnd();
+        if ($search !== '') {
+            $builder->where(\App\Libraries\RecordSearch::clause(
+                ['name', 'venue', 'category'],
+                ['conducted_date', 'start_date', 'end_date'],
+                $search
+            ), null, false);
+        }
         if ($catF !== '')    $builder->where('category', $catF);
         if ($statusF !== '') $builder->where('status', $statusF);
 
         $programs = $builder->findAll();
         $db = \Config\Database::connect();
         foreach ($programs as &$program) {
+            $this->syncProgramCalendar((int) ($program['id'] ?? 0), $program);
             $program['actual_participants'] = (int) $db->table('sk_program_registrations')
                 ->where('program_id', $program['id'])
                 ->where('status', 'approved')
@@ -979,6 +1017,11 @@ class SkController extends BaseController
         if ($minAge !== null && $maxAge !== null && $minAge > $maxAge) {
             return redirect()->to($this->programBase() . '/new')->with('error', 'Minimum age cannot be greater than maximum age.')->withInput();
         }
+        $cleanup = \App\Models\BarangayActivityModel::isCleanupDrive((string) ($post['category'] ?? ''), (string) ($post['name'] ?? ''));
+        if ($cleanup) {
+            $startDate = null;
+            $endDate = null;
+        }
         if ($conductedDate && $startDate && $conductedDate < $startDate) {
             return redirect()->to($this->programBase() . '/new')->with('error', 'The conducted date cannot be before the start date.')->withInput();
         }
@@ -990,7 +1033,7 @@ class SkController extends BaseController
         }
 
         // Parse requirements (one per line from textarea → store as comma-separated)
-        $reqRaw  = $post['requirements'] ?? [];
+        $reqRaw  = $cleanup ? [] : ($post['requirements'] ?? []);
         $reqList = is_array($reqRaw) ? array_filter(array_map('trim', $reqRaw)) : array_filter(array_map('trim', preg_split('/[\n,]+/', trim($reqRaw))));
         $reqStr  = implode(', ', $reqList) ?: null;
 
@@ -1012,6 +1055,14 @@ class SkController extends BaseController
             'created_by'          => (int)session()->get('user_id'),
             'notify_residents'    => 0,
         ], true);
+
+        $this->syncProgramCalendar((int) $programId, [
+            'name' => trim($post['name']),
+            'category' => (string) ($post['category'] ?? ''),
+            'venue' => trim((string) ($post['venue'] ?? '')),
+            'conducted_date' => $conductedDate,
+            'created_by' => (int) session()->get('user_id'),
+        ]);
 
         // Notify all active residents about the new program
         $this->_notifyResidentsOfProgram((int)$programId, trim($post['name']), $status, $startDate);
@@ -1069,6 +1120,11 @@ class SkController extends BaseController
         if ($minAge !== null && $maxAge !== null && $minAge > $maxAge) {
             return redirect()->to($editUrl)->with('error', 'Minimum age cannot be greater than maximum age.')->withInput();
         }
+        $cleanup = \App\Models\BarangayActivityModel::isCleanupDrive((string) ($post['category'] ?? $prog['category'] ?? ''), (string) ($post['name'] ?? ''));
+        if ($cleanup) {
+            $startDate = null;
+            $endDate = null;
+        }
         if ($conductedDate && $startDate && $conductedDate < $startDate) {
             return redirect()->to($editUrl)->with('error', 'The conducted date cannot be before the start date.')->withInput();
         }
@@ -1080,7 +1136,7 @@ class SkController extends BaseController
         }
 
         // Parse requirements
-        $reqRaw  = $post['requirements'] ?? [];
+        $reqRaw  = $cleanup ? [] : ($post['requirements'] ?? []);
         $reqList = is_array($reqRaw) ? array_filter(array_map('trim', $reqRaw)) : array_filter(array_map('trim', preg_split('/[\n,]+/', trim($reqRaw))));
         $reqStr  = implode(', ', $reqList) ?: null;
 
@@ -1101,6 +1157,14 @@ class SkController extends BaseController
             'status'              => $status,
         ]);
 
+        $this->syncProgramCalendar($id, [
+            'name' => trim($post['name']),
+            'category' => (string) ($post['category'] ?? $prog['category'] ?? ''),
+            'venue' => trim((string) ($post['venue'] ?? '')),
+            'conducted_date' => $conductedDate,
+            'created_by' => $prog['created_by'] ?? session()->get('user_id'),
+        ]);
+
         return redirect()->to($this->programBase())->with('success', 'Program updated successfully.');
     }
 
@@ -1117,7 +1181,94 @@ class SkController extends BaseController
     {
         $progModel = new \App\Models\SkProgramModel();
         $progModel->delete($id);
+        (new \App\Models\ScheduleModel())->deleteMarkedEvent('[sk-program:' . $id . ']');
         return redirect()->to('/sk/programs')->with('success', 'Program deleted.');
+    }
+
+    public function saveProfilingWindow()
+    {
+        $role = (string) session()->get('role');
+        if (! in_array($role, ['sk', 'admin'], true)) {
+            return redirect()->to('/')->with('error', 'Only the SK can set when profiling is open.');
+        }
+
+        $open = trim((string) $this->request->getPost('profiling_open'));
+        $close = trim((string) $this->request->getPost('profiling_close'));
+        $valid = static function (string $date): bool {
+            $parsed = \DateTime::createFromFormat('Y-m-d', $date);
+
+            return $parsed instanceof \DateTime && $parsed->format('Y-m-d') === $date;
+        };
+        if (! $valid($open) || ! $valid($close) || $close < $open) {
+            return redirect()->to('/' . $role . '/profiling')->with('error', 'Set a start date and an end date for SK Profiling. The end date must be on or after the start date.');
+        }
+
+        $model = new \App\Models\BarangaySettingsModel();
+        if (! $model->tableExists()) {
+            return redirect()->to('/' . $role . '/profiling')->with('error', 'Profiling dates could not be saved.');
+        }
+
+        foreach ([
+            'sk_profiling_open' => [$open, 'SK Profiling Opens', 310],
+            'sk_profiling_close' => [$close, 'SK Profiling Closes', 311],
+        ] as $key => [$value, $label, $sort]) {
+            $existing = $model->where('setting_key', $key)->first();
+            if ($existing) {
+                $model->update($existing['id'], ['setting_value' => $value]);
+            } else {
+                $model->insert([
+                    'setting_key' => $key,
+                    'setting_value' => $value,
+                    'label' => $label,
+                    'group' => 'system',
+                    'sort_order' => $sort,
+                ]);
+            }
+        }
+
+        return redirect()->to('/' . $role . '/profiling')->with('success', 'SK Profiling is open from ' . date('M d, Y', strtotime($open)) . ' to ' . date('M d, Y', strtotime($close)) . '.');
+    }
+
+    /** @return array{open: string, close: string} */
+    private function profilingWindow(): array
+    {
+        $model = new \App\Models\BarangaySettingsModel();
+
+        return [
+            'open' => $model->getValue('sk_profiling_open'),
+            'close' => $model->getValue('sk_profiling_close'),
+        ];
+    }
+
+    private function profilingClosedMessage(): ?string
+    {
+        $window = $this->profilingWindow();
+        if ($window['open'] === '' || $window['close'] === '') {
+            return 'SK Profiling is closed until the SK sets the dates when residents can open it.';
+        }
+
+        $today = date('Y-m-d');
+        if ($today < $window['open'] || $today > $window['close']) {
+            return 'SK Profiling is open from ' . date('M d, Y', strtotime($window['open'])) . ' to ' . date('M d, Y', strtotime($window['close'])) . '.';
+        }
+
+        return null;
+    }
+
+    private function syncProgramCalendar(int $programId, array $program): void
+    {
+        $date = trim((string) ($program['conducted_date'] ?? ''));
+        if ($programId <= 0 || $date === '') {
+            return;
+        }
+
+        (new \App\Models\ScheduleModel())->upsertMarkedEvent('[sk-program:' . $programId . ']', [
+            'title' => (string) ($program['name'] ?? 'SK activity'),
+            'description' => trim((string) ($program['category'] ?? 'SK activity') . ' at ' . ((string) ($program['venue'] ?? 'Barangay Hall'))),
+            'event_date' => $date,
+            'location' => $program['venue'] ?? 'Barangay Hall',
+            'created_by' => $program['created_by'] ?? null,
+        ]);
     }
 
     // ── Resident: view SK activities ──────────────────────────────────────────
@@ -1136,8 +1287,27 @@ class SkController extends BaseController
         }
         unset($p);
 
+        $search = \App\Libraries\RecordSearch::term();
+        $programs = \App\Libraries\RecordSearch::filter(
+            $programs,
+            $search,
+            static fn(array $program): string => implode(' ', [
+                (string) ($program['name'] ?? ''),
+                (string) ($program['category'] ?? ''),
+                (string) ($program['venue'] ?? ''),
+                (string) ($program['status'] ?? ''),
+                (string) ($program['description'] ?? ''),
+            ]),
+            static fn(array $program): array => [
+                $program['start_date'] ?? null,
+                $program['end_date'] ?? null,
+                $program['conducted_date'] ?? null,
+            ]
+        );
+
         return view('dashboard/resident/sk_activities', [
             'programs' => $programs,
+            'search'   => $search,
         ]);
     }
 
@@ -1260,10 +1430,26 @@ class SkController extends BaseController
             ->orderBy('r.created_at', 'ASC')
             ->get()->getResultArray();
 
+        $search = \App\Libraries\RecordSearch::term();
+        $registrations = \App\Libraries\RecordSearch::filter(
+            $registrations,
+            $search,
+            static fn(array $row): string => implode(' ', [
+                (string) ($row['resident_name'] ?? ''),
+                (string) ($row['username'] ?? ''),
+                (string) ($row['email'] ?? ''),
+                (string) ($row['notes'] ?? ''),
+                (string) ($row['status'] ?? ''),
+                (string) ($row['requirements_submitted'] ?? ''),
+            ]),
+            static fn(array $row): array => [$row['created_at'] ?? null]
+        );
+
         return view('dashboard/sk/registrations', [
             'program'       => $program,
             'registrations' => $registrations,
             'reqList'       => \App\Models\SkProgramModel::parseRequirements($program['requirements']),
+            'search'        => $search,
         ]);
     }
 

@@ -227,6 +227,13 @@
                 </a>
             </div>
 
+            <form method="get" data-live-results="liveResults" style="margin-bottom:16px;">
+                <div class="db-search-wrap">
+                    <i class="fas fa-search"></i>
+                    <input type="text" name="search" data-live-query autocomplete="off" placeholder="Search activities or dates..." value="<?= esc($search ?? '') ?>">
+                </div>
+            </form>
+            <div id="liveResults">
             <div class="db-table-wrap">
                 <table class="db-table">
                     <thead>
@@ -243,7 +250,7 @@
                         <?php if ($activities === []): ?>
                             <tr>
                                 <td colspan="6" style="text-align:center;color:#6b7689;padding:28px 16px;">
-                                    No barangay activities yet. Use Add Activity to create one.
+                                    <?= ($search ?? '') !== '' ? 'No activities match your search.' : 'No barangay activities yet. Use Add Activity to create one.' ?>
                                 </td>
                             </tr>
                         <?php else: ?>
@@ -281,6 +288,7 @@
                         <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
             </div>
         </div>
     </div>

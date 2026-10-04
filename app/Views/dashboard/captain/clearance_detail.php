@@ -63,17 +63,7 @@
         'Business Permit Clearance' => 'business_permit',
         'Other Document'           => 'other_document',
     ];
-    $feeMap = [
-        'Barangay Clearance'       => '₱50.00',
-        'Certificate of Residency' => '₱30.00',
-        'Certificate of Indigency' => 'Free',
-        'Certificate of Good Moral' => 'Free',
-        'First Time Job Seekers'   => 'Free',
-        'First Time Job Seeker'    => 'Free',
-        'Solo Parent Certificate'  => 'Free',
-        'Business Permit Clearance' => '₱75.00',
-        'Other Document'           => '—',
-    ];
+    $feeMap = \Config\ClearanceDocuments::feeMap();
     $badgeMap = [
         'pending'  => 'db-badge--pending',
         'approved' => 'db-badge--approved',
@@ -156,7 +146,7 @@
                                             $rFiled   = notification_time($r['created_at'] ?? null);
                                             $rRelease = $r['est_release_date'] ? date('M d, Y', strtotime($r['est_release_date'])) : '—';
                                             $rDocKey  = $docKeyMap[$r['document_type']] ?? 'clearance';
-                                            $rFee     = $feeMap[$r['document_type']] ?? '—';
+                                            $rFee     = esc($feeMap[$r['document_type']] ?? '—');
                                             $isActive = $activeReq && $activeReq['id'] === $r['id'];
                                         ?>
                                             <div class="req-item <?= $isActive ? 'req-item--active' : '' ?>"
@@ -214,7 +204,7 @@
                                 <strong><?= esc($activeReq['document_type']) ?></strong> for
                                 <strong><?= esc($activeReq['for_member']) ?></strong> —
                                 Purpose: <?= esc($activeReq['purpose']) ?> —
-                                Fee: <?= $feeMap[$activeReq['document_type']] ?? '—' ?>
+                                Fee: <?= esc($feeMap[$activeReq['document_type']] ?? '—') ?>
                             <?php else: ?>
                                 Select a request on the left to preview the document.
                             <?php endif; ?>

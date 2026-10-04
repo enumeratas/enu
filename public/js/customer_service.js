@@ -33,10 +33,10 @@
        CONFIGURATION
        ========================================================= */
 
-    const serviceRoot =
-        window.location.pathname
-            .toLowerCase()
-            .startsWith('/captain/')
+    const servicePath = window.location.pathname.toLowerCase();
+    const serviceRoot = servicePath.startsWith('/admin/')
+        ? '/admin'
+        : servicePath.startsWith('/captain/')
             ? '/captain'
             : '/secretary';
 
@@ -586,6 +586,13 @@
         list.innerHTML =
             '';
 
+        const queueStatus =
+            el('supportQueueStatus');
+
+        if (queueStatus) {
+            queueStatus.hidden = true;
+        }
+
 
         const countElement =
             el('supportRequestCount');
@@ -771,147 +778,31 @@
                     );
 
 
+                const modeClass = mode === 'human'
+                    ? 'human'
+                    : mode === 'closed'
+                        ? 'closed'
+                        : mode === 'ai'
+                            ? 'ai'
+                            : 'waiting';
+
                 button.innerHTML = `
-
-                    <div
-                        style="
-                            display:flex;
-                            align-items:center;
-                            gap:10px;
-                            width:100%;
-                        ">
-
-                        <div
-                            style="
-                                width:38px;
-                                height:38px;
-                                border-radius:50%;
-                                background:#eef1ff;
-                                color:#5b6fd6;
-                                display:flex;
-                                align-items:center;
-                                justify-content:center;
-                                flex-shrink:0;
-                            ">
-
-                            <i class="fas fa-user"></i>
-
-                        </div>
-
-                        <div
-                            style="
-                                min-width:0;
-                                flex:1;
-                                text-align:left;
-                            ">
-
-                            <div
-                                style="
-                                    display:flex;
-                                    align-items:center;
-                                    justify-content:space-between;
-                                    gap:8px;
-                                ">
-
-                                <span
-                                    style="
-                                        font-size:13px;
-                                        font-weight:700;
-                                        color:#1a1d2e;
-                                        white-space:nowrap;
-                                        overflow:hidden;
-                                        text-overflow:ellipsis;
-                                    ">
-
-                                    ${name}
-
-                                </span>
-
-                                <span
-                                    style="
-                                        font-size:9px;
-                                        color:#9aa0b4;
-                                        white-space:nowrap;
-                                    ">
-
-                                    ${
-                                        formatDate(
-                                            conversation.updated_at ||
-                                            conversation.last_activity_at ||
-                                            conversation.created_at
-                                        )
-                                    }
-
-                                </span>
-
-                            </div>
-
-                            <div
-                                style="
-                                    display:flex;
-                                    align-items:center;
-                                    gap:5px;
-                                    margin-top:3px;
-                                ">
-
-                                <span
-                                    style="
-                                        width:7px;
-                                        height:7px;
-                                        border-radius:50%;
-                                        background:${
-                                            mode === 'human'
-                                                ? '#16a085'
-                                                : mode === 'closed'
-                                                    ? '#aaa'
-                                                    : mode === 'ai'
-                                                        ? '#5b6fd6'
-                                                        : '#f0a500'
-                                        };
-                                    ">
-                                </span>
-
-                                <span
-                                    style="
-                                        font-size:10px;
-                                        color:#6d748a;
-                                        white-space:nowrap;
-                                        overflow:hidden;
-                                        text-overflow:ellipsis;
-                                    ">
-
-                                    ${escapeHtml(modeText)}
-
-                                </span>
-
-                            </div>
-
-                            ${
-                                latestMessage
-                                    ? `
-                                        <div
-                                            style="
-                                                font-size:10px;
-                                                color:#9aa0b4;
-                                                margin-top:4px;
-                                                white-space:nowrap;
-                                                overflow:hidden;
-                                                text-overflow:ellipsis;
-                                            ">
-
-                                            ${escapeHtml(
-                                                latestMessage
-                                            )}
-
-                                        </div>
-                                      `
-                                    : ''
-                            }
-
-                        </div>
-
-                    </div>
-
+                    <span class="support-request-avatar"><i class="fas fa-user"></i></span>
+                    <span class="support-request-body">
+                        <span class="support-request-top">
+                            <span class="support-request-name">${name}</span>
+                            <span class="support-request-time">${escapeHtml(formatDate(
+                                conversation.updated_at ||
+                                conversation.last_activity_at ||
+                                conversation.created_at
+                            ))}</span>
+                        </span>
+                        <span class="support-request-status">
+                            <span class="support-request-dot ${modeClass}"></span>
+                            ${escapeHtml(modeText)}
+                        </span>
+                        ${latestMessage ? `<span class="support-request-preview">${escapeHtml(latestMessage)}</span>` : ''}
+                    </span>
                 `;
 
 
@@ -1052,6 +943,15 @@
                 'Unable to load support requests.',
                 'error'
             );
+
+            const queueStatus =
+                el('supportQueueStatus');
+
+            if (queueStatus) {
+                queueStatus.hidden = false;
+                queueStatus.textContent =
+                    'Unable to load support requests.';
+            }
 
         }
 
@@ -1337,6 +1237,9 @@
             return;
 
         }
+
+
+        showActiveChatState();
 
 
         container.innerHTML =
@@ -2289,6 +2192,169 @@
        CLOSE SUPPORT
        ========================================================= */
 
+    function confirmCloseConversation() {
+
+        return new Promise(function (resolve) {
+
+            const modal =
+                el('csCloseModal');
+
+            const confirmButton =
+                el('csCloseModalConfirm');
+
+            const cancelButton =
+                el('csCloseModalCancel');
+
+            const dismissButton =
+                el('csCloseModalDismiss');
+
+
+            if (
+                !modal ||
+                !confirmButton
+            ) {
+
+                resolve(false);
+
+                return;
+
+            }
+
+
+            function finish(result) {
+
+                modal.classList.remove(
+                    'active'
+                );
+
+                modal.setAttribute(
+                    'aria-hidden',
+                    'true'
+                );
+
+                confirmButton.removeEventListener(
+                    'click',
+                    onConfirm
+                );
+
+                if (cancelButton) {
+
+                    cancelButton.removeEventListener(
+                        'click',
+                        onCancel
+                    );
+
+                }
+
+                if (dismissButton) {
+
+                    dismissButton.removeEventListener(
+                        'click',
+                        onCancel
+                    );
+
+                }
+
+                modal.removeEventListener(
+                    'click',
+                    onBackdrop
+                );
+
+                document.removeEventListener(
+                    'keydown',
+                    onKey
+                );
+
+                resolve(result);
+
+            }
+
+
+            function onConfirm() {
+
+                finish(true);
+
+            }
+
+
+            function onCancel() {
+
+                finish(false);
+
+            }
+
+
+            function onBackdrop(event) {
+
+                if (event.target === modal) {
+
+                    finish(false);
+
+                }
+
+            }
+
+
+            function onKey(event) {
+
+                if (event.key === 'Escape') {
+
+                    finish(false);
+
+                }
+
+            }
+
+
+            confirmButton.addEventListener(
+                'click',
+                onConfirm
+            );
+
+            if (cancelButton) {
+
+                cancelButton.addEventListener(
+                    'click',
+                    onCancel
+                );
+
+            }
+
+            if (dismissButton) {
+
+                dismissButton.addEventListener(
+                    'click',
+                    onCancel
+                );
+
+            }
+
+            modal.addEventListener(
+                'click',
+                onBackdrop
+            );
+
+            document.addEventListener(
+                'keydown',
+                onKey
+            );
+
+            modal.classList.add(
+                'active'
+            );
+
+            modal.setAttribute(
+                'aria-hidden',
+                'false'
+            );
+
+            confirmButton.focus();
+
+        });
+
+    }
+
+
     async function closeSupport() {
 
         if (
@@ -2301,9 +2367,7 @@
 
 
         const confirmed =
-            window.confirm(
-                'Close this support conversation?'
-            );
+            await confirmCloseConversation();
 
 
         if (!confirmed) {
@@ -2368,7 +2432,7 @@
 
 
             showNotice(
-                'The support conversation has been closed.',
+                'The conversation has been returned to the BIS Assistant.',
                 'success'
             );
 
@@ -2380,7 +2444,7 @@
             if (selectedConversation) {
 
                 selectedConversation.support_mode =
-                    'closed';
+                    'ai';
 
             }
 
@@ -2388,7 +2452,7 @@
             updateActionButtons(
                 selectedConversation || {
                     support_mode:
-                        'closed'
+                        'ai'
                 }
             );
 
@@ -2602,6 +2666,67 @@
 
 
     /* =========================================================
+       CHAT PANEL VISIBILITY
+       ========================================================= */
+
+    function showEmptyChatState() {
+
+        const empty =
+            el('supportChatEmpty');
+
+        const messages =
+            el('supportChatMessages');
+
+
+        if (empty) {
+
+            empty.style.display =
+                'flex';
+
+        }
+
+
+        if (messages) {
+
+            messages.style.display =
+                'none';
+
+            messages.innerHTML =
+                '';
+
+        }
+
+    }
+
+
+    function showActiveChatState() {
+
+        const empty =
+            el('supportChatEmpty');
+
+        const messages =
+            el('supportChatMessages');
+
+
+        if (empty) {
+
+            empty.style.display =
+                'none';
+
+        }
+
+
+        if (messages) {
+
+            messages.style.display =
+                'flex';
+
+        }
+
+    }
+
+
+    /* =========================================================
        CLEAR SELECTED CONVERSATION
        ========================================================= */
 
@@ -2674,51 +2799,7 @@
         }
 
 
-        const messages =
-            el('supportChatMessages');
-
-
-        if (messages) {
-
-            messages.style.display =
-                '';
-
-
-            messages.innerHTML = `
-
-                <div
-                    style="
-                        display:flex;
-                        align-items:center;
-                        justify-content:center;
-                        min-height:240px;
-                        color:#9aa0b4;
-                        text-align:center;
-                        font-size:13px;
-                    ">
-
-                    <div>
-
-                        <i
-                            class="fas fa-comments"
-                            style="
-                                display:block;
-                                font-size:35px;
-                                margin-bottom:12px;
-                                opacity:.45;
-                            ">
-                        </i>
-
-                        Select a resident conversation
-                        from the support queue.
-
-                    </div>
-
-                </div>
-
-            `;
-
-        }
+        showEmptyChatState();
 
 
         /*

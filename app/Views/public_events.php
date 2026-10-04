@@ -199,8 +199,9 @@
                                 <?php if ($timeLabel !== ''): ?> · <?= esc($timeLabel) ?><?php endif; ?>
                                 <?php if (! empty($event['location'])): ?> · <?= esc($event['location']) ?><?php endif; ?>
                             </div>
-                            <?php if (! empty($event['description'])): ?>
-                                <div class="event-meta"><?= esc($event['description']) ?></div>
+                            <?php $visibleDescription = \App\Models\ScheduleModel::visibleDescription($event['description'] ?? ''); ?>
+                            <?php if ($visibleDescription !== ''): ?>
+                                <div class="event-meta"><?= esc($visibleDescription) ?></div>
                             <?php endif; ?>
                         </div>
                     <?php endforeach; ?>

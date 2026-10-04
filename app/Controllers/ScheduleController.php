@@ -286,9 +286,14 @@ class ScheduleController extends BaseController
         }
 
         $eventType = $post['event_type'] ?? 'appointment';
+        $description = \App\Models\ScheduleModel::visibleDescription($post['description'] ?? '');
+        $marker = \App\Models\ScheduleModel::markerIn($event['description'] ?? '');
+        if ($marker !== '') {
+            $description = trim($description . ' ' . $marker);
+        }
         $this->model->update($id, [
             'title'       => trim($post['title']),
-            'description' => trim($post['description'] ?? ''),
+            'description' => $description,
             'event_date'  => $post['event_date'],
             'start_time'  => $post['start_time']  ?: null,
             'end_time'    => $post['end_time']     ?: null,
