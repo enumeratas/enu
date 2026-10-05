@@ -22,7 +22,7 @@
             <?php $feeRole = session()->get('role') === 'admin' ? 'admin' : 'secretary'; ?>
             <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
                 <a class="db-btn db-btn--outline db-btn--sm" href="/<?= esc($feeRole) ?>/barangay-settings">
-                    <i class="fas fa-peso-sign"></i> Document Fees
+                    <i class="fas fa-file-invoice-dollar"></i> Document Fees
                 </a>
             </div>
             <div class="db-stats" style="margin-bottom:24px;">

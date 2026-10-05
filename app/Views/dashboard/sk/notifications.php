@@ -401,7 +401,7 @@
         $feed[] = ['type' => 'registration', 'timestamp' => $r['created_at'], 'data' => $r];
     }
     foreach ($upcomingPrograms as $p) {
-        $feed[] = ['type' => 'program', 'timestamp' => $p['start_date'] . ' 00:00:00', 'data' => $p];
+        $feed[] = ['type' => 'program', 'timestamp' => (string) ($p['created_at'] ?? ($p['start_date'] . ' 00:00:00')), 'data' => $p];
     }
     foreach ($profilingNotifications as $notification) {
         $feed[] = ['type' => 'profiling', 'timestamp' => $notification['created_at'], 'data' => $notification];
@@ -409,7 +409,12 @@
     foreach ($personalNotifications as $notification) {
         $feed[] = ['type' => 'personal', 'timestamp' => $notification['created_at'], 'data' => $notification];
     }
-    usort($feed, fn($a, $b) => strcmp($b['timestamp'], $a['timestamp']));
+    usort($feed, static function (array $left, array $right): int {
+        $leftTime = strtotime((string) ($left['timestamp'] ?? '')) ?: 0;
+        $rightTime = strtotime((string) ($right['timestamp'] ?? '')) ?: 0;
+
+        return $rightTime <=> $leftTime;
+    });
 
     $total = $pendingRegistrations + $upcomingCount;
     $totalFeed = count($feed);

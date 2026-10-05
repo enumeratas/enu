@@ -5008,10 +5008,7 @@ PROMPT;
                         'conversation_id',
                         (int) $activeConversation['id']
                     )
-                    ->orderBy(
-                        'created_at',
-                        'ASC'
-                    )
+                    ->orderBy('id', 'ASC')
                     ->findAll();
             }
 
@@ -5020,7 +5017,7 @@ PROMPT;
                 $firstMessage = $this->messageModel
                     ->where('conversation_id', (int) $conversationRow['id'])
                     ->where('sender', 'user')
-                    ->orderBy('created_at', 'ASC')
+                    ->orderBy('id', 'ASC')
                     ->first();
                 $firstText = trim((string) ($firstMessage['message'] ?? ''));
                 if ($firstText !== '') {
@@ -5124,10 +5121,7 @@ PROMPT;
                 'conversation_id',
                 $id
             )
-            ->orderBy(
-                'created_at',
-                'ASC'
-            )
+            ->orderBy('id', 'ASC')
             ->findAll();
 
         $conversation =
@@ -5388,10 +5382,7 @@ PROMPT;
                 'conversation_id',
                 $conversationId
             )
-            ->orderBy(
-                'created_at',
-                'DESC'
-            )
+            ->orderBy('id', 'DESC')
             ->limit(
                 $this->historyLimit
             )
@@ -5447,6 +5438,7 @@ PROMPT;
                 }
             }
 
+            $sentAt = date('Y-m-d H:i:s');
             $userMessageId =
                 $this->messageModel->insert(
                     [
@@ -5457,7 +5449,13 @@ PROMPT;
                         'user',
 
                         'message' =>
-                        $userMessage
+                        $userMessage,
+
+                        'created_at' =>
+                        $sentAt,
+
+                        'updated_at' =>
+                        $sentAt
                     ],
                     true
                 );
@@ -5483,7 +5481,13 @@ PROMPT;
                         'assistant',
 
                         'message' =>
-                        $assistantResponse
+                        $assistantResponse,
+
+                        'created_at' =>
+                        $sentAt,
+
+                        'updated_at' =>
+                        $sentAt
                     ],
                     true
                 );
@@ -6164,10 +6168,13 @@ PROMPT;
                 return false;
             }
 
+            $sentAt = date('Y-m-d H:i:s');
             $data = [
                 'conversation_id' => $conversationId,
                 'sender' => $sender,
-                'message' => $message
+                'message' => $message,
+                'created_at' => $sentAt,
+                'updated_at' => $sentAt,
             ];
 
             if (
@@ -6268,7 +6275,7 @@ PROMPT;
                         'conversation_id',
                         (int) $conversation['id']
                     )
-                    ->orderBy('created_at', 'DESC')
+                    ->orderBy('id', 'DESC')
                     ->limit(1)
                     ->get()
                     ->getRowArray();
@@ -6368,7 +6375,7 @@ PROMPT;
 
             $messages = $db->table('chat_messages')
                 ->where('conversation_id', $id)
-                ->orderBy('created_at', 'ASC')
+                ->orderBy('id', 'ASC')
                 ->get()
                 ->getResultArray();
 
@@ -6456,7 +6463,7 @@ PROMPT;
 
             $messages = $db->table('chat_messages')
                 ->where('conversation_id', $conversationId)
-                ->orderBy('created_at', 'ASC')
+                ->orderBy('id', 'ASC')
                 ->get()
                 ->getResultArray();
 

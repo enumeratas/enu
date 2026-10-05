@@ -1272,6 +1272,15 @@
         }
 
 
+        messages = messages.slice().sort(function (left, right) {
+            const leftId = Number(left.id || 0);
+            const rightId = Number(right.id || 0);
+            if (leftId !== rightId) {
+                return leftId - rightId;
+            }
+            return String(left.created_at || '').localeCompare(String(right.created_at || ''));
+        });
+
         messages.forEach(
             function (message) {
 

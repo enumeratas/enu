@@ -505,6 +505,7 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('concern/reschedule/(:num)',    'ConcernController::reschedule/$1');
     $routes->get('concern/availability',          'ConcernController::availability');
     $routes->get('concern/unavailable-dates',     'ConcernController::unavailableDates');
+    $routes->get('users',                 'AdminUserController::index');
     $routes->get('create-account',        'UIController::secretary_create_account');
     $routes->post('create-account/store', 'AuthController::createOfficialAccount');
     $routes->get('officials-history',     'AuthController::officialsHistory');

@@ -1065,23 +1065,6 @@
             box-shadow: 0 6px 28px rgba(29, 36, 72, .45);
         }
 
-        .cw-unread {
-            position: absolute;
-            top: -4px;
-            right: -4px;
-            background: #c0392b;
-            color: #fff;
-            font-size: 10px;
-            font-weight: 700;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 2px solid #fff;
-        }
-
         .cw-panel {
             display: none;
             flex-direction: column;
@@ -1441,7 +1424,6 @@
         </div>
         <a class="cw-toggle" id="cwToggle" href="/assistant" aria-label="Open chat">
             <i class="fas fa-comment-dots" id="cwIcon"></i>
-            <span class="cw-unread" id="cwUnread">1</span>
         </a>
     </div>
 
@@ -1484,7 +1466,6 @@
                 if (!msg) return;
                 addMsg(msg, true);
                 inp.value = '';
-                document.getElementById('cwUnread').style.display = 'none';
                 typing();
 
                 try {
@@ -1516,7 +1497,6 @@
                 const chips = document.getElementById('cwChips');
                 if (chips) chips.remove();
                 addMsg(msg, true);
-                document.getElementById('cwUnread').style.display = 'none';
                 typing();
 
                 try {
@@ -1546,11 +1526,9 @@
 
             window.cwTogglePanel = function() {
                 const panel = document.getElementById('cwPanel');
-                const unread = document.getElementById('cwUnread');
                 const icon = document.getElementById('cwIcon');
                 panel.classList.toggle('cw-open');
                 if (panel.classList.contains('cw-open')) {
-                    unread.style.display = 'none';
                     icon.className = 'fas fa-times';
                 } else {
                     icon.className = 'fas fa-comment-dots';

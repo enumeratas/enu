@@ -402,6 +402,11 @@
             flex: 0 0 148px;
         }
 
+        .pf-member-fields > .pf-member-doc {
+            flex: 1 1 100%;
+            width: 100%;
+        }
+
         #childrenRows .pf-member-fields {
             display: grid;
             grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -440,7 +445,8 @@
             grid-column: span 2;
         }
 
-        #childrenRows .pf-member-fields>.pf-child-pwd-field {
+        #childrenRows .pf-member-fields>.pf-child-pwd-field,
+        #childrenRows .pf-member-fields>.pf-member-doc {
             grid-column: 1 / -1;
         }
 
@@ -849,6 +855,10 @@
                 grid-column: span 2 !important;
             }
 
+            #childrenRows .pf-member-fields > .pf-member-doc {
+                grid-column: 1 / -1 !important;
+            }
+
             .pf-id-label {
                 align-items: flex-start;
                 flex-wrap: wrap;
@@ -1051,16 +1061,23 @@
                                     </div>
                                     <div>
                                         <div class="pf-label">Zone / Purok</div>
-                                        <select class="pf-ctrl" name="zone" required>
-                                            <option value="">— Select —</option>
-                                            <option>Zone 1</option>
-                                            <option>Zone 2</option>
-                                            <option>Zone 3</option>
-                                            <option>Zone 4</option>
-                                            <option>Zone 5</option>
-                                            <option>Zone 6</option>
-                                            <option>Zone 7</option>
-                                        </select>
+                                        <?php
+                                        $formRole = (isset($role) && is_string($role)) ? strtolower($role) : '';
+                                        $lockedCouncilZone = (isset($councilZone) && is_string($councilZone)) ? trim($councilZone) : '';
+                                        ?>
+                                        <?php if ($formRole === 'council' && $lockedCouncilZone !== ''): ?>
+                                            <input type="hidden" name="zone" value="<?= esc($lockedCouncilZone) ?>">
+                                            <select class="pf-ctrl" disabled>
+                                                <option selected><?= esc($lockedCouncilZone) ?></option>
+                                            </select>
+                                        <?php else: ?>
+                                            <select class="pf-ctrl" name="zone" required>
+                                                <option value="">— Select —</option>
+                                                <?php foreach (['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4', 'Zone 5', 'Zone 6', 'Zone 7'] as $zoneOption): ?>
+                                                    <option value="<?= esc($zoneOption) ?>"><?= esc($zoneOption) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        <?php endif; ?>
                                     </div>
                                     <div>
                                         <div class="pf-label">Years of Residency</div>
@@ -1499,7 +1516,18 @@
                             <label class="pf-check"><input type="checkbox" name="child_senior[' . $i . ']" value="1"> <span>Senior (60+)</span></label>
                             <input type="file" name="child_id_senior[]" accept="image/*,application/pdf" style="width:100%;margin-top:5px;font-size:11px;">
                         </div>
-                        <div class="pf-field-wrap" style="margin-top:8px;"><div class="pf-label">ID or Birth Certificate</div><input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input"><div class="pf-file-hint">One ID or birth certificate. Save as Draft if it is not available yet.</div></div>
+            </div>
+            <div class="pf-member-doc">
+                <div class="pf-id-upload">
+                    <label class="pf-id-label"><i class="fas fa-id-card"></i> This child&#39;s ID or Birth Certificate</label>
+                    <label class="pf-file-drop">
+                        <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                        <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this child&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
+                        <input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
+                    </label>
+                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> This file is saved for this child only. Use Save as Draft if it is not available yet.</div>
+                </div>
+            </div>
             </div>
             <button type="button" class="pf-member-del" onclick="removeRow(this)"><i class="fas fa-times"></i></button>
         </div>';
@@ -1551,8 +1579,18 @@
                     <div id="other_senior_type_wrap_' . $i . '" style="display:none;margin-top:6px;">
                         <input type="file" name="other_id_senior[]" accept="image/*,application/pdf" style="width:100%;margin-top:5px;font-size:11px;">
                     </div>
-                    <div class="pf-field-wrap" style="margin-top:8px;"><div class="pf-label">ID or Birth Certificate</div><input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input"><div class="pf-file-hint">One ID or birth certificate. Save as Draft if it is not available yet.</div></div>
                 </div>
+            <div class="pf-member-doc">
+                <div class="pf-id-upload">
+                    <label class="pf-id-label"><i class="fas fa-id-card"></i> This member&#39;s ID or Birth Certificate</label>
+                    <label class="pf-file-drop">
+                        <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                        <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this member&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
+                        <input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
+                    </label>
+                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> This file is saved for this member only. Use Save as Draft if it is not available yet.</div>
+                </div>
+            </div>
             </div>
             <button type="button" class="pf-member-del" onclick="removeRow(this)"><i class="fas fa-times"></i></button>
         </div>';
@@ -1941,8 +1979,18 @@
                                 <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - maximum 5 MB</div>
                             </div>
                         </div>
-                        <div class="pf-field-wrap" style="margin-top:8px;"><div class="pf-label">ID or Birth Certificate</div><input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input"></div>
-                </div>
+                        </div>
+                        <div class="pf-member-doc">
+                            <div class="pf-id-upload">
+                                <label class="pf-id-label"><i class="fas fa-id-card"></i> This child&#39;s ID or Birth Certificate</label>
+                                <label class="pf-file-drop">
+                                    <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                                    <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this child&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
+                                    <input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
+                                </label>
+                                <div class="pf-file-hint"><i class="fas fa-info-circle"></i> This file is saved for this child only. Use Save as Draft if it is not available yet.</div>
+                            </div>
+                        </div>
                     </div>
                     <button type="button" class="pf-member-del" onclick="removeRow(this)"><i class="fas fa-times"></i></button>
                 </div>`);
@@ -1981,8 +2029,18 @@
                     <div id="other_pwd_type_wrap_${i}" style="display:none;margin-top:6px;">
                         <input type="text" class="pf-ctrl" name="other_pwd_type[]" placeholder="Specify disability (e.g. Visual, Hearing...)" maxlength="120">
                     </div>
-                    <div class="pf-field-wrap" style="margin-top:8px;"><div class="pf-label">ID or Birth Certificate</div><input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input"></div>
-                </div>
+                    </div>
+                    <div class="pf-member-doc">
+                        <div class="pf-id-upload">
+                            <label class="pf-id-label"><i class="fas fa-id-card"></i> This member&#39;s ID or Birth Certificate</label>
+                            <label class="pf-file-drop">
+                                <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                                <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this member&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
+                                <input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
+                            </label>
+                            <div class="pf-file-hint"><i class="fas fa-info-circle"></i> This file is saved for this member only. Use Save as Draft if it is not available yet.</div>
+                        </div>
+                    </div>
                     </div>
                     <button type="button" class="pf-member-del" onclick="removeRow(this)"><i class="fas fa-times"></i></button>
                 </div>`);

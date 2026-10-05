@@ -33,7 +33,18 @@
             $filteredTotal = (isset($filteredTotal) && is_numeric($filteredTotal)) ? (int) $filteredTotal : 0;
             $perPage = (isset($perPage) && is_numeric($perPage) && (int) $perPage > 0) ? (int) $perPage : 15;
             $currentPage = (isset($currentPage) && is_numeric($currentPage) && (int) $currentPage > 0) ? (int) $currentPage : 1;
+            $councilZone = (isset($councilZone) && is_string($councilZone)) ? trim($councilZone) : '';
+            $isCouncil = strtolower((string) $role) === 'council';
             ?>
+
+            <?php if ($isCouncil): ?>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:10px 14px;background:#f4f6fd;border:1px solid #d7dce6;">
+                    <i class="fas fa-map-marker-alt" style="color:#16325c;"></i>
+                    <span style="font-size:13px;color:#1c2b45;font-weight:600;">
+                        Showing <?= $councilZone !== '' ? esc($councilZone) : 'unassigned zone' ?> households only
+                    </span>
+                </div>
+            <?php endif; ?>
 
             <!-- Census Year selector — prominent above the toolbar -->
             <?php $selectedYear = $filters['census_year'] ?? ''; ?>
@@ -109,12 +120,19 @@
                         <!-- Zone -->
                         <div>
                             <label style="font-size:11px;font-weight:700;color:#9aa0b4;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px;">Zone</label>
-                            <select name="zone" class="db-filter-select" style="width:100%;" onchange="this.form.submit()">
-                                <option value="">All Zones</option>
-                                <?php foreach (['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4', 'Zone 5', 'Zone 6', 'Zone 7'] as $z): ?>
-                                    <option <?= ($filters['zone'] ?? '') === $z ? 'selected' : '' ?>><?= $z ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <?php if ($isCouncil): ?>
+                                <input type="hidden" name="zone" value="<?= esc($councilZone) ?>">
+                                <select class="db-filter-select" style="width:100%;" disabled>
+                                    <option selected><?= $councilZone !== '' ? esc($councilZone) : 'No zone assigned' ?></option>
+                                </select>
+                            <?php else: ?>
+                                <select name="zone" class="db-filter-select" style="width:100%;" onchange="this.form.submit()">
+                                    <option value="">All Zones</option>
+                                    <?php foreach (['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4', 'Zone 5', 'Zone 6', 'Zone 7'] as $z): ?>
+                                        <option value="<?= esc($z) ?>" <?= ($filters['zone'] ?? '') === $z ? 'selected' : '' ?>><?= esc($z) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            <?php endif; ?>
                         </div>
 
                         <!-- Gender -->

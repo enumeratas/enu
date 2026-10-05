@@ -6,15 +6,22 @@ use App\Controllers\BaseController;
 
 class UIController extends BaseController
 {
+    private function councilAssignedZone(?int $userId = null): string
+    {
+        $userId = $userId ?? (int) session()->get('user_id');
+        if ($userId <= 0) {
+            return '';
+        }
+        $user = (new \App\Models\UserModel())->find($userId);
+
+        return is_array($user) ? trim((string) ($user['council_zone'] ?? '')) : '';
+    }
+
     // ── Shared census view builder (captain + secretary) ──────────────────────
     private function _censusView(string $role): \CodeIgniter\HTTP\ResponseInterface|string
     {
         $db = \Config\Database::connect();
-        $currentUserId = (int) session()->get('user_id');
-        $councilZone = null;
-        if ($role === 'council') {
-            $councilZone = (string) ((new \App\Models\UserModel())->find($currentUserId)['council_zone'] ?? '');
-        }
+        $councilZone = $role === 'council' ? $this->councilAssignedZone() : '';
 
         $approvedOnly = "h.approval_status = 'approved'";
         $approvedMemberOnly = "h2.approval_status = 'approved'";
@@ -36,6 +43,11 @@ class UIController extends BaseController
             'search'      => trim($_GET['search']      ?? ''),
             'census_year' => trim($_GET['census_year'] ?? ''),
         ];
+
+        // Council members may only look inside their assigned zone.
+        if ($role === 'council' && $filters['zone'] !== '' && $filters['zone'] !== $councilZone) {
+            $filters['zone'] = $councilZone !== '' ? $councilZone : '';
+        }
 
         // ── Available census years (distinct years recorded in DB) ────────
         $censusYears = [];
@@ -90,19 +102,28 @@ class UIController extends BaseController
         $hasSpecialFilter = $hasAnyFilter;
 
         // ── Stats: household cards plus the complete head/member population ─
-        $hm = new \App\Models\HouseholdModel();
-        $statBase = clone $hm;
-        $statBase->whereIn('approval_status', $role === 'council' ? ['approved', 'pending'] : ['approved']);
+        // Build a fresh query for every count. Cloning the Model reuses one
+        // builder, so later cards would drop the zone filter after the first count.
+        $statApprovals = $role === 'council' ? ['approved', 'pending'] : ['approved'];
+        $statZone = null;
         if ($role === 'council') {
-            $statBase->where('zone', $councilZone ?: '__unassigned__');
+            $statZone = $councilZone !== '' ? $councilZone : '__unassigned__';
+        } elseif ($filters['zone'] !== '') {
+            $statZone = $filters['zone'];
         }
-        if ($filters['zone'] !== '') {
-            $statBase->where('zone', $filters['zone']);
-        }
+        $statYear = $filters['census_year'] !== '' ? (int) $filters['census_year'] : null;
 
-        if ($filters['census_year'] !== '') {
-            $statBase->where('census_year', (int) $filters['census_year']);
-        }
+        $householdStatQuery = static function () use ($db, $statApprovals, $statZone, $statYear) {
+            $query = $db->table('households')->whereIn('approval_status', $statApprovals);
+            if ($statZone !== null) {
+                $query->where('zone', $statZone);
+            }
+            if ($statYear !== null) {
+                $query->where('census_year', $statYear);
+            }
+
+            return $query;
+        };
 
         $populationHead = $db->table('households h')
             ->where('h.approval_status', 'approved');
@@ -111,8 +132,8 @@ class UIController extends BaseController
             ->where('h.approval_status', 'approved');
 
         if ($role === 'council') {
-            $populationHead->where('h.zone', $councilZone ?: '__unassigned__');
-            $populationMember->where('h.zone', $councilZone ?: '__unassigned__');
+            $populationHead->where('h.zone', $councilZone !== '' ? $councilZone : '__unassigned__');
+            $populationMember->where('h.zone', $councilZone !== '' ? $councilZone : '__unassigned__');
         }
         if ($filters['zone'] !== '') {
             $populationHead->where('h.zone', $filters['zone']);
@@ -123,12 +144,12 @@ class UIController extends BaseController
             $populationMember->where('h.census_year', (int) $filters['census_year']);
         }
 
-        $totalPopulation = (clone $populationHead)->countAllResults()
-            + (clone $populationMember)->countAllResults();
-        $totalMale = (clone $populationHead)->where('h.gender', 'Male')->countAllResults()
-            + (clone $populationMember)->where('m.gender', 'Male')->countAllResults();
-        $totalFemale = (clone $populationHead)->where('h.gender', 'Female')->countAllResults()
-            + (clone $populationMember)->where('m.gender', 'Female')->countAllResults();
+        $totalPopulation = (clone $populationHead)->countAllResults(false)
+            + (clone $populationMember)->countAllResults(false);
+        $totalMale = (clone $populationHead)->where('h.gender', 'Male')->countAllResults(false)
+            + (clone $populationMember)->where('m.gender', 'Male')->countAllResults(false);
+        $totalFemale = (clone $populationHead)->where('h.gender', 'Female')->countAllResults(false)
+            + (clone $populationMember)->where('m.gender', 'Female')->countAllResults(false);
 
         $osyHead = (clone $populationHead)
             ->where('h.date_of_birth IS NOT NULL', null, false)
@@ -139,7 +160,7 @@ class UIController extends BaseController
             ->orLike('h.occupation', 'OUT OF SCHOOL')
             ->orLike('h.occupation', 'OSY')
             ->groupEnd()
-            ->countAllResults();
+            ->countAllResults(false);
         $osyMember = (clone $populationMember)
             ->where('m.date_of_birth IS NOT NULL', null, false)
             ->where('m.date_of_birth >=', date('Y-m-d', strtotime('-30 years')))
@@ -149,18 +170,18 @@ class UIController extends BaseController
             ->orLike('m.occupation', 'OUT OF SCHOOL')
             ->orLike('m.occupation', 'OSY')
             ->groupEnd()
-            ->countAllResults();
+            ->countAllResults(false);
 
         $stats = [
-            'totalHouseholds' => (clone $statBase)->countAllResults(),
-            'totalPopulation' => $totalPopulation,
-            'totalMale'       => $totalMale,
-            'totalFemale'     => $totalFemale,
+            'totalHouseholds'  => $householdStatQuery()->countAllResults(),
+            'totalPopulation'  => $totalPopulation,
+            'totalMale'        => $totalMale,
+            'totalFemale'      => $totalFemale,
             'outOfSchoolYouth' => $osyHead + $osyMember,
-            'pwds'            => (clone $statBase)->where('is_pwd', 1)->countAllResults(),
-            'fourPs'          => (clone $statBase)->where('is_4ps', 1)->countAllResults(),
-            'seniors'         => (clone $statBase)->where('is_senior_citizen', 1)->countAllResults(),
-            'soloParent'      => (clone $statBase)->where('is_solo_parent', 1)->countAllResults(),
+            'pwds'             => $householdStatQuery()->where('is_pwd', 1)->countAllResults(),
+            'fourPs'           => $householdStatQuery()->where('is_4ps', 1)->countAllResults(),
+            'seniors'          => $householdStatQuery()->where('is_senior_citizen', 1)->countAllResults(),
+            'soloParent'       => $householdStatQuery()->where('is_solo_parent', 1)->countAllResults(),
         ];
 
         $perPage = 15;
@@ -288,6 +309,7 @@ class UIController extends BaseController
             $viewFile = ($role === 'captain') ? 'dashboard/captain/census' : 'dashboard/secretary/census';
             return view($viewFile, array_merge($stats, [
                 'role'                    => $role,
+                'councilZone'             => $councilZone,
                 'households'              => $households,
                 'persons'                 => [],
                 'hasSpecialFilter'        => false,
@@ -357,6 +379,7 @@ class UIController extends BaseController
 
         return view($viewFile, array_merge($stats, [
             'role'                    => $role,
+            'councilZone'             => $councilZone,
             'households'              => [],
             'persons'                 => $persons,
             'hasSpecialFilter'        => true,
@@ -1132,9 +1155,9 @@ class UIController extends BaseController
         $householdModel = new \App\Models\HouseholdModel();
         $household      = $householdModel->getWithMembers((string) $id);
 
-        $councilZone = (string) ((new \App\Models\UserModel())->find((int) session()->get('user_id'))['council_zone'] ?? '');
-        if (! $household || $councilZone === '' || ($household['zone'] ?? '') !== $councilZone) {
-            return redirect()->to('/council/census')->with('error', 'Household not found or not assigned to your account.');
+        $councilZone = $this->councilAssignedZone();
+        if (! $household || $councilZone === '' || trim((string) ($household['zone'] ?? '')) !== $councilZone) {
+            return redirect()->to('/council/census')->with('error', 'Household not found or outside your assigned zone.');
         }
 
         return view('dashboard/captain/household', [

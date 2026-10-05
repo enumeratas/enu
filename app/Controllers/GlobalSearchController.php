@@ -96,7 +96,12 @@ class GlobalSearchController extends BaseController
         }
 
         if ($role === 'council') {
-            $results = array_merge($results, $this->attempt(fn() => $this->households($db, $query, $prefix)));
+            $councilZone = '';
+            $councilUser = (new \App\Models\UserModel())->find($userId);
+            if (is_array($councilUser)) {
+                $councilZone = trim((string) ($councilUser['council_zone'] ?? ''));
+            }
+            $results = array_merge($results, $this->attempt(fn() => $this->households($db, $query, $prefix, $councilZone)));
         }
 
         return $results;
@@ -153,13 +158,13 @@ class GlobalSearchController extends BaseController
     }
 
     /** @return list<array<string, string|null>> */
-    private function households($db, string $query, string $prefix): array
+    private function households($db, string $query, string $prefix, string $zone = ''): array
     {
         if (! $db->tableExists('households')) {
             return [];
         }
 
-        $rows = $db->table('households')
+        $builder = $db->table('households')
             ->select('household_no, first_name, last_name, zone')
             ->groupStart()
                 ->like('household_no', $query)
@@ -167,7 +172,13 @@ class GlobalSearchController extends BaseController
                 ->orLike('last_name', $query)
                 ->orLike('address', $query)
                 ->orLike('zone', $query)
-            ->groupEnd()
+            ->groupEnd();
+        if ($zone !== '') {
+            $builder->where('zone', $zone);
+        } elseif ($prefix === '/council') {
+            $builder->where('zone', '__unassigned__');
+        }
+        $rows = $builder
             ->limit(4)
             ->get()
             ->getResultArray();
@@ -485,6 +496,7 @@ class GlobalSearchController extends BaseController
             ['label' => 'Programs & Events', 'path' => 'programs', 'roles' => ['admin', 'sk', 'council'], 'keys' => 'sk activities events'],
             ['label' => 'SK Activities', 'path' => 'sk-activities', 'roles' => ['admin', 'resident'], 'keys' => 'programs events youth'],
             ['label' => 'SK Reports', 'path' => 'sk-reports', 'roles' => ['admin'], 'keys' => 'youth reports'],
+            ['label' => 'Users', 'path' => 'users', 'roles' => ['admin'], 'keys' => 'users accounts logins roles staff officials'],
             ['label' => 'Create Official Account', 'path' => 'create-account', 'roles' => ['admin'], 'keys' => 'official user account'],
             ['label' => 'Create Resident Account', 'path' => 'create-account', 'roles' => ['secretary'], 'keys' => 'resident account create'],
             ['label' => 'Appoint Secretary', 'path' => 'create-account', 'roles' => ['captain'], 'keys' => 'appoint secretary official'],

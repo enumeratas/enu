@@ -35,7 +35,11 @@ class CensusExportController extends BaseController
 
         $councilZone = '';
         if ($role === 'council') {
-            $councilZone = (string) ((new \App\Models\UserModel())->find((int) session()->get('user_id'))['council_zone'] ?? '');
+            $councilUser = (new \App\Models\UserModel())->find((int) session()->get('user_id'));
+            $councilZone = is_array($councilUser) ? trim((string) ($councilUser['council_zone'] ?? '')) : '';
+            if ($filters['zone'] === '' || $filters['zone'] !== $councilZone) {
+                $filters['zone'] = $councilZone;
+            }
         }
 
         [$hw, $mw] = $this->filterClauses($db, $filters, (string) $role, $councilZone);

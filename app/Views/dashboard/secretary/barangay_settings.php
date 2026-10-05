@@ -82,7 +82,7 @@
                     $groupLabels = [
                         'identity' => ['icon' => 'fa-landmark',   'title' => 'Barangay Identity',   'desc' => 'Name, location, and header text used on document letterheads.'],
                         'officials' => ['icon' => 'fa-user-tie',    'title' => 'Barangay Officials',  'desc' => 'Names displayed on document signatures.'],
-                        'fees'     => ['icon' => 'fa-peso-sign',   'title' => 'Document Fees',       'desc' => 'These amounts appear on the resident request form and on the document preview. Enter 100 or ₱100.00, or Free when there is no charge.'],
+                        'fees'     => ['icon' => 'fa-file-invoice-dollar',   'title' => 'Document Fees',       'desc' => 'These amounts appear on the resident request form and on the document preview. Enter 100 or ₱100.00, or Free when there is no charge.'],
                     ];
 
                     foreach ($settingsGrouped as $group => $rows):

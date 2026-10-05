@@ -93,11 +93,21 @@ class CensusController extends BaseController
             ->orderBy('shared_address_group', 'ASC')
             ->orderBy('family_number', 'ASC')
             ->get()->getResultArray();
+        $councilZone = '';
+        if ($role === 'council') {
+            $councilUser = (new \App\Models\UserModel())->find((int) session()->get('user_id'));
+            $councilZone = is_array($councilUser) ? trim((string) ($councilUser['council_zone'] ?? '')) : '';
+            if ($councilZone === '') {
+                return redirect()->to('/council/census')->with('error', 'Your council account has no assigned zone yet.');
+            }
+        }
+
         return view('dashboard/secretary/census_form', [
-            'role'      => $role,
-            'pageTitle' => 'Add Household',
-            'active'    => 'census',
+            'role'         => $role,
+            'pageTitle'    => 'Add Household',
+            'active'       => 'census',
             'sharedGroups' => $sharedGroups,
+            'councilZone'  => $councilZone,
         ]);
     }
 
@@ -511,6 +521,16 @@ class CensusController extends BaseController
         $transactionDate = $post['recorded_date'] ?? date('Y-m-d');
         $enteredResidencyYears = max(0, (int) ($post['years_of_residency'] ?? 0));
         $residencyStartYear = (int) date('Y') - $enteredResidencyYears;
+
+        $role = (string) session()->get('role');
+        if ($role === 'council') {
+            $councilUser = (new \App\Models\UserModel())->find((int) session()->get('user_id'));
+            $councilZone = is_array($councilUser) ? trim((string) ($councilUser['council_zone'] ?? '')) : '';
+            if ($councilZone === '') {
+                return redirect()->to('/council/census')->with('error', 'Your council account has no assigned zone yet.');
+            }
+            $post['zone'] = $councilZone;
+        }
 
         $householdData = [
             'household_no'           => $householdNo,

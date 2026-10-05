@@ -407,9 +407,44 @@
                 <button class="notif-tab" onclick="filterNotifs('schedule',this)">Events</button>
             </div>
 
-            <?php if (! empty($personalNotifications)): ?>
-                <div class="notif-wrap" style="margin-bottom:20px;">
-                    <?php foreach ($personalNotifications as $notification):
+            <?php
+            $notificationRows = [];
+            foreach ($personalNotifications as $notification) {
+                $notificationRows[] = [
+                    'kind' => 'personal',
+                    'sort' => strtotime((string) ($notification['created_at'] ?? '')) ?: 0,
+                    'id'   => (int) ($notification['id'] ?? 0),
+                    'notification' => $notification,
+                ];
+            }
+            foreach ($feedItems as $item) {
+                $notificationRows[] = [
+                    'kind' => 'feed',
+                    'sort' => strtotime((string) ($item['created_at'] ?? '')) ?: 0,
+                    'id'   => (int) ($item['ref_id'] ?? 0),
+                    'item' => $item,
+                ];
+            }
+            usort($notificationRows, static function (array $left, array $right): int {
+                $byTime = $right['sort'] <=> $left['sort'];
+
+                return $byTime !== 0 ? $byTime : ($right['id'] <=> $left['id']);
+            });
+            ?>
+            <?php if ($notificationRows === []): ?>
+                <div class="notif-wrap" id="notifList">
+                    <div class="notif-empty">
+                        <i class="fas fa-check-double" style="color:#16c79a;"></i>
+                        <p>Everything is up to date. No pending items.</p>
+                    </div>
+                </div>
+            <?php else: ?>
+            <div class="notif-wrap" id="notifList">
+            <?php foreach ($notificationRows as $row): ?>
+            <?php if ($row['kind'] === 'personal'):
+                $notification = $row['notification'];
+            ?>
+                    <?php
                         $isUnread = empty($notification['read_at']);
                         $cfg = $typeConfig['personal'];
                         $actionHref = $notification['link'] ?: '/' . $role . '/notifications';
@@ -450,21 +485,10 @@
                                 <div class="notif-dot"></div>
                             </div>
                         </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-
-            <!-- ── Individual cards ── -->
-            <div class="notif-wrap" id="notifList">
-                <?php if (empty($feedItems)): ?>
-                    <div class="notif-empty">
-                        <i class="fas fa-check-double" style="color:#16c79a;"></i>
-                        <p>Everything is up to date. No pending items.</p>
-                    </div>
-                <?php else: ?>
-                    <?php foreach ($feedItems as $item):
-                        $cfg  = $typeConfig[$item['type']] ?? $typeConfig['schedule'];
-                        $time = notification_time($item['created_at'] ?? null);
+            <?php else:
+                $item = $row['item'];
+                $cfg  = $typeConfig[$item['type']] ?? $typeConfig['schedule'];
+                $time = notification_time($item['created_at'] ?? null);
 
                         // Build a readable description line
                         $desc = $item['sub'] ?? '';
@@ -533,9 +557,10 @@
                                 <div class="notif-dot"></div>
                             </div>
                         </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </div><!-- /.notif-wrap -->
+            <?php endif; ?>
+            <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
 
         </div><!-- /.db-content -->
     </div><!-- /.db-main -->

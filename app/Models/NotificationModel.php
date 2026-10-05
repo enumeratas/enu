@@ -40,6 +40,7 @@ class NotificationModel extends Model
 
         return $builder
             ->orderBy('created_at', 'DESC')
+            ->orderBy('id', 'DESC')
             ->limit(50)
             ->get()
             ->getResultArray();
