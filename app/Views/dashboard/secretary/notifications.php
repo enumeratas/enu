@@ -447,7 +447,7 @@
                     <?php
                         $isUnread = empty($notification['read_at']);
                         $cfg = $typeConfig['personal'];
-                        $actionHref = $notification['link'] ?: '/' . $role . '/notifications';
+                        $actionHref = notification_href_for_role($notification['link'] ?? '', (string) $role);
                     ?>
                         <div class="notif-card <?= $isUnread ? 'unread' : 'read' ?>" data-type="personal"
                             data-unread="<?= $isUnread ? '1' : '0' ?>"
@@ -641,13 +641,12 @@
                     headers: csrfHeaders(),
                     body: csrfBody(),
                     credentials: 'same-origin',
+                    keepalive: true,
                 }).catch(function () {});
             }
 
             if (link) {
-                setTimeout(function () {
-                    window.location.href = link;
-                }, 180);
+                window.location.assign(link);
             }
         }
 

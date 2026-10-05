@@ -47,7 +47,13 @@ class RoleFilter implements FilterInterface
                     ]);
             }
 
-            // Redirect back to their own dashboard or login
+            // A signed-in user who opens another role's page should stay
+            // signed in. Sending them to /login looks like the session ended.
+            if ($userRole !== '') {
+                return redirect()->to('/' . $userRole . '/dashboard')
+                    ->with('error', 'You do not have permission to access that page.');
+            }
+
             return redirect()->to('/login')->with('error', 'You do not have permission to access that page.');
         }
     }
