@@ -116,4 +116,16 @@ class Email extends BaseConfig
      * Enable notify message from server
      */
     public bool $DSN = false;
+
+    public function __construct()
+    {
+        parent::__construct();
+
+        $this->SMTPHost = trim($this->SMTPHost);
+        $this->SMTPUser = trim($this->SMTPUser);
+        $this->fromEmail = trim($this->fromEmail);
+        $this->fromName = trim($this->fromName);
+        // Gmail app passwords are 16 letters. Pasting them with spaces must still work.
+        $this->SMTPPass = preg_replace('/\s+/', '', $this->SMTPPass) ?? '';
+    }
 }

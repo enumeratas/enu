@@ -111,6 +111,337 @@ class CensusController extends BaseController
         ]);
     }
 
+    /**
+     * Preview the head of an existing household when Shared ownership
+     * is linked to that household number.
+     */
+    public function lookupHouseholdHead(string $householdNo)
+    {
+        $response = $this->response->setContentType('application/json');
+        $role = session()->get('role');
+        if (! in_array($role, ['admin', 'captain', 'secretary', 'council'], true)) {
+            return $response->setStatusCode(403)->setJSON([
+                'ok'    => false,
+                'error' => 'You do not have access to household records.',
+            ]);
+        }
+
+        $householdNo = trim($householdNo);
+        if (! preg_match('/^\d{1,5}$/', $householdNo)) {
+            return $response->setStatusCode(400)->setJSON([
+                'ok'    => false,
+                'error' => 'Enter a valid household number.',
+            ]);
+        }
+
+        $row = $this->householdModel->find($householdNo);
+        if (! $row) {
+            return $response->setJSON([
+                'ok'    => false,
+                'error' => 'No household found with number ' . $householdNo . '.',
+            ]);
+        }
+
+        if ($role === 'council') {
+            $councilUser = (new UserModel())->find((int) session()->get('user_id'));
+            $zone = is_array($councilUser) ? trim((string) ($councilUser['council_zone'] ?? '')) : '';
+            if ($zone === '' || strcasecmp(trim((string) ($row['zone'] ?? '')), $zone) !== 0) {
+                return $response->setJSON([
+                    'ok'    => false,
+                    'error' => 'No household found with number ' . $householdNo . ' in your zone.',
+                ]);
+            }
+        }
+
+        $nameParts = array_filter([
+            trim((string) ($row['first_name'] ?? '')),
+            trim((string) ($row['middle_name'] ?? '')),
+            trim((string) ($row['last_name'] ?? '')),
+            trim((string) ($row['suffix'] ?? '')),
+        ], static fn ($part) => $part !== '');
+
+        $members = $this->memberModel->where('household_no', $householdNo)->findAll();
+        $rank = [
+            'spouse'          => 1,
+            'child'           => 2,
+            'spouse_of_child' => 3,
+            'grandchild'      => 4,
+        ];
+        usort($members, static function (array $a, array $b) use ($rank): int {
+            $left = $rank[strtolower((string) ($a['relationship'] ?? ''))] ?? 9;
+            $right = $rank[strtolower((string) ($b['relationship'] ?? ''))] ?? 9;
+            if ($left !== $right) {
+                return $left <=> $right;
+            }
+
+            return strcasecmp((string) ($a['last_name'] ?? ''), (string) ($b['last_name'] ?? ''))
+                ?: strcasecmp((string) ($a['first_name'] ?? ''), (string) ($b['first_name'] ?? ''));
+        });
+
+        $memberRows = [];
+        foreach ($members as $member) {
+            $memberName = array_filter([
+                trim((string) ($member['first_name'] ?? '')),
+                trim((string) ($member['middle_name'] ?? '')),
+                trim((string) ($member['last_name'] ?? '')),
+                trim((string) ($member['suffix'] ?? '')),
+            ], static fn ($part) => $part !== '');
+            $relationship = strtolower(trim((string) ($member['relationship'] ?? '')));
+            $relationshipLabel = match ($relationship) {
+                'spouse'          => 'Spouse',
+                'child'           => 'Child',
+                'spouse_of_child' => 'Spouse of Child',
+                'grandchild'      => 'Grandchild',
+                default           => ucwords(str_replace('_', ' ', $relationship)),
+            };
+
+            $memberRows[] = [
+                'relationship'  => $relationshipLabel,
+                'name'          => implode(' ', $memberName),
+                'date_of_birth' => $this->formatLookupDate((string) ($member['date_of_birth'] ?? '')),
+                'gender'        => trim((string) ($member['gender'] ?? '')),
+                'is_deceased'   => ! empty($member['is_deceased']),
+            ];
+        }
+
+        return $response->setJSON([
+            'ok'      => true,
+            'head'    => [
+                'household_no'       => (string) ($row['household_no'] ?? $householdNo),
+                'name'               => implode(' ', $nameParts),
+                'zone'               => trim((string) ($row['zone'] ?? '')),
+                'address'            => trim((string) ($row['address'] ?? '')),
+                'date_of_birth'      => $this->formatLookupDate((string) ($row['date_of_birth'] ?? '')),
+                'gender'             => trim((string) ($row['gender'] ?? '')),
+                'civil_status'       => trim((string) ($row['civil_status'] ?? '')),
+                'house_ownership'    => trim((string) ($row['house_ownership'] ?? '')),
+                'years_of_residency' => (string) ($row['years_of_residency'] ?? ''),
+                'contact_number'     => trim((string) ($row['contact_number'] ?? '')),
+                'record_status'      => trim((string) ($row['record_status'] ?? '')),
+                'is_deceased'        => ! empty($row['is_deceased']),
+            ],
+            'members' => $memberRows,
+        ]);
+    }
+
+    private function formatLookupDate(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+        $stamp = strtotime($value);
+
+        return $stamp === false ? $value : date('F j, Y', $stamp);
+    }
+
+    public function finder()
+    {
+        $role = (string) session()->get('role');
+        if (! in_array($role, ['admin', 'captain', 'secretary', 'council'], true)) {
+            return redirect()->to('/' . $role . '/dashboard')->with('error', 'You do not have access to household records.');
+        }
+
+        $query = trim((string) $this->request->getGet('q'));
+        $families = [];
+        $message = '';
+        if ($query !== '') {
+            $digits = preg_replace('/\D/', '', $query) ?? '';
+            if (! preg_match('/^\d{1,5}$/', $digits)) {
+                $message = 'Enter a household number.';
+            } else {
+                $result = $this->familiesForHouseholdNumber($digits);
+                if (is_string($result)) {
+                    $message = $result;
+                } else {
+                    $families = $result;
+                }
+            }
+        }
+
+        return view('dashboard/secretary/household_finder', [
+            'role'      => $role,
+            'pageTitle' => 'Household Finder',
+            'active'    => 'household_finder',
+            'query'     => preg_replace('/\D/', '', $query) ?? '',
+            'families'  => $families,
+            'message'   => $message,
+        ]);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>|string
+     */
+    private function familiesForHouseholdNumber(string $householdNo): array|string
+    {
+        $this->ensureMemberFamilyGroup();
+        $household = $this->householdModel->find($householdNo);
+        if (! $household) {
+            return 'No household found with number ' . $householdNo . '.';
+        }
+        if (! $this->councilCanViewHousehold($household)) {
+            return 'No household found with number ' . $householdNo . ' in your zone.';
+        }
+
+        $members = $this->memberModel->where('household_no', $householdNo)->orderBy('id', 'ASC')->findAll();
+        $primaryMembers = [];
+        $extraFamilies = [];
+        foreach ($members as $member) {
+            $relationship = strtolower(trim((string) ($member['relationship'] ?? '')));
+            $group = max(1, (int) ($member['family_group'] ?? 1));
+            if ($relationship === 'head') {
+                $extraFamilies[$group]['head'] = $member;
+                continue;
+            }
+            if ($group === 1) {
+                $primaryMembers[] = $member;
+            } else {
+                $extraFamilies[$group]['members'][] = $member;
+            }
+        }
+
+        $families = [[
+            'label'   => 'Head 1',
+            'head'    => $this->presentStoredHead($household),
+            'members' => array_map([$this, 'presentStoredMember'], $primaryMembers),
+        ]];
+
+        ksort($extraFamilies);
+        $number = 2;
+        foreach ($extraFamilies as $family) {
+            if (empty($family['head'])) {
+                continue;
+            }
+            $families[] = [
+                'label'   => 'Head ' . $number,
+                'head'    => $this->presentStoredMember($family['head'], $household),
+                'members' => array_map([$this, 'presentStoredMember'], $family['members'] ?? []),
+            ];
+            $number++;
+        }
+
+        $linkedRows = $this->householdModel
+            ->where('linked_household_no', $householdNo)
+            ->where('household_no !=', $householdNo)
+            ->findAll();
+        foreach ($linkedRows as $linked) {
+            if (! $this->councilCanViewHousehold($linked)) {
+                continue;
+            }
+            $linkedMembers = $this->memberModel
+                ->where('household_no', $linked['household_no'])
+                ->orderBy('id', 'ASC')
+                ->findAll();
+            $visibleMembers = array_values(array_filter(
+                $linkedMembers,
+                static fn (array $member): bool => strtolower(trim((string) ($member['relationship'] ?? ''))) !== 'head'
+            ));
+            $families[] = [
+                'label'   => 'Head ' . $number,
+                'head'    => $this->presentStoredHead($linked),
+                'members' => array_map([$this, 'presentStoredMember'], $visibleMembers),
+            ];
+            $number++;
+        }
+
+        return $families;
+    }
+
+    private function councilCanViewHousehold(array $household): bool
+    {
+        if (session()->get('role') !== 'council') {
+            return true;
+        }
+        $councilUser = (new UserModel())->find((int) session()->get('user_id'));
+        $zone = is_array($councilUser) ? trim((string) ($councilUser['council_zone'] ?? '')) : '';
+
+        return $zone !== '' && strcasecmp(trim((string) ($household['zone'] ?? '')), $zone) === 0;
+    }
+
+    private function presentStoredHead(array $household): array
+    {
+        $name = trim(implode(' ', array_filter([
+            trim((string) ($household['first_name'] ?? '')),
+            trim((string) ($household['middle_name'] ?? '')),
+            trim((string) ($household['last_name'] ?? '')),
+            trim((string) ($household['suffix'] ?? '')),
+        ])));
+
+        return [
+            'name'            => $name,
+            'household_no'    => (string) ($household['household_no'] ?? ''),
+            'zone'            => trim((string) ($household['zone'] ?? '')),
+            'address'         => trim((string) ($household['address'] ?? '')),
+            'date_of_birth'   => $this->formatLookupDate((string) ($household['date_of_birth'] ?? '')),
+            'gender'          => trim((string) ($household['gender'] ?? '')),
+            'civil_status'    => trim((string) ($household['civil_status'] ?? '')),
+            'contact_number'  => trim((string) ($household['contact_number'] ?? '')),
+            'house_ownership' => trim((string) ($household['house_ownership'] ?? '')),
+        ];
+    }
+
+    private function presentStoredMember(array $member, ?array $household = null): array
+    {
+        $name = trim(implode(' ', array_filter([
+            trim((string) ($member['first_name'] ?? '')),
+            trim((string) ($member['middle_name'] ?? '')),
+            trim((string) ($member['last_name'] ?? '')),
+            trim((string) ($member['suffix'] ?? '')),
+        ])));
+        $relationship = strtolower(trim((string) ($member['relationship'] ?? '')));
+        $relationshipLabel = match ($relationship) {
+            'head'            => 'Head',
+            'spouse'          => 'Spouse',
+            'child'           => 'Child',
+            'spouse_of_child' => 'Spouse of Child',
+            'grandchild'      => 'Grandchild',
+            default           => ucwords(str_replace('_', ' ', $relationship)),
+        };
+
+        return [
+            'name'            => $name,
+            'relationship'    => $relationshipLabel,
+            'household_no'    => (string) ($household['household_no'] ?? ''),
+            'zone'            => trim((string) ($household['zone'] ?? '')),
+            'address'         => trim((string) ($household['address'] ?? '')),
+            'date_of_birth'   => $this->formatLookupDate((string) ($member['date_of_birth'] ?? '')),
+            'gender'          => trim((string) ($member['gender'] ?? '')),
+            'civil_status'    => trim((string) ($member['marital_status'] ?? '')),
+            'house_ownership' => trim((string) ($household['house_ownership'] ?? '')),
+            'is_deceased'     => ! empty($member['is_deceased']),
+        ];
+    }
+
+    private function nextFamilyGroup(string $householdNo): int
+    {
+        if (! $this->ensureMemberFamilyGroup()) {
+            return 2;
+        }
+        $row = \Config\Database::connect()->query(
+            'SELECT MAX(family_group) AS n FROM household_members WHERE household_no = ?',
+            [$householdNo]
+        )->getRow();
+
+        return max(2, ((int) ($row->n ?? 1)) + 1);
+    }
+
+    private function ensureMemberFamilyGroup(): bool
+    {
+        try {
+            $db = \Config\Database::connect();
+            if ($db->fieldExists('family_group', 'household_members')) {
+                return true;
+            }
+            $db->query('ALTER TABLE household_members ADD family_group INT NOT NULL DEFAULT 1');
+
+            return $db->fieldExists('family_group', 'household_members');
+        } catch (\Throwable $e) {
+            log_message('error', 'Could not add household_members.family_group: ' . $e->getMessage());
+
+            return false;
+        }
+    }
+
     private function _handleIdUpload(string $fieldName, string $prefix, string $householdNo, ?string $oldPath = null): ?string
     {
         $file = $this->request->getFile($fieldName);
@@ -423,6 +754,145 @@ class CensusController extends BaseController
         return null;
     }
 
+    /**
+     * Add a confirmed shared family onto an existing household number
+     * without replacing the people already recorded there.
+     *
+     * @param array<int, array<string, mixed>> $members
+     */
+    private function storeAppendedFamilyFiles(string $householdNo, array $members): ?string
+    {
+        $saved = [];
+        $keepFamilyGroup = $this->ensureMemberFamilyGroup();
+        foreach ($members as $member) {
+            $member['household_no'] = $householdNo;
+            if (! $keepFamilyGroup) {
+                unset($member['family_group']);
+            }
+            if (trim((string) ($member['philhealth_no'] ?? '')) === '') {
+                $member['philhealth_no'] = null;
+            }
+            try {
+                $id = $this->memberModel->insert($member);
+            } catch (\Throwable $e) {
+                $message = $e->getMessage();
+                if (str_contains($message, 'philhealth')) {
+                    return 'That PhilHealth number is already registered.';
+                }
+                throw $e;
+            }
+            if (! $id) {
+                return 'Could not add this family to household ' . $householdNo . '.';
+            }
+            $saved[] = [
+                'id'           => (int) $id,
+                'relationship' => (string) ($member['relationship'] ?? ''),
+            ];
+        }
+
+        $head = null;
+        $spouse = null;
+        $children = [];
+        $others = [];
+        foreach ($saved as $row) {
+            if ($row['relationship'] === 'Head' && $head === null) {
+                $head = $row;
+            } elseif ($row['relationship'] === 'spouse' && $spouse === null) {
+                $spouse = $row;
+            } elseif ($row['relationship'] === 'child') {
+                $children[] = $row;
+            } elseif (! in_array($row['relationship'], ['Head', 'spouse', 'child', 'spouse_of_child', 'grandchild'], true)) {
+                $others[] = $row;
+            }
+        }
+
+        if ($head) {
+            $support = $this->_handleUploadedMemberIdFile($this->request->getFile('head_supporting_doc'), 'support', $head['id']);
+            if ($support) {
+                $this->memberModel->update($head['id'], ['supporting_doc_path' => $support]);
+            }
+            if ($this->request->getPost('is_pwd') !== null) {
+                $path = $this->_handleUploadedMemberIdFile($this->request->getFile('id_pwd'), 'pwd', $head['id']);
+                if ($path) {
+                    $this->memberModel->update($head['id'], ['id_pwd_path' => $path]);
+                }
+            }
+            if ($this->request->getPost('is_senior_citizen') !== null) {
+                $path = $this->_handleUploadedMemberIdFile($this->request->getFile('id_senior'), 'senior', $head['id']);
+                if ($path) {
+                    $this->memberModel->update($head['id'], ['id_senior_path' => $path]);
+                }
+            }
+        }
+
+        if ($spouse && ($this->request->getPost('spouse_pwd') ?? '0') === '1') {
+            $path = $this->_handleMemberIdUpload('spouse_id_pwd', 'pwd', $spouse['id']);
+            $this->memberModel->update($spouse['id'], ['id_pwd_path' => $path]);
+        }
+        if ($spouse && ($this->request->getPost('spouse_senior') ?? '0') === '1') {
+            $path = $this->_handleMemberIdUpload('spouse_id_senior', 'senior', $spouse['id']);
+            $this->memberModel->update($spouse['id'], ['id_senior_path' => $path]);
+        }
+        if ($spouse) {
+            $spouseSupport = $this->_handleMemberIdUpload('spouse_supporting_doc', 'support', $spouse['id']);
+            if ($spouseSupport) {
+                $this->memberModel->update($spouse['id'], ['supporting_doc_path' => $spouseSupport]);
+            }
+        }
+
+        $childFileIndex = 0;
+        $childPwdPosted = (array) $this->request->getPost('child_pwd');
+        $childSeniorPosted = (array) $this->request->getPost('child_senior');
+        $childPwdFiles = $this->request->getFileMultiple('child_id_pwd');
+        $childSeniorFiles = $this->request->getFileMultiple('child_id_senior');
+        $childSupportFiles = $this->request->getFileMultiple('child_supporting_doc');
+        foreach ((array) $this->request->getPost('child_last_name') as $i => $lastName) {
+            if (trim((string) $lastName) === '') {
+                continue;
+            }
+            $child = $children[$childFileIndex++] ?? null;
+            if (! $child) {
+                continue;
+            }
+            if (($childPwdPosted[$i] ?? '0') === '1') {
+                $path = $this->_handleUploadedMemberIdFile($childPwdFiles[$i] ?? null, 'pwd', $child['id']);
+                $this->memberModel->update($child['id'], ['id_pwd_path' => $path]);
+            }
+            if (isset($childSeniorPosted[$i])) {
+                $path = $this->_handleUploadedMemberIdFile($childSeniorFiles[$i] ?? null, 'senior', $child['id']);
+                $this->memberModel->update($child['id'], ['id_senior_path' => $path]);
+            }
+            $path = $this->_handleUploadedMemberIdFile($childSupportFiles[$i] ?? null, 'support', $child['id']);
+            if ($path) {
+                $this->memberModel->update($child['id'], ['supporting_doc_path' => $path]);
+            }
+        }
+
+        $otherFileIndex = 0;
+        $otherSeniorPosted = (array) $this->request->getPost('other_senior');
+        $otherSeniorFiles = $this->request->getFileMultiple('other_id_senior');
+        $otherSupportFiles = $this->request->getFileMultiple('other_supporting_doc');
+        foreach ((array) $this->request->getPost('other_last_name') as $i => $lastName) {
+            if (trim((string) $lastName) === '') {
+                continue;
+            }
+            $other = $others[$otherFileIndex++] ?? null;
+            if (! $other) {
+                continue;
+            }
+            if (isset($otherSeniorPosted[$i])) {
+                $path = $this->_handleUploadedMemberIdFile($otherSeniorFiles[$i] ?? null, 'senior', $other['id']);
+                $this->memberModel->update($other['id'], ['id_senior_path' => $path]);
+            }
+            $path = $this->_handleUploadedMemberIdFile($otherSupportFiles[$i] ?? null, 'support', $other['id']);
+            if ($path) {
+                $this->memberModel->update($other['id'], ['supporting_doc_path' => $path]);
+            }
+        }
+
+        return null;
+    }
+
     // ── Save new household from the census form ───────────────────────────────
 
     public function store()
@@ -508,13 +978,29 @@ class CensusController extends BaseController
         }
 
         // ── Step 1: Save household head ───────────────────────────────────
-        // Use the JS-generated household_no, but regenerate server-side if missing or already taken
-        $householdNo = $post['household_no'] ?? null;
+        // Auto keeps a generated number. Manual keeps what was typed or confirmed from a linked household.
+        $householdNoMode = ($post['household_no_mode'] ?? 'auto') === 'manual' ? 'manual' : 'auto';
+        $householdNo = preg_replace('/\D/', '', (string) ($post['household_no'] ?? '')) ?? '';
+        $appendToExisting = false;
 
-        // Ensure uniqueness — regenerate if the number already exists
-        if (empty($householdNo) || $this->householdModel->where('household_no', $householdNo)->countAllResults() > 0) {
+        if ($householdNoMode === 'manual') {
+            if ($householdNo === '' || ! preg_match('/^\d{1,5}$/', $householdNo)) {
+                return redirect()->back()
+                    ->with('error', 'Enter a household number, or turn Auto on to generate one.')
+                    ->withInput();
+            }
+            $existingHousehold = $this->householdModel->find($householdNo);
+            $linkedNo = preg_replace('/\D/', '', trim((string) ($post['linked_household_no'] ?? ''))) ?? '';
+            if ($existingHousehold && ($post['house_ownership'] ?? '') === 'Shared' && $linkedNo === $householdNo) {
+                $appendToExisting = true;
+            } elseif ($existingHousehold) {
+                return redirect()->back()
+                    ->with('error', 'Household number ' . $householdNo . ' is already in use. Enter a different number, or turn Auto on to generate one.')
+                    ->withInput();
+            }
+        } elseif ($householdNo === '' || $this->householdModel->where('household_no', $householdNo)->countAllResults() > 0) {
             do {
-                $householdNo = str_pad(random_int(10000, 99999), 5, '0', STR_PAD_LEFT);
+                $householdNo = str_pad((string) random_int(10000, 99999), 5, '0', STR_PAD_LEFT);
             } while ($this->householdModel->where('household_no', $householdNo)->countAllResults() > 0);
         }
 
@@ -590,26 +1076,30 @@ class CensusController extends BaseController
                 ->withInput();
         }
 
-        // Use insert() directly — save() can behave unexpectedly with string PKs
-        try {
-            $inserted = $this->householdModel->insert($householdData, false);
-        } catch (\CodeIgniter\Database\Exceptions\DatabaseException $e) {
-            $msg = $e->getMessage();
-            if (str_contains($msg, 'uq_households_philhealth') || str_contains($msg, 'philhealth_no')) {
-                return redirect()->back()->with('error', 'That PhilHealth number is already registered to another household head.')->withInput();
+        if (! $appendToExisting) {
+            // Use insert() directly — save() can behave unexpectedly with string PKs
+            try {
+                $inserted = $this->householdModel->insert($householdData, false);
+            } catch (\CodeIgniter\Database\Exceptions\DatabaseException $e) {
+                $msg = $e->getMessage();
+                if (str_contains($msg, 'uq_households_philhealth') || str_contains($msg, 'philhealth_no')) {
+                    return redirect()->back()->with('error', 'That PhilHealth number is already registered to another household head.')->withInput();
+                }
+                if (str_contains($msg, 'uq_households_contact') || str_contains($msg, 'contact_number')) {
+                    return redirect()->back()->with('error', 'That contact number is already registered to another household head.')->withInput();
+                }
+                if (str_contains($msg, 'uq_households_person')) {
+                    return redirect()->back()->with('error', 'A household head with the same name and date of birth already exists in the census.')->withInput();
+                }
+                throw $e;
             }
-            if (str_contains($msg, 'uq_households_contact') || str_contains($msg, 'contact_number')) {
-                return redirect()->back()->with('error', 'That contact number is already registered to another household head.')->withInput();
-            }
-            if (str_contains($msg, 'uq_households_person')) {
-                return redirect()->back()->with('error', 'A household head with the same name and date of birth already exists in the census.')->withInput();
-            }
-            throw $e;
-        }
 
-        if ($inserted === false) {
-            $errors = implode(' ', $this->householdModel->errors());
-            return redirect()->back()->with('error', 'Failed to save household: ' . $errors)->withInput();
+            if ($inserted === false) {
+                $errors = implode(' ', $this->householdModel->errors());
+                return redirect()->back()->with('error', 'Failed to save household: ' . $errors)->withInput();
+            }
+        } else {
+            $this->householdModel->update($householdNo, ['house_ownership' => 'Shared']);
         }
 
         // Verify the household actually exists before inserting members
@@ -643,10 +1133,10 @@ class CensusController extends BaseController
         if ($headSupportPath) {
             $idUpdate['supporting_doc_path'] = $headSupportPath;
         }
-        if (! empty($idUpdate)) {
+        if (! $appendToExisting && ! empty($idUpdate)) {
             $this->householdModel->update($householdKey, $idUpdate);
         }
-        if ($sharedPlan) {
+        if (! $appendToExisting && $sharedPlan) {
             $this->attachSharedHousehold($sharedPlan);
         }
 
@@ -779,11 +1269,46 @@ class CensusController extends BaseController
         }
 
 
+        if ($appendToExisting) {
+            $familyGroup = $this->nextFamilyGroup($householdNo);
+            array_unshift($members, [
+                'relationship'           => 'Head',
+                'last_name'              => $post['last_name']              ?? '',
+                'first_name'             => $post['first_name']             ?? '',
+                'middle_name'            => $post['middle_name']            ?? null,
+                'suffix'                 => $post['suffix']                 ?? null,
+                'date_of_birth'          => $post['date_of_birth']          ?? null,
+                'gender'                 => $post['gender']                 ?? null,
+                'occupation'             => $post['occupation']             ?? null,
+                'monthly_income'         => $post['monthly_income']         ?? 0,
+                'philhealth_no'          => $post['philhealth_no']          ?? null,
+                'educational_attainment' => $post['educational_attainment'] ?? null,
+                'grade_level'            => null,
+                'is_pwd'                 => isset($post['is_pwd']) ? 1 : 0,
+                'pwd_type'               => (isset($post['is_pwd']) && ! empty($post['pwd_type'])) ? $post['pwd_type'] : null,
+                'id_pwd_path'            => null,
+                'id_senior_path'         => null,
+                'family_group'           => $familyGroup,
+            ]);
+            foreach ($members as &$appendedMember) {
+                $appendedMember['family_group'] = $familyGroup;
+                if (trim((string) ($appendedMember['philhealth_no'] ?? '')) === '') {
+                    $appendedMember['philhealth_no'] = null;
+                }
+            }
+            unset($appendedMember);
+        }
+
         $minorCivilStatusError = $this->validateMinorCivilStatuses($members);
         if ($minorCivilStatusError !== null) {
             return redirect()->back()->with('error', $minorCivilStatusError)->withInput();
         }
-        if (! empty($members)) {
+        if ($appendToExisting) {
+            $appendError = $this->storeAppendedFamilyFiles($householdKey, $members);
+            if ($appendError !== null) {
+                return redirect()->back()->with('error', $appendError)->withInput();
+            }
+        } elseif (! empty($members)) {
             $this->memberModel->replaceMembers($householdKey, $members);
 
             $savedSpouse = $this->memberModel->where('household_no', $householdKey)
@@ -852,7 +1377,9 @@ class CensusController extends BaseController
         }
 
         $role = session()->get('role');
-        if ($saveAsDraft) {
+        if ($appendToExisting) {
+            $message = 'This family was linked to household ' . $householdNo . '.';
+        } elseif ($saveAsDraft) {
             $message = 'Household saved as a draft. Upload each member\'s ID or birth certificate to complete the record.';
         } elseif ($role === 'council') {
             $message = 'Household record submitted and is pending Secretary approval.';

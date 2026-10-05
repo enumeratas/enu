@@ -10,6 +10,8 @@ namespace App\Libraries;
  */
 class EmailService
 {
+  public const DELIVERY_ERROR = 'The verification code could not be sent. Gmail rejected the mail login. Create a new Google App Password and update the SMTP password, then try again.';
+
   protected \CodeIgniter\Email\Email $email;
 
   public function __construct()
@@ -318,11 +320,7 @@ class EmailService
     $this->email->setMessage($message);
 
     if (! $this->email->send()) {
-      log_message(
-        'error',
-        '[EmailService] Failed sending to ' . $recipient . ' — ' .
-          $this->email->printDebugger(['headers', 'subject', 'body'])
-      );
+      log_message('error', '[EmailService] Failed sending to ' . $recipient . '. The SMTP server rejected the login or the message.');
       return false;
     }
 

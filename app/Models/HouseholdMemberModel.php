@@ -12,6 +12,7 @@ class HouseholdMemberModel extends Model
 
     protected $allowedFields = [
         'household_no',
+        'family_group',
         'relationship',
         'last_name',
         'first_name',

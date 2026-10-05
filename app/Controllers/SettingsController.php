@@ -147,11 +147,13 @@ class SettingsController extends BaseController
         // Send OTP email
         try {
             $emailService = new EmailService();
-            $emailService->sendPasswordChangeOtp($user['email'], $displayName, $otp);
+            $sent = $emailService->sendPasswordChangeOtp($user['email'], $displayName, $otp);
         } catch (\Throwable $e) {
             log_message('error', 'Password OTP email failed: ' . $e->getMessage());
-            if (ENVIRONMENT === 'development') throw $e;
-            return redirect()->back()->with('pw_error', 'Could not send verification email. Please try again.');
+            $sent = false;
+        }
+        if (! $sent) {
+            return redirect()->back()->with('pw_error', EmailService::DELIVERY_ERROR);
         }
 
         // Store in session that OTP was sent and new password is pending
@@ -222,10 +224,13 @@ class SettingsController extends BaseController
         $displayName = trim($user['first_name'] . ' ' . $user['last_name']);
         try {
             $emailService = new EmailService();
-            $emailService->sendPasswordChangeOtp($user['email'], $displayName, $otp);
+            $sent = $emailService->sendPasswordChangeOtp($user['email'], $displayName, $otp);
         } catch (\Throwable $e) {
             log_message('error', 'Resend password OTP failed: ' . $e->getMessage());
-            return redirect()->back()->with('pw_error', 'Could not resend code.');
+            $sent = false;
+        }
+        if (! $sent) {
+            return redirect()->back()->with('pw_error', EmailService::DELIVERY_ERROR);
         }
 
         return redirect()->to('/' . $role . '/settings')->with('pw_otp_sent', true);
@@ -371,10 +376,13 @@ class SettingsController extends BaseController
 
         try {
             $emailService = new EmailService();
-            $emailService->sendEmailChangeOtp($newEmail, $displayName, $otp);
+            $sent = $emailService->sendEmailChangeOtp($newEmail, $displayName, $otp);
         } catch (\Throwable $e) {
             log_message('error', 'Admin email-change OTP failed: ' . $e->getMessage());
-            return $this->response->setJSON(['success' => false, 'message' => 'Could not send verification email. Please try again.']);
+            $sent = false;
+        }
+        if (! $sent) {
+            return $this->response->setJSON(['success' => false, 'message' => EmailService::DELIVERY_ERROR]);
         }
 
         return $this->response->setJSON(['success' => true, 'message' => 'Verification code sent to ' . $newEmail . '.']);

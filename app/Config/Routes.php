@@ -72,6 +72,7 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
     $routes->get('search', 'GlobalSearchController::index');
     $routes->get('dashboard',                    'UIController::captain_dashboard');
     $routes->get('census',                       'UIController::captain_census');
+    $routes->get('household-finder',             'CensusController::finder');
     $routes->get('household/(:segment)',         'UIController::captain_household/$1');
     $routes->get('clearance',                    'ClearanceController::adminIndex/captain');
     $routes->get('clearance/request/(:num)',     'ClearanceController::residentDetail/$1');
@@ -184,6 +185,7 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
 
     // Census CRUD
     $routes->get('census/new',                     'CensusController::create');
+    $routes->get('census/household-head/(:segment)', 'CensusController::lookupHouseholdHead/$1');
     $routes->post('census/store',                    'CensusController::store');
     $routes->post('census/update/(:segment)',         'CensusController::updateHousehold/$1');
     $routes->post('census/delete/(:segment)',         'CensusController::delete/$1');
@@ -209,6 +211,7 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
     $routes->get('search', 'GlobalSearchController::index');
     $routes->get('dashboard',          'UIController::secretary_dashboard');
     $routes->get('census',             'UIController::secretary_census');
+    $routes->get('household-finder',   'CensusController::finder');
     $routes->get('residents',          'UIController::secretary_residents');
     $routes->get('household/(:segment)', 'UIController::secretary_household/$1');
     $routes->get('clearance',          'ClearanceController::adminIndex/secretary');
@@ -370,6 +373,7 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
 
     // Census CRUD
     $routes->get('census/new',                     'CensusController::create');
+    $routes->get('census/household-head/(:segment)', 'CensusController::lookupHouseholdHead/$1');
     $routes->post('census/store',                    'CensusController::store');
     $routes->post('census/update/(:segment)',         'CensusController::updateHousehold/$1');
     $routes->post('census/delete/(:segment)',         'CensusController::delete/$1');
@@ -407,6 +411,7 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->get('search', 'GlobalSearchController::index');
     $routes->get('dashboard',          'UIController::admin_dashboard');
     $routes->get('census',             'UIController::secretary_census');
+    $routes->get('household-finder',   'CensusController::finder');
     $routes->get('residents',          'UIController::secretary_residents');
     $routes->get('household/(:segment)', 'UIController::secretary_household/$1');
     $routes->get('clearance',          'ClearanceController::adminIndex/admin');
@@ -527,6 +532,7 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('settings/avatar',           'SettingsController::uploadAvatar');
     $routes->post('settings/system',           'SettingsController::saveSystemPreferences');
     $routes->get('census/new',                     'CensusController::create');
+    $routes->get('census/household-head/(:segment)', 'CensusController::lookupHouseholdHead/$1');
     $routes->post('census/store',                    'CensusController::store');
     $routes->post('census/update/(:segment)',         'CensusController::updateHousehold/$1');
     $routes->post('census/delete/(:segment)',         'CensusController::delete/$1');
@@ -574,6 +580,7 @@ $routes->group('/council', ['filter' => ['auth', 'role:council']], function ($ro
     $routes->get('search', 'GlobalSearchController::index');
     $routes->get('dashboard', 'UIController::council_dashboard');
     $routes->get('census', 'UIController::council_census');
+    $routes->get('household-finder', 'CensusController::finder');
     $routes->get('household/(:segment)', 'UIController::council_household/$1');
     $routes->get('programs', 'SkController::programs');
     $routes->get('activities', 'BarangayActivityController::resident');
@@ -592,6 +599,7 @@ $routes->group('/council', ['filter' => ['auth', 'role:council']], function ($ro
     $routes->post('settings/profile', 'SettingsController::updateProfile');
     $routes->post('settings/avatar', 'SettingsController::uploadAvatar');
     $routes->get('census/new', 'CensusController::create');
+    $routes->get('census/household-head/(:segment)', 'CensusController::lookupHouseholdHead/$1');
     $routes->post('census/store', 'CensusController::store');
     $routes->post('census/delete/(:segment)', 'CensusController::delete/$1');
     $routes->post('census/update/(:segment)', 'CensusController::updateHousehold/$1');

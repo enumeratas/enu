@@ -1053,11 +1053,18 @@
 
                                 <div class="pf-row pf-row-4">
                                     <div>
-                                        <div class="pf-label">
-                                            Household No.
-                                            <span style="font-size:9px;color:#16c79a;font-weight:700;margin-left:4px;">AUTO</span>
+                                        <div class="pf-label" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                                            <span>Household No.</span>
+                                            <button type="button" id="householdNoAutoToggle" aria-pressed="true" title="Auto-generate household number" style="display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;padding:0;cursor:pointer;font:inherit;">
+                                                <span id="householdNoAutoSwitch" style="width:28px;height:16px;border-radius:99px;background:#16c79a;position:relative;display:inline-block;flex:0 0 28px;">
+                                                    <span id="householdNoAutoKnob" style="position:absolute;top:2px;left:14px;width:12px;height:12px;border-radius:50%;background:#fff;transition:left .15s ease;"></span>
+                                                </span>
+                                                <span id="householdNoAutoLabel" style="font-size:9px;color:#16c79a;font-weight:700;letter-spacing:.04em;">AUTO</span>
+                                            </button>
                                         </div>
-                                        <input type="text" class="pf-ctrl" name="household_no" id="householdNo" readonly>
+                                        <input type="text" class="pf-ctrl" name="household_no" id="householdNo" inputmode="numeric" autocomplete="off" readonly>
+                                        <input type="hidden" name="household_no_mode" id="householdNoMode" value="auto">
+                                        <input type="hidden" name="household_link_confirmed" id="householdLinkConfirmed" value="0">
                                     </div>
                                     <div>
                                         <div class="pf-label">Zone / Purok</div>
@@ -1096,18 +1103,25 @@
 
                                 <div id="sharedLinkRow" style="display:none;margin-top:12px;padding:12px 14px;background:#f5f7ff;border:1px solid #dde2f5;border-radius:9px;">
                                     <div class="pf-label">Household number this family belongs to <span class="pf-req">*</span></div>
-                                    <input type="text" class="pf-ctrl" name="linked_household_no" id="linkedHouseholdNo" placeholder="e.g. 12345" maxlength="5" inputmode="numeric" style="max-width:180px;">
-                                    <div class="pf-file-hint">Required when ownership is Shared. This family is linked to that household number.</div>
+                                    <input type="text" class="pf-ctrl" name="linked_household_no" id="linkedHouseholdNo" placeholder="e.g. 12345" inputmode="numeric" autocomplete="off" style="max-width:180px;">
+                                    <div id="linkedHouseholdError" role="alert" style="display:none;margin-top:8px;padding:8px 10px;background:#fef3f2;border:1px solid #fecdca;border-radius:8px;color:#b42318;font-size:12.5px;font-weight:700;"></div>
+                                    <div class="pf-file-hint">Required when ownership is Shared. Enter an existing household number to link this family and see that household head.</div>
+                                    <div id="linkedHouseholdPreview" style="display:none;margin-top:12px;padding:12px 14px;background:#fff;border:1px solid #dde2f5;border-radius:9px;"></div>
                                 </div>
 
-                                <div class="pf-id-upload" style="margin-top:12px;">
+                                <div class="pf-id-upload" style="margin-top:12px;" data-id-block data-id-key="head_support" data-ocr-mode="single">
                                     <label class="pf-id-label"><i class="fas fa-id-card"></i> Head ID or Birth Certificate <span class="pf-req">* REQUIRED</span></label>
                                     <label class="pf-file-drop">
                                         <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                         <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose one ID or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                                        <input type="file" name="head_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input">
+                                        <input type="file" name="head_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
                                     </label>
-                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> Every member needs one ID or birth certificate. Use Save as Draft if a document is not available yet.</div>
+                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - maximum 5 MB. OCR reads the document and checks it against the head name and birthdate.</div>
+                                    <input type="hidden" name="head_supporting_verified" value="0" data-ocr-flag>
+                                    <div class="pf-ocr-row">
+                                        <div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID or birth certificate. OCR runs automatically.</div>
+                                        <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
+                                    </div>
                                 </div>
 
                                 <div class="pf-check-row">
@@ -1451,6 +1465,20 @@
                         </div>
 
                 </form>
+
+                <div class="db-modal-overlay" id="linkHouseholdModal">
+                    <div class="db-modal" style="max-width:440px;border-radius:12px;">
+                        <div class="db-modal-header">
+                            <h3><i class="fas fa-link"></i> Link household</h3>
+                            <button type="button" class="db-modal-close" id="linkHouseholdClose" aria-label="Close"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="db-modal-body" id="linkHouseholdModalBody"></div>
+                        <div class="db-modal-footer">
+                            <button type="button" class="db-btn db-btn--outline" id="linkHouseholdCancel">Cancel</button>
+                            <button type="button" class="db-btn db-btn--primary" id="linkHouseholdConfirm">Confirm</button>
+                        </div>
+                    </div>
+                </div>
             </div><!-- /.cf-page -->
 
         </div><!-- /.db-content -->
@@ -1627,7 +1655,343 @@
                 input.required = shared;
                 if (!shared) input.value = '';
             }
+            if (shared) {
+                scheduleLinkedHouseholdLookup();
+            } else {
+                clearLinkedHouseholdPreview();
+            }
         }
+
+        let linkedHouseholdTimer = null;
+        let linkedHouseholdSeq = 0;
+
+        function clearLinkedHouseholdPreview() {
+            const box = document.getElementById('linkedHouseholdPreview');
+            const error = document.getElementById('linkedHouseholdError');
+            const input = document.getElementById('linkedHouseholdNo');
+            if (box) {
+                box.style.display = 'none';
+                box.textContent = '';
+            }
+            if (error) {
+                error.style.display = 'none';
+                error.textContent = '';
+            }
+            if (input) {
+                input.style.borderColor = '';
+                input.style.background = '';
+                input.removeAttribute('data-household-missing');
+            }
+        }
+
+        function renderLinkedHouseholdHead(head) {
+            const box = document.getElementById('linkedHouseholdPreview');
+            const error = document.getElementById('linkedHouseholdError');
+            const input = document.getElementById('linkedHouseholdNo');
+            if (error) {
+                error.style.display = 'none';
+                error.textContent = '';
+            }
+            if (input) {
+                input.style.borderColor = '';
+                input.style.background = '';
+                input.removeAttribute('data-household-missing');
+            }
+            if (!box) return;
+            const rows = [
+                ['Household No.', head.household_no],
+                ['Head', head.name],
+                ['Zone / Purok', head.zone],
+                ['Address', head.address],
+                ['Date of Birth', head.date_of_birth],
+                ['Gender', head.gender],
+                ['Civil Status', head.civil_status],
+                ['House Ownership', head.house_ownership],
+                ['Years of Residency', head.years_of_residency],
+                ['Contact', head.contact_number],
+                ['Record', head.record_status],
+            ].filter(function (row) {
+                return row[1] !== null && String(row[1]).trim() !== '';
+            });
+
+            box.style.display = 'block';
+            box.textContent = '';
+
+            const title = document.createElement('div');
+            title.style.cssText = 'font-size:12px;font-weight:700;color:#1a1d2e;margin-bottom:8px;';
+            title.innerHTML = '<i class="fas fa-user" style="color:#3b5bdb;margin-right:6px;"></i>Existing household head';
+            box.appendChild(title);
+
+            if (head.is_deceased) {
+                const note = document.createElement('div');
+                note.style.cssText = 'font-size:12px;color:#b42318;margin-bottom:8px;';
+                note.textContent = 'This household head is marked deceased.';
+                box.appendChild(note);
+            }
+
+            rows.forEach(function (row) {
+                const line = document.createElement('div');
+                line.style.cssText = 'display:flex;gap:12px;font-size:12.5px;padding:3px 0;';
+                const label = document.createElement('span');
+                label.style.cssText = 'min-width:140px;color:#6b7289;';
+                label.textContent = row[0];
+                const value = document.createElement('span');
+                value.style.cssText = 'color:#1a1d2e;font-weight:600;';
+                value.textContent = row[1];
+                line.appendChild(label);
+                line.appendChild(value);
+                box.appendChild(line);
+            });
+
+            const membersTitle = document.createElement('div');
+            membersTitle.style.cssText = 'font-size:12px;font-weight:700;color:#1a1d2e;margin:12px 0 8px;padding-top:10px;border-top:1px solid #e6e9f2;';
+            membersTitle.innerHTML = '<i class="fas fa-users" style="color:#3b5bdb;margin-right:6px;"></i>Family members';
+            box.appendChild(membersTitle);
+
+            const members = Array.isArray(head.members) ? head.members : [];
+            if (members.length === 0) {
+                const empty = document.createElement('div');
+                empty.style.cssText = 'font-size:12.5px;color:#6b7289;';
+                empty.textContent = 'No other family members recorded.';
+                box.appendChild(empty);
+            }
+
+            members.forEach(function (member) {
+                const line = document.createElement('div');
+                line.style.cssText = 'display:flex;gap:12px;align-items:baseline;font-size:12.5px;padding:4px 0;';
+                const relation = document.createElement('span');
+                relation.style.cssText = 'min-width:140px;color:#6b7289;';
+                relation.textContent = member.relationship || 'Member';
+                const detail = document.createElement('span');
+                detail.style.cssText = 'color:#1a1d2e;font-weight:600;';
+                const bits = [member.name, member.gender, member.date_of_birth].filter(function (bit) {
+                    return bit !== null && String(bit).trim() !== '';
+                });
+                detail.textContent = bits.join(' · ') + (member.is_deceased ? ' · Deceased' : '');
+                line.appendChild(relation);
+                line.appendChild(detail);
+                box.appendChild(line);
+            });
+
+            const linkRow = document.createElement('div');
+            linkRow.style.cssText = 'margin-top:12px;display:flex;justify-content:flex-end;';
+            const linkBtn = document.createElement('button');
+            linkBtn.type = 'button';
+            linkBtn.className = 'pf-ocr-btn';
+            linkBtn.innerHTML = '<i class="fas fa-link"></i> Link';
+            linkBtn.addEventListener('click', function () {
+                openHouseholdLinkModal(head);
+            });
+            linkRow.appendChild(linkBtn);
+            box.appendChild(linkRow);
+        }
+
+        let pendingLinkedHead = null;
+
+        function generateHouseholdNo() {
+            return String(Math.floor(10000 + Math.random() * 90000));
+        }
+
+        function setHouseholdNoMode(auto) {
+            const input = document.getElementById('householdNo');
+            const mode = document.getElementById('householdNoMode');
+            const toggle = document.getElementById('householdNoAutoToggle');
+            const knob = document.getElementById('householdNoAutoKnob');
+            const track = document.getElementById('householdNoAutoSwitch');
+            const label = document.getElementById('householdNoAutoLabel');
+            const confirmed = document.getElementById('householdLinkConfirmed');
+            if (!input) return;
+            if (mode) mode.value = auto ? 'auto' : 'manual';
+            if (toggle) toggle.setAttribute('aria-pressed', auto ? 'true' : 'false');
+            if (knob) knob.style.left = auto ? '14px' : '2px';
+            if (track) track.style.background = auto ? '#16c79a' : '#c5cad8';
+            if (label) {
+                label.textContent = auto ? 'AUTO' : 'MANUAL';
+                label.style.color = auto ? '#16c79a' : '#6b7289';
+            }
+            input.readOnly = !!auto;
+            if (auto) {
+                input.setAttribute('readonly', 'readonly');
+                input.style.background = '';
+                input.value = generateHouseholdNo();
+                if (confirmed) confirmed.value = '0';
+            } else {
+                input.removeAttribute('readonly');
+                input.style.background = '#fff';
+            }
+        }
+
+        function applyLinkedHouseholdNumber(number) {
+            const digits = String(number || '').replace(/\D/g, '').slice(0, 5);
+            const input = document.getElementById('householdNo');
+            const linked = document.getElementById('linkedHouseholdNo');
+            const confirmed = document.getElementById('householdLinkConfirmed');
+            if (!input || digits === '') return;
+            setHouseholdNoMode(false);
+            input.removeAttribute('readonly');
+            input.readOnly = false;
+            input.value = digits;
+            if (linked) linked.value = digits;
+            if (confirmed) confirmed.value = '1';
+            input.focus();
+        }
+
+        function openHouseholdLinkModal(head) {
+            const linkedValue = (document.getElementById('linkedHouseholdNo') || {}).value || '';
+            const number = String((head && head.household_no) || linkedValue).replace(/\D/g, '').slice(0, 5);
+            if (number === '') return;
+            pendingLinkedHead = {
+                household_no: number,
+                name: (head && head.name) ? head.name : ''
+            };
+            const body = document.getElementById('linkHouseholdModalBody');
+            const modal = document.getElementById('linkHouseholdModal');
+            if (!body || !modal) {
+                applyLinkedHouseholdNumber(number);
+                return;
+            }
+            if (modal.parentElement !== document.body) document.body.appendChild(modal);
+            body.textContent = '';
+            const text = document.createElement('p');
+            text.style.cssText = 'margin:0;font-size:14px;line-height:1.5;color:#1a1d2e;';
+            const who = pendingLinkedHead.name ? ' (' + pendingLinkedHead.name + ')' : '';
+            text.textContent = 'Link this family to household ' + number + who + '? Household No. will be set to ' + number + '.';
+            body.appendChild(text);
+            modal.style.display = 'flex';
+            modal.style.zIndex = '100000';
+            modal.classList.add('active');
+        }
+
+        function closeHouseholdLinkModal() {
+            const modal = document.getElementById('linkHouseholdModal');
+            if (modal) {
+                modal.classList.remove('active');
+                modal.style.display = 'none';
+            }
+            pendingLinkedHead = null;
+        }
+
+        function confirmHouseholdLink() {
+            const number = pendingLinkedHead ? pendingLinkedHead.household_no : '';
+            closeHouseholdLinkModal();
+            applyLinkedHouseholdNumber(number);
+        }
+
+        function setLinkedHouseholdMessage(message, isError) {
+            const box = document.getElementById('linkedHouseholdPreview');
+            const error = document.getElementById('linkedHouseholdError');
+            const input = document.getElementById('linkedHouseholdNo');
+            if (isError) {
+                if (box) {
+                    box.style.display = 'none';
+                    box.textContent = '';
+                }
+                if (error) {
+                    error.style.display = 'block';
+                    error.textContent = '';
+                    const icon = document.createElement('i');
+                    icon.className = 'fas fa-exclamation-circle';
+                    icon.style.marginRight = '6px';
+                    error.appendChild(icon);
+                    error.appendChild(document.createTextNode(message));
+                }
+                if (input) {
+                    input.style.borderColor = '#d92d20';
+                    input.style.background = '#fff6f6';
+                    input.setAttribute('data-household-missing', '1');
+                }
+                return;
+            }
+            if (error) {
+                error.style.display = 'none';
+                error.textContent = '';
+            }
+            if (input) {
+                input.style.borderColor = '';
+                input.style.background = '';
+                input.removeAttribute('data-household-missing');
+            }
+            if (!box) return;
+            box.style.display = 'block';
+            box.textContent = '';
+            const text = document.createElement('div');
+            text.style.cssText = 'font-size:12.5px;color:#4a5068;';
+            text.textContent = message;
+            box.appendChild(text);
+        }
+
+        function lookupLinkedHousehold(force) {
+            const input = document.getElementById('linkedHouseholdNo');
+            const ownership = document.getElementById('houseOwnershipSelect');
+            if (!input || !ownership || ownership.value !== 'Shared') {
+                clearLinkedHouseholdPreview();
+                return;
+            }
+
+            const value = (input.value || '').replace(/\D/g, '').slice(0, 5);
+            if (value === '' || (value.length < 5 && !force)) {
+                if (value === '') clearLinkedHouseholdPreview();
+                return;
+            }
+
+            const seq = ++linkedHouseholdSeq;
+            setLinkedHouseholdMessage('Looking up household ' + value + '…', false);
+            const rolePrefix = (location.pathname.match(/^\/(admin|secretary|captain|council)(?=\/)/) || [null, 'secretary'])[1];
+
+            fetch('/' + rolePrefix + '/census/household-head/' + encodeURIComponent(value), {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            }).then(function (response) {
+                return response.text().then(function (raw) {
+                    let data = null;
+                    try { data = raw ? JSON.parse(raw) : null; } catch (_) { data = null; }
+                    return { ok: response.ok, data: data };
+                });
+            }).then(function (result) {
+                if (seq !== linkedHouseholdSeq) return;
+                if (!result.data || result.data.ok !== true || !result.data.head) {
+                    setLinkedHouseholdMessage(
+                        (result.data && result.data.error) ? result.data.error : 'No household found with number ' + value + '.',
+                        true
+                    );
+                    return;
+                }
+                result.data.head.members = result.data.members || [];
+                renderLinkedHouseholdHead(result.data.head);
+            }).catch(function () {
+                if (seq !== linkedHouseholdSeq) return;
+                setLinkedHouseholdMessage('Could not look up that household number.', true);
+            });
+        }
+
+        function scheduleLinkedHouseholdLookup() {
+            clearTimeout(linkedHouseholdTimer);
+            linkedHouseholdTimer = setTimeout(lookupLinkedHousehold, 280);
+        }
+
+        function keepHouseholdDigits(input) {
+            const cleaned = String(input.value || '').replace(/\D/g, '').slice(0, 5);
+            if (input.value !== cleaned) input.value = cleaned;
+            return cleaned;
+        }
+
+        (function bindLinkedHouseholdLookup() {
+            const input = document.getElementById('linkedHouseholdNo');
+            if (!input) return;
+            input.addEventListener('paste', function (e) {
+                const clipboard = e.clipboardData || window.clipboardData;
+                if (!clipboard) return;
+                e.preventDefault();
+                const digits = String(clipboard.getData('text') || '').replace(/\D/g, '').slice(0, 5);
+                input.value = digits;
+                scheduleLinkedHouseholdLookup();
+            });
+            input.addEventListener('input', function () {
+                keepHouseholdDigits(input);
+                scheduleLinkedHouseholdLookup();
+            });
+            input.addEventListener('change', function () { lookupLinkedHousehold(true); });
+        })();
 
         const sharedGroupRecords = <?= json_encode($sharedGroups ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 
@@ -1770,7 +2134,14 @@
         function resetOcrStatus(block) {
             const flag = block.querySelector('[data-ocr-flag]');
             if (flag) flag.value = '0';
-            setOcrStatus(block, null, 'Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.');
+            const single = block.dataset.ocrMode === 'single';
+            setOcrStatus(
+                block,
+                null,
+                single
+                    ? 'Fill in the name and birthdate, then upload the ID or birth certificate. OCR runs automatically.'
+                    : 'Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.'
+            );
         }
 
         async function runOcr(block) {
@@ -1780,9 +2151,10 @@
             const flag = block.querySelector('[data-ocr-flag]');
             const name = ocrHeadName();
             const dob = ocrHeadDob();
+            const single = block.dataset.ocrMode === 'single';
 
             if (!front || !front.files || !front.files[0]) {
-                setOcrStatus(block, 'is-fail', 'Pick the front photo of the ID first.');
+                setOcrStatus(block, 'is-fail', single ? 'Pick the ID or birth certificate first.' : 'Pick the front photo of the ID first.');
                 return;
             }
             if (!name) {
@@ -1800,13 +2172,14 @@
             form.append('middle_name', (document.querySelector('input[name="middle_name"]')?.value || '').trim());
             form.append('last_name', (document.querySelector('input[name="last_name"]')?.value || '').trim());
             if (dob) form.append('date_of_birth', dob);
+            form.append('document_type', single ? 'birth_or_id' : 'id_card');
 
-            setOcrStatus(block, 'is-pending', 'Reading the ID with OCR…');
+            setOcrStatus(block, 'is-pending', single ? 'Reading the ID or birth certificate with OCR…' : 'Reading the ID with OCR…');
             if (runBtn) runBtn.disabled = true;
 
             // The OCR route lives under the current role prefix so the session
             // cookie for that role is picked up automatically.
-            const rolePrefix = (location.pathname.match(/^\/(secretary|captain|council)(?=\/)/) || [null, 'secretary'])[1];
+            const rolePrefix = (location.pathname.match(/^\/(admin|secretary|captain|council)(?=\/)/) || [null, 'secretary'])[1];
             const ocrUrl = '/' + rolePrefix + '/ocr/verify-id';
 
             try {
@@ -1851,7 +2224,8 @@
             const hasFront = front && front.files && front.files[0];
             const hasBack = back && back.files && back.files[0];
             const name = ocrHeadName();
-            if (hasFront && hasBack && name) {
+            const single = block.dataset.ocrMode === 'single' || !back;
+            if (hasFront && name && (single || hasBack)) {
                 runOcr(block);
             }
         }
@@ -1864,22 +2238,52 @@
             if (block) runOcr(block);
         });
 
-        // Re-verify when the head name or DOB changes and a front image is already picked.
+        // Re-verify when the head name or DOB changes and a file is already picked.
         ['first_name', 'middle_name', 'last_name', 'date_of_birth'].forEach(function(field) {
             const el = document.querySelector('input[name="' + field + '"]');
             if (!el) return;
             el.addEventListener('change', function() {
                 document.querySelectorAll('[data-id-block]').forEach(function(block) {
                     resetOcrStatus(block);
+                    maybeRunOcr(block);
                 });
             });
         });
 
         // ── Init ──────────────────────────────────────────────────────────────
         (function() {
-            // Auto-generate household number
-            document.getElementById('householdNo').value =
-                String(Math.floor(10000 + Math.random() * 90000));
+            setHouseholdNoMode(true);
+            const autoToggle = document.getElementById('householdNoAutoToggle');
+            if (autoToggle) {
+                autoToggle.addEventListener('click', function () {
+                    setHouseholdNoMode(autoToggle.getAttribute('aria-pressed') !== 'true');
+                });
+            }
+            const householdNoInput = document.getElementById('householdNo');
+            if (householdNoInput) {
+                householdNoInput.addEventListener('paste', function (e) {
+                    if (householdNoInput.readOnly) return;
+                    const clipboard = e.clipboardData || window.clipboardData;
+                    if (!clipboard) return;
+                    e.preventDefault();
+                    householdNoInput.value = String(clipboard.getData('text') || '').replace(/\D/g, '').slice(0, 5);
+                });
+                householdNoInput.addEventListener('input', function () {
+                    if (householdNoInput.readOnly) return;
+                    keepHouseholdDigits(householdNoInput);
+                    const confirmed = document.getElementById('householdLinkConfirmed');
+                    const linked = document.getElementById('linkedHouseholdNo');
+                    if (confirmed && linked && householdNoInput.value !== linked.value.trim()) {
+                        confirmed.value = '0';
+                    }
+                });
+            }
+            document.getElementById('linkHouseholdClose')?.addEventListener('click', closeHouseholdLinkModal);
+            document.getElementById('linkHouseholdCancel')?.addEventListener('click', closeHouseholdLinkModal);
+            document.getElementById('linkHouseholdConfirm')?.addEventListener('click', confirmHouseholdLink);
+            document.getElementById('linkHouseholdModal')?.addEventListener('click', function (e) {
+                if (e.target.id === 'linkHouseholdModal') closeHouseholdLinkModal();
+            });
             // Auto-set today as recorded date
             document.getElementById('recordedDate').value =
                 new Date().toISOString().split('T')[0];
@@ -2276,7 +2680,14 @@
             if (ownership && ownership.value === 'Shared' && linkedHousehold && linkedHousehold.value.trim() === '') {
                 e.preventDefault();
                 goTo(1);
-                alert('Enter the household number this shared family belongs to.');
+                setLinkedHouseholdMessage('Enter the household number this shared family belongs to.', true);
+                linkedHousehold.focus();
+                return;
+            }
+            if (ownership && ownership.value === 'Shared' && linkedHousehold && linkedHousehold.getAttribute('data-household-missing') === '1') {
+                e.preventDefault();
+                goTo(1);
+                setLinkedHouseholdMessage('No household found with number ' + linkedHousehold.value.trim() + '.', true);
                 linkedHousehold.focus();
                 return;
             }

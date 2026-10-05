@@ -330,19 +330,17 @@ class AuthController extends BaseController
 
         // Send OTP email — use "First Last" as the greeting name
         $displayName = trim("$firstName $lastName");
+        session()->set('pending_verify_email', $email);
         try {
             $emailService = new EmailService();
-            $emailService->sendVerificationEmail($email, $displayName, $otp);
+            $sent = $emailService->sendVerificationEmail($email, $displayName, $otp);
         } catch (\Throwable $e) {
             log_message('error', 'Verification email failed: ' . $e->getMessage());
-            if (ENVIRONMENT === 'development') {
-                throw $e;
-            }
-            return redirect()->to('/login')->with('error', 'Account created but we could not send the verification email. Please contact the barangay office.');
+            $sent = false;
         }
-
-        // Store email in session so the verify page knows who to verify
-        session()->set('pending_verify_email', $email);
+        if (! $sent) {
+            return redirect()->to('/verify-email')->with('error', EmailService::DELIVERY_ERROR);
+        }
 
         return redirect()->to('/verify-email');
     }
@@ -494,13 +492,13 @@ class AuthController extends BaseController
         $displayName = trim($user['first_name'] . ' ' . $user['last_name']);
         try {
             $emailService = new EmailService();
-            $emailService->sendVerificationEmail($email, $displayName, $otp);
+            $sent = $emailService->sendVerificationEmail($email, $displayName, $otp);
         } catch (\Throwable $e) {
             log_message('error', 'Resend OTP failed: ' . $e->getMessage());
-            if (ENVIRONMENT === 'development') {
-                throw $e;
-            }
-            return redirect()->to('/verify-email')->with('error', 'Could not resend the code. Please try again.');
+            $sent = false;
+        }
+        if (! $sent) {
+            return redirect()->to('/verify-email')->with('error', EmailService::DELIVERY_ERROR);
         }
 
         return redirect()->to('/verify-email')->with('success', 'A new verification code has been sent to your email.');
@@ -550,17 +548,19 @@ class AuthController extends BaseController
 
             try {
                 $emailService = new EmailService();
-                $emailService->sendPasswordResetOtp($user['email'], $displayName, $otp);
+                $sent = $emailService->sendPasswordResetOtp($user['email'], $displayName, $otp);
             } catch (\Throwable $e) {
                 log_message('error', 'Forgot password OTP failed: ' . $e->getMessage());
-                if (ENVIRONMENT === 'development') throw $e;
+                $sent = false;
+            }
+            if (! $sent) {
                 if ($isApiRequest) {
                     return $this->jsonResponse([
                         'success' => false,
-                        'message' => 'Could not send the reset code. Please try again.',
+                        'message' => EmailService::DELIVERY_ERROR,
                     ]);
                 }
-                return redirect()->back()->with('error', 'Could not send the reset code. Please try again.');
+                return redirect()->back()->with('error', EmailService::DELIVERY_ERROR);
             }
         }
 
@@ -681,12 +681,14 @@ class AuthController extends BaseController
             $displayName = trim($user['first_name'] . ' ' . $user['last_name']);
             try {
                 $emailService = new EmailService();
-                $emailService->sendPasswordResetOtp($user['email'], $displayName, $otp);
+                $sent = $emailService->sendPasswordResetOtp($user['email'], $displayName, $otp);
             } catch (\Throwable $e) {
                 log_message('error', 'Resend forgot password OTP failed: ' . $e->getMessage());
-                if (ENVIRONMENT === 'development') throw $e;
+                $sent = false;
+            }
+            if (! $sent) {
                 return redirect()->to('/forgot-password/verify')
-                    ->with('error', 'Could not resend the code. Please try again.');
+                    ->with('error', EmailService::DELIVERY_ERROR);
             }
         }
 

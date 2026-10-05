@@ -57,11 +57,15 @@ class OcrController extends BaseController
             $middleName = trim((string) $this->request->getPost('middle_name'));
             $lastName   = trim((string) $this->request->getPost('last_name'));
             $dob        = trim((string) $this->request->getPost('date_of_birth'));
+            $documentType = trim((string) $this->request->getPost('document_type'));
+            $isBirthOrId = $documentType === 'birth_or_id';
 
             if (! $frontFile || $frontFile->getError() === UPLOAD_ERR_NO_FILE) {
                 return $response->setStatusCode(400)->setJSON([
                     'ok'    => false,
-                    'error' => 'Please pick the front photo of the ID first.',
+                    'error' => $isBirthOrId
+                        ? 'Please pick the ID or birth certificate first.'
+                        : 'Please pick the front photo of the ID first.',
                 ]);
             }
 
@@ -84,17 +88,19 @@ class OcrController extends BaseController
                 }
             }
 
-            $frontText = $this->readIdText($apiKey, $frontFile);
+            $frontText = $this->readIdText($apiKey, $frontFile, $isBirthOrId);
             if ($frontText === null) {
                 return $response->setStatusCode(502)->setJSON([
                     'ok'    => false,
-                    'error' => 'The OCR service could not read the front image. Try a clearer photo.',
+                    'error' => $isBirthOrId
+                        ? 'The OCR service could not read the ID or birth certificate. Try a clearer photo or a higher-resolution scan.'
+                        : 'The OCR service could not read the front image. Try a clearer photo.',
                 ]);
             }
 
             $combinedText = $frontText;
             if ($hasBack) {
-                $backText = $this->readIdText($apiKey, $backFile);
+                $backText = $this->readIdText($apiKey, $backFile, $isBirthOrId);
                 if ($backText !== null) {
                     $combinedText .= "\n" . $backText;
                 }
@@ -103,14 +109,19 @@ class OcrController extends BaseController
             $nameMatch = $fullName !== '' ? $this->matchesName($combinedText, $fullName, $firstName, $middleName, $lastName) : null;
             $dobMatch  = $dob !== '' ? $this->matchesDob($combinedText, $dob) : null;
 
+            // Birth certificates often print the date under labels; require DOB
+            // when one was typed so the check stays meaningful for that document.
             $verified = ($nameMatch === true) && ($dobMatch !== false);
+            if ($isBirthOrId && $dob !== '') {
+                $verified = ($nameMatch === true) && ($dobMatch === true);
+            }
 
             return $response->setJSON([
                 'ok'         => true,
                 'verified'   => $verified,
                 'name_match' => $nameMatch,
                 'dob_match'  => $dobMatch,
-                'reason'     => $this->explain($verified, $nameMatch, $dobMatch, $fullName, $dob),
+                'reason'     => $this->explain($verified, $nameMatch, $dobMatch, $fullName, $dob, $isBirthOrId),
             ]);
         } catch (\Throwable $e) {
             log_message('error', 'OCR verifyId fatal: ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
@@ -137,26 +148,57 @@ class OcrController extends BaseController
         return null;
     }
 
-    private function readIdText(string $apiKey, UploadedFile $file): ?string
+    private function readIdText(string $apiKey, UploadedFile $file, bool $optimizeBirthCert = false): ?string
     {
         $path = $file->getTempName();
         if (! is_file($path)) {
             return null;
         }
 
-        $mime      = (string) $file->getMimeType() ?: 'application/octet-stream';
-        $filename  = $file->getClientName() ?: ('upload.' . ($file->getExtension() ?: 'jpg'));
-        $isPdf     = strtolower($mime) === 'application/pdf';
+        // Engine 2 first for printed IDs/certificates; fall back to Engine 1
+        // when the first pass returns little or no text.
+        $engines = ['2', '1'];
+        $best = '';
+
+        foreach ($engines as $engine) {
+            $text = $this->callOcrSpace($apiKey, $file, $path, $engine, $optimizeBirthCert);
+            if ($text === null) {
+                continue;
+            }
+            if (strlen($text) > strlen($best)) {
+                $best = $text;
+            }
+            // Enough text to match a name and date — stop early.
+            if (strlen(preg_replace('/\s+/', '', $best) ?? '') >= 24) {
+                break;
+            }
+        }
+
+        return $best === '' ? null : $best;
+    }
+
+    private function callOcrSpace(
+        string $apiKey,
+        UploadedFile $file,
+        string $path,
+        string $engine,
+        bool $optimizeBirthCert
+    ): ?string {
+        $mime     = (string) $file->getMimeType() ?: 'application/octet-stream';
+        $filename = $file->getClientName() ?: ('upload.' . ($file->getExtension() ?: 'jpg'));
+        $isPdf    = strtolower($mime) === 'application/pdf';
+        $ext      = strtoupper($file->getExtension() ?: 'JPG');
 
         $post = [
-            'apikey'                 => $apiKey,
-            'language'               => 'eng',
-            'isOverlayRequired'      => 'false',
-            'detectOrientation'      => 'true',
-            'scale'                  => 'true',
-            'OCREngine'              => '2',
-            'filetype'               => $isPdf ? 'PDF' : strtoupper($file->getExtension() ?: 'JPG'),
-            'file'                   => new \CURLFile($path, $mime, $filename),
+            'apikey'            => $apiKey,
+            'language'          => 'eng',
+            'isOverlayRequired' => 'false',
+            'detectOrientation' => 'true',
+            'scale'             => 'true',
+            'isTable'           => $optimizeBirthCert ? 'true' : 'false',
+            'OCREngine'         => $engine,
+            'filetype'          => $isPdf ? 'PDF' : $ext,
+            'file'              => new \CURLFile($path, $mime, $filename),
         ];
 
         $ch = curl_init(self::OCR_ENDPOINT);
@@ -164,7 +206,7 @@ class OcrController extends BaseController
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => $post,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 45,
+            CURLOPT_TIMEOUT        => 60,
             CURLOPT_CONNECTTIMEOUT => 10,
         ]);
         $raw   = curl_exec($ch);
@@ -172,18 +214,23 @@ class OcrController extends BaseController
         curl_close($ch);
 
         if ($errNo !== 0 || ! is_string($raw) || $raw === '') {
-            log_message('warning', 'OCR request failed (curl errno ' . $errNo . ' error=' . curl_strerror($errNo) . ').');
+            log_message('warning', 'OCR request failed (engine ' . $engine . ', curl errno ' . $errNo . ').');
+
             return null;
         }
 
         $data = json_decode($raw, true);
         if (! is_array($data)) {
             log_message('warning', 'OCR response was not JSON: ' . substr($raw, 0, 200));
+
             return null;
         }
         if (! empty($data['IsErroredOnProcessing'])) {
-            $err = is_array($data['ErrorMessage'] ?? null) ? implode(' ', $data['ErrorMessage']) : (string) ($data['ErrorMessage'] ?? '');
-            log_message('warning', 'OCR service returned an error: ' . $err);
+            $err = is_array($data['ErrorMessage'] ?? null)
+                ? implode(' ', $data['ErrorMessage'])
+                : (string) ($data['ErrorMessage'] ?? '');
+            log_message('warning', 'OCR service returned an error (engine ' . $engine . '): ' . $err);
+
             return null;
         }
 
@@ -206,6 +253,8 @@ class OcrController extends BaseController
     private function matchesName(string $text, string $fullName, string $firstName = '', string $middleName = '', string $lastName = ''): bool
     {
         $normalizedText = $this->normalize($text);
+        // Compact form catches OCR that drops spaces between name parts.
+        $compactText    = preg_replace('/\s+/', '', $normalizedText) ?? '';
         $firstTokens    = $this->nameTokens($firstName);
         $middleTokens   = $this->nameTokens($middleName);
         $lastTokens     = $this->nameTokens($lastName);
@@ -223,16 +272,21 @@ class OcrController extends BaseController
         }
 
         foreach (array_merge($firstTokens, $lastTokens) as $token) {
-            if (strlen($token) > 1 && ! $this->wordPresent($normalizedText, $token)) {
-                return false;
+            if (strlen($token) <= 1) {
+                continue;
             }
+            if ($this->wordPresent($normalizedText, $token) || str_contains($compactText, $token)) {
+                continue;
+            }
+
+            return false;
         }
 
         foreach ($middleTokens as $token) {
             if ($token === '') {
                 continue;
             }
-            if ($this->wordPresent($normalizedText, $token)) {
+            if ($this->wordPresent($normalizedText, $token) || str_contains($compactText, $token)) {
                 continue;
             }
             if (strlen($token) > 1 && $this->wordPresent($normalizedText, substr($token, 0, 1))) {
@@ -284,6 +338,9 @@ class OcrController extends BaseController
         $dayPart   = '0*' . $day;
         $yearPart  = (string) $year;
         $shortYear = sprintf('%02d', $year % 100);
+        // Zero-padded forms common on PSA birth certificates / ID cards.
+        $mm = sprintf('%02d', $month);
+        $dd = sprintf('%02d', $day);
 
         foreach ([
             '(?<!\d)' . $monthPart . '\s+' . $dayPart . '\s+' . $yearPart . '(?!\d)',
@@ -291,6 +348,10 @@ class OcrController extends BaseController
             '(?<!\d)' . $yearPart . '\s+' . $monthPart . '\s+' . $dayPart . '(?!\d)',
             '(?<!\d)' . $monthPart . '\s+' . $dayPart . '\s+' . $shortYear . '(?!\d)',
             '(?<!\d)' . $dayPart . '\s+' . $monthPart . '\s+' . $shortYear . '(?!\d)',
+            // Compact / glued OCR output (no spaces between parts).
+            '(?<!\d)' . $mm . $dd . $yearPart . '(?!\d)',
+            '(?<!\d)' . $dd . $mm . $yearPart . '(?!\d)',
+            '(?<!\d)' . $yearPart . $mm . $dd . '(?!\d)',
         ] as $pattern) {
             if (preg_match('/' . $pattern . '/', $text)) {
                 return true;
@@ -353,10 +414,18 @@ class OcrController extends BaseController
         return trim(preg_replace('/\s+/', ' ', $value) ?? '');
     }
 
-    private function explain(bool $verified, ?bool $nameMatch, ?bool $dobMatch, string $name, string $dob): string
-    {
+    private function explain(
+        bool $verified,
+        ?bool $nameMatch,
+        ?bool $dobMatch,
+        string $name,
+        string $dob,
+        bool $isBirthOrId = false
+    ): string {
+        $doc = $isBirthOrId ? 'ID or birth certificate' : 'ID';
+
         if ($verified) {
-            $bits = ['name matches the uploaded ID'];
+            $bits = ['name matches the uploaded ' . $doc];
             if ($dobMatch === true) {
                 $bits[] = 'date of birth matches';
             }
@@ -367,15 +436,17 @@ class OcrController extends BaseController
             return 'Type the full name in personal information first, then re-run the check.';
         }
         if ($nameMatch === false && $dobMatch === false && $dob !== '') {
-            return 'The name and date of birth on the ID do not match what was typed.';
+            return 'The name and date of birth on the ' . $doc . ' do not match what was typed.';
         }
         if ($nameMatch === false) {
-            return 'The name on the ID does not match the personal information.';
+            return 'The name on the ' . $doc . ' does not match the personal information.';
         }
         if ($dobMatch === false) {
-            return 'The date of birth on the ID does not match the personal information.';
+            return 'The date of birth on the ' . $doc . ' does not match the personal information.';
         }
 
-        return 'Could not confirm a match. Try a clearer photo of the front and back.';
+        return $isBirthOrId
+            ? 'Could not confirm a match. Try a clearer photo or scan of the ID or birth certificate.'
+            : 'Could not confirm a match. Try a clearer photo of the front and back.';
     }
 }

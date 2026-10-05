@@ -104,10 +104,13 @@ class ConcernController extends BaseController
         ]);
 
         try {
-            (new \App\Libraries\EmailService())->sendConcernOtp($email, $name, $otp);
+            $sent = (new \App\Libraries\EmailService())->sendConcernOtp($email, $name, $otp);
         } catch (\Throwable $e) {
             log_message('error', 'Concern OTP email failed: ' . $e->getMessage());
-            return $this->response->setJSON(['success' => false, 'message' => 'Could not send verification email. Please try again.']);
+            $sent = false;
+        }
+        if (! $sent) {
+            return $this->response->setJSON(['success' => false, 'message' => \App\Libraries\EmailService::DELIVERY_ERROR]);
         }
 
         return $this->response->setJSON(['success' => true, 'message' => 'Verification code sent to ' . $email . '.']);
