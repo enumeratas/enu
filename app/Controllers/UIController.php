@@ -1544,12 +1544,16 @@ class UIController extends BaseController
                     ? $description . ' — ' . $dateLabel . $timeLabel
                     : 'Scheduled on ' . $dateLabel . $timeLabel . ($location !== '' ? '. Venue: ' . $location : '');
 
+                $eventTimestamp = strtotime((string) ($event['event_date'] ?? ''));
+                $eventLink = $eventTimestamp
+                    ? '/events?year=' . date('Y', $eventTimestamp) . '&month=' . (int) date('n', $eventTimestamp)
+                    : '/events';
                 \App\Models\NotificationModel::push(
                     $userId,
                     'event_reminder',
                     $title,
                     trim($body) . ' ' . $marker,
-                    '/resident/dashboard'
+                    $eventLink
                 );
                 continue;
             }

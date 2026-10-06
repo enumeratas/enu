@@ -314,28 +314,14 @@
                         <?php foreach ($notifs as $n):
                             $isUnread = empty($n['read_at']);
                             $t = $typeMap[$n['type']] ?? $typeMap['announcement'];
-                            $notificationLink = $n['link'] ?? '';
-                            if (str_starts_with((string) ($n['type'] ?? ''), 'clearance_')) {
-                                $notificationLink = '/' . $role . '/clearance';
+                            $notificationLink = notification_page_for_role($n, (string) $role);
+                            $notificationQuery = '';
+                            if (str_contains($notificationLink, '?')) {
+                                [$notificationLink, $notificationQuery] = explode('?', $notificationLink, 2);
+                                $notificationQuery = '?' . $notificationQuery;
                             }
-                            if ($role === 'council') {
-                                $councilPath = (string) $notificationLink;
-                                if (preg_match('#^https?://#i', $councilPath) === 1) {
-                                    $councilPath = (string) (parse_url($councilPath, PHP_URL_PATH) ?? '');
-                                }
-                                if (str_starts_with($councilPath, '/resident/')) {
-                                    $councilPath = '/council/' . substr($councilPath, strlen('/resident/'));
-                                } elseif (str_starts_with($councilPath, '/sk/')) {
-                                    $councilPath = '/council/' . substr($councilPath, strlen('/sk/'));
-                                }
-                                $councilParts = explode('/', trim($councilPath, '/'));
-                                $councilPages = ['dashboard', 'census', 'household', 'programs', 'sk-profiling', 'settings', 'clearance', 'notifications', 'activities', 'census-update'];
-                                $notificationLink = (($councilParts[0] ?? '') === 'council' && in_array($councilParts[1] ?? '', $councilPages, true))
-                                    ? $councilPath
-                                    : '/council/notifications';
-                            }
-                            if (strpos($notificationLink, '/') === 0) {
-                                $notificationLink = site_url(ltrim($notificationLink, '/'));
+                            if (str_starts_with($notificationLink, '/')) {
+                                $notificationLink = site_url(ltrim($notificationLink, '/')) . $notificationQuery;
                             }
                             // Strip internal event_id marker from display
                             $bodyDisplay = preg_replace('/\s*\[event_id:\d+\]/', '', $n['body'] ?? '');

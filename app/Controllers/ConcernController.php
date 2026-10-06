@@ -1169,7 +1169,7 @@ class ConcernController extends BaseController
             'event_reminder',
             $title,
             'Your barangay appointment is scheduled for ' . $dateLabel . $timeLabel . '.',
-            '/resident/dashboard'
+            '/resident/concerns'
         );
     }
 
