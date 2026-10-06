@@ -429,12 +429,13 @@
                                                                 <i class="fas fa-trash"></i> Delete
                                                             </button>
                                                         <?php else: ?>
-                                                            <form method="post" action="/admin/users/delete/<?= $userId ?>" onsubmit="return confirm('Delete <?= esc($fullName !== '' ? $fullName : $username, 'js') ?>? This cannot be undone. Clearance, blotter, and program records linked to this account will also be removed.');">
-                                                                <?= csrf_field() ?>
-                                                                <button type="submit" class="db-btn db-btn--danger db-btn--sm">
-                                                                    <i class="fas fa-trash"></i> Delete
-                                                                </button>
-                                                            </form>
+                                                            <button
+                                                                type="button"
+                                                                class="db-btn db-btn--danger db-btn--sm js-user-delete"
+                                                                data-delete-url="/admin/users/delete/<?= $userId ?>"
+                                                                data-name="<?= esc($fullName !== '' ? $fullName : ($username !== '' ? $username : 'this account'), 'attr') ?>">
+                                                                <i class="fas fa-trash"></i> Delete
+                                                            </button>
                                                         <?php endif; ?>
                                                     </div>
                                                 </td>
@@ -471,6 +472,25 @@
                     <div class="db-modal-footer">
                         <button type="button" class="db-btn db-btn--outline" id="userViewDone">Close</button>
                     </div>
+                </div>
+            </div>
+
+            <div class="db-modal-overlay" id="userDeleteModal" role="dialog" aria-modal="true" aria-labelledby="userDeleteTitle" aria-hidden="true">
+                <div class="db-modal" style="max-width:460px;">
+                    <div class="db-modal-header">
+                        <h3 id="userDeleteTitle"><i class="fas fa-trash"></i> Delete account</h3>
+                        <button type="button" class="db-modal-close" id="userDeleteClose" aria-label="Close"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="db-modal-body">
+                        <p style="margin:0;color:#6b7280;font-size:14px;line-height:1.6;">Delete <strong id="userDeleteName" style="color:#1c2b45;"></strong>? This cannot be undone. Clearance, blotter, and program records linked to this account will also be removed.</p>
+                    </div>
+                    <form method="post" id="userDeleteForm" action="">
+                        <?= csrf_field() ?>
+                        <div class="db-modal-footer">
+                            <button type="button" class="db-btn db-btn--outline" id="userDeleteCancel">Cancel</button>
+                            <button type="submit" class="db-btn db-btn--danger" id="userDeleteConfirm"><i class="fas fa-trash"></i> Delete</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -526,6 +546,37 @@
             }
         }
 
+        function openUserDelete(button) {
+            const modal = document.getElementById('userDeleteModal');
+            const form = document.getElementById('userDeleteForm');
+            const name = document.getElementById('userDeleteName');
+            if (!modal || !form) {
+                return;
+            }
+            form.action = button.dataset.deleteUrl || '';
+            if (name) {
+                name.textContent = button.dataset.name || 'this account';
+            }
+            modal.classList.add('active');
+            modal.setAttribute('aria-hidden', 'false');
+            const cancel = document.getElementById('userDeleteCancel');
+            if (cancel) {
+                cancel.focus();
+            }
+        }
+
+        function closeUserDelete() {
+            const modal = document.getElementById('userDeleteModal');
+            const form = document.getElementById('userDeleteForm');
+            if (modal) {
+                modal.classList.remove('active');
+                modal.setAttribute('aria-hidden', 'true');
+            }
+            if (form) {
+                form.action = '';
+            }
+        }
+
         document.addEventListener('click', function (event) {
             const viewButton = event.target.closest('.js-user-view');
             if (viewButton) {
@@ -533,8 +584,19 @@
                 return;
             }
 
+            const deleteButton = event.target.closest('.js-user-delete');
+            if (deleteButton) {
+                openUserDelete(deleteButton);
+                return;
+            }
+
             if (event.target.closest('#userViewClose') || event.target.closest('#userViewDone')) {
                 closeUserView();
+                return;
+            }
+
+            if (event.target.closest('#userDeleteClose') || event.target.closest('#userDeleteCancel')) {
+                closeUserDelete();
                 return;
             }
 
@@ -544,11 +606,25 @@
                 return;
             }
 
+            const deleteModal = document.getElementById('userDeleteModal');
+            if (deleteModal && event.target === deleteModal) {
+                closeUserDelete();
+                return;
+            }
+
             const tab = event.target.closest('.users-tab');
             if (!tab) {
                 return;
             }
             showUsersRole(tab.dataset.role);
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key !== 'Escape') {
+                return;
+            }
+            closeUserDelete();
+            closeUserView();
         });
 
         document.addEventListener('bis-live-results', function (event) {
