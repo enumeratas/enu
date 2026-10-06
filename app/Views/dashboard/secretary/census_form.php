@@ -1116,7 +1116,7 @@
                                         <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose one ID or birth certificate</span><span class="pf-file-name">No file selected</span></span>
                                         <input type="file" name="head_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
                                     </label>
-                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - maximum 5 MB. OCR reads the document and checks it against the head name and birthdate.</div>
+                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. OCR reads the document (works even if upside-down or rotated) and checks against the name and birthdate.</div>
                                     <input type="hidden" name="head_supporting_verified" value="0" data-ocr-flag>
                                     <div class="pf-ocr-row">
                                         <div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID or birth certificate. OCR runs automatically.</div>
@@ -1149,7 +1149,7 @@
                                             <input type="file" name="id_4ps_back" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-back>
                                         </label>
                                     </div>
-                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - maximum 5 MB each. OCR will compare the ID with the personal information.</div>
+                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB each. OCR works even if ID is upside-down. Compares with the name and birthdate above.</div>
                                     <input type="hidden" name="id_4ps_verified" value="0" data-ocr-flag>
                                     <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
                                 </div>
@@ -1167,7 +1167,7 @@
                                             <input type="file" name="id_senior_back" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-back>
                                         </label>
                                     </div>
-                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> Optional. PDF, JPG, or PNG - maximum 5 MB each. OCR will compare the ID with the personal information.</div>
+                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> Optional. PDF, JPG, or PNG - max 5 MB each. OCR works even if ID is upside-down.</div>
                                     <input type="hidden" name="id_senior_verified" value="0" data-ocr-flag>
                                     <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
                                 </div>
@@ -1187,7 +1187,7 @@
                                             <input type="file" name="id_solo_parent_back" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-back>
                                         </label>
                                     </div>
-                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - maximum 5 MB each. OCR will compare the ID with the personal information.</div>
+                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB each. OCR works even if ID is upside-down. Compares with the name and birthdate above.</div>
                                     <input type="hidden" name="id_solo_parent_verified" value="0" data-ocr-flag>
                                     <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
                                 </div>
@@ -1216,7 +1216,7 @@
                                                 <input type="file" name="id_pwd_back" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-back>
                                             </label>
                                         </div>
-                                        <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - maximum 5 MB each. OCR will compare the ID with the personal information.</div>
+                                        <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB each. OCR works even if ID is upside-down. Compares with the name and birthdate above.</div>
                                         <input type="hidden" name="id_pwd_verified" value="0" data-ocr-flag>
                                         <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
                                     </div>
@@ -2174,7 +2174,7 @@
             if (dob) form.append('date_of_birth', dob);
             form.append('document_type', single ? 'birth_or_id' : 'id_card');
 
-            setOcrStatus(block, 'is-pending', single ? 'Reading the ID or birth certificate with OCR…' : 'Reading the ID with OCR…');
+            setOcrStatus(block, 'is-pending', single ? 'Reading the ID or birth certificate with OCR… (trying multiple orientations)' : 'Reading the ID with OCR… (trying multiple orientations)');
             if (runBtn) runBtn.disabled = true;
 
             // The OCR route lives under the current role prefix so the session
