@@ -566,9 +566,12 @@ class OcrController extends BaseController
             $fixed = $word;
             foreach ($corrections as $digit => $letter) {
                 // Only replace digits that appear within letter sequences
-                $fixed = preg_replace('/(?<=[A-Z])' . $digit . '(?=[A-Z])/', $letter, $fixed) ?? $fixed;
-                $fixed = preg_replace('/(?<=^)' . $digit . '(?=[A-Z]{2,})/', $letter, $fixed) ?? $fixed;
-                $fixed = preg_replace('/(?<=[A-Z]{2,})' . $digit . '$/', $letter, $fixed) ?? $fixed;
+                // Pattern 1: Digit between two letters (e.g., "M0RY" -> "MORY")
+                $fixed = preg_replace('/([A-Z])' . $digit . '([A-Z])/', '$1' . $letter . '$2', $fixed) ?? $fixed;
+                // Pattern 2: Digit at start followed by 2+ letters (e.g., "0LIVE" -> "OLIVE")
+                $fixed = preg_replace('/^' . $digit . '([A-Z]{2,})/', $letter . '$1', $fixed) ?? $fixed;
+                // Pattern 3: Digit at end after 2+ letters (e.g., "MAR1A0" -> "MARIAO")
+                $fixed = preg_replace('/([A-Z]{2,})' . $digit . '$/', '$1' . $letter, $fixed) ?? $fixed;
             }
             $corrected[] = $fixed;
         }
