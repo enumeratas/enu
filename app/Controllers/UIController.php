@@ -1461,46 +1461,12 @@ class UIController extends BaseController
     }
     public function resident_notifications()
     {
-        $userId        = (int) session()->get('user_id');
-        $notifModel    = new \App\Models\NotificationModel();
-        $scheduleModel = new \App\Models\ScheduleModel();
+        $userId     = (int) session()->get('user_id');
+        $notifModel = new \App\Models\NotificationModel();
 
-        // ── Auto-create upcoming-event notifications (once per event) ─────────
-        $db = \Config\Database::connect();
-        $upcoming = $db->table('schedules')
-            ->where('event_date >=', date('Y-m-d'))
-            ->where('event_date <=', date('Y-m-d', strtotime('+7 days')))
-            ->where('visibility !=', 'private')
-            ->orderBy('event_date', 'ASC')
-            ->get()->getResultArray();
-
-        foreach ($upcoming as $ev) {
-            // Only push once: check if a notification for this event already exists for this user
-            $exists = $db->table('notifications')
-                ->where('user_id', $userId)
-                ->where('type', 'event_reminder')
-                ->like('body', 'event_id:' . $ev['id'], 'none')
-                ->countAllResults();
-
-            if (! $exists) {
-                $dateLabel = date('M d, Y', strtotime($ev['event_date']));
-                $timeLabel = $ev['start_time'] ? ' at ' . date('g:i A', strtotime($ev['start_time'])) : '';
-                \App\Models\NotificationModel::push(
-                    $userId,
-                    'event_reminder',
-                    'Upcoming Event: ' . $ev['title'],
-                    $ev['description']
-                        ? $ev['description'] . ' — ' . $dateLabel . $timeLabel
-                        : 'Scheduled on ' . $dateLabel . $timeLabel . ($ev['location'] ? '. Venue: ' . $ev['location'] : ''),
-                    '/resident/dashboard'
-                );
-                // Store event_id marker in the body so we don't double-push
-                $lastId = $db->insertID();
-                $db->table('notifications')
-                    ->where('id', $lastId)
-                    ->update(['body' => ($db->table('notifications')->where('id', $lastId)->get()->getRowArray()['body'] ?? '') . ' [event_id:' . $ev['id'] . ']']);
-            }
-        }
+        // One reminder per upcoming event. A previous exact-match check never
+        // found the saved marker, so each visit inserted another unread row.
+        $this->syncResidentEventReminders($userId);
 
         // ── Fetch all notifications for this user ─────────────────────────────
         $notifs      = $notifModel->getForUser($userId, true);
@@ -1510,6 +1476,118 @@ class UIController extends BaseController
             'notifs'      => $notifs,
             'unreadCount' => $unreadCount,
         ]);
+    }
+
+    /**
+     * Create at most one upcoming-event reminder per resident, and remove
+     * extra copies left by the old duplicate check.
+     */
+    private function syncResidentEventReminders(int $userId): void
+    {
+        if ($userId <= 0) {
+            return;
+        }
+
+        $db = \Config\Database::connect();
+        $upcoming = $db->table('schedules')
+            ->where('event_date >=', date('Y-m-d'))
+            ->where('event_date <=', date('Y-m-d', strtotime('+7 days')))
+            ->where('visibility !=', 'private')
+            ->orderBy('event_date', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $rows = $db->table('notifications')
+            ->select('id, title, body, read_at')
+            ->where('user_id', $userId)
+            ->where('type', 'event_reminder')
+            ->like('title', 'Upcoming Event:', 'after')
+            ->orderBy('id', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $claimed = [];
+
+        foreach ($upcoming as $event) {
+            $eventId = (int) ($event['id'] ?? 0);
+            if ($eventId <= 0) {
+                continue;
+            }
+
+            $marker = '[event_id:' . $eventId . ']';
+            $title = 'Upcoming Event: ' . (string) ($event['title'] ?? '');
+            $matches = [];
+
+            foreach ($rows as $row) {
+                $id = (int) ($row['id'] ?? 0);
+                if ($id <= 0 || isset($claimed[$id])) {
+                    continue;
+                }
+
+                $body = (string) ($row['body'] ?? '');
+                $hasThisMarker = str_contains($body, $marker);
+                $hasAnyMarker = preg_match('/\[event_id:\d+\]/', $body) === 1;
+                if ($hasThisMarker || ((string) ($row['title'] ?? '') === $title && ! $hasAnyMarker)) {
+                    $matches[] = $row;
+                    $claimed[$id] = true;
+                }
+            }
+
+            if ($matches === []) {
+                $dateLabel = date('M d, Y', strtotime((string) ($event['event_date'] ?? '')));
+                $timeLabel = ! empty($event['start_time'])
+                    ? ' at ' . date('g:i A', strtotime((string) $event['start_time']))
+                    : '';
+                $description = trim((string) ($event['description'] ?? ''));
+                $location = trim((string) ($event['location'] ?? ''));
+                $body = $description !== ''
+                    ? $description . ' — ' . $dateLabel . $timeLabel
+                    : 'Scheduled on ' . $dateLabel . $timeLabel . ($location !== '' ? '. Venue: ' . $location : '');
+
+                \App\Models\NotificationModel::push(
+                    $userId,
+                    'event_reminder',
+                    $title,
+                    trim($body) . ' ' . $marker,
+                    '/resident/dashboard'
+                );
+                continue;
+            }
+
+            $keepId = (int) $matches[0]['id'];
+            foreach ($matches as $row) {
+                if (! empty($row['read_at'])) {
+                    $keepId = (int) $row['id'];
+                    break;
+                }
+            }
+
+            $keep = null;
+            $deleteIds = [];
+            foreach ($matches as $row) {
+                if ((int) $row['id'] === $keepId) {
+                    $keep = $row;
+                    continue;
+                }
+                $deleteIds[] = (int) $row['id'];
+            }
+
+            if ($keep !== null && ! str_contains((string) ($keep['body'] ?? ''), $marker)) {
+                $db->table('notifications')
+                    ->where('id', $keepId)
+                    ->where('user_id', $userId)
+                    ->update([
+                        'body' => rtrim((string) ($keep['body'] ?? '')) . ' ' . $marker,
+                    ]);
+            }
+
+            if ($deleteIds !== []) {
+                $db->table('notifications')
+                    ->where('user_id', $userId)
+                    ->whereIn('id', $deleteIds)
+                    ->delete();
+            }
+        }
     }
 
     // ── SK ────────────────────────────────────────────────

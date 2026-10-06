@@ -388,25 +388,65 @@
             return h;
         }
 
+        function csrfBody() {
+            const params = new URLSearchParams();
+            params.set(CSRF_NAME, CSRF_HASH);
+            return params.toString();
+        }
+
+        function holdNotifPoll() {
+            window.__bisNotifPollMutedUntil = Date.now() + 8000;
+        }
+
+        function followNotificationLink(link) {
+            if (link) window.location.assign(link);
+        }
+
         function markRead(id, link) {
             const card = document.getElementById('notif-' + id);
             if (!card) return;
 
-            if (card.dataset.unread === '1') {
-                card.classList.remove('unread');
-                card.classList.add('read');
-                card.dataset.unread = '0';
-                card.querySelector('.notif-dot').style.opacity = '0';
-                unreadCount = Math.max(0, unreadCount - 1);
-                updateBadge();
-
-                fetch(readNotificationUrl + id, {
-                    method: 'POST',
-                    headers: csrfHeaders(),
-                }).catch(() => {});
+            if (card.dataset.unread !== '1') {
+                followNotificationLink(link);
+                return;
             }
 
-            if (link) setTimeout(() => window.location.href = link, 180);
+            card.classList.remove('unread');
+            card.classList.add('read');
+            card.dataset.unread = '0';
+            const dot = card.querySelector('.notif-dot');
+            if (dot) dot.style.opacity = '0';
+            const unreadLabel = card.querySelector('.notif-meta span');
+            if (unreadLabel) unreadLabel.remove();
+            unreadCount = Math.max(0, unreadCount - 1);
+            holdNotifPoll();
+            updateBadge();
+
+            let moved = false;
+            const go = function () {
+                if (moved) return;
+                moved = true;
+                followNotificationLink(link);
+            };
+            const timer = window.setTimeout(go, 700);
+
+            fetch(readNotificationUrl + id, {
+                method: 'POST',
+                headers: csrfHeaders(),
+                body: csrfBody(),
+                credentials: 'same-origin',
+                keepalive: true,
+            }).then(function (response) {
+                return response.json();
+            }).then(function (data) {
+                if (data && typeof data.unread === 'number') {
+                    unreadCount = Math.min(unreadCount, data.unread);
+                    updateBadge();
+                }
+            }).catch(function () {}).finally(function () {
+                window.clearTimeout(timer);
+                go();
+            });
         }
 
         function markAllRead() {
@@ -416,13 +456,19 @@
                 card.dataset.unread = '0';
                 const dot = card.querySelector('.notif-dot');
                 if (dot) dot.style.opacity = '0';
+                const unreadLabel = card.querySelector('.notif-meta span');
+                if (unreadLabel) unreadLabel.remove();
             });
             unreadCount = 0;
+            holdNotifPoll();
             updateBadge();
 
             fetch(readAllNotificationsUrl, {
                 method: 'POST',
                 headers: csrfHeaders(),
+                body: csrfBody(),
+                credentials: 'same-origin',
+                keepalive: true,
             }).catch(() => {});
         }
 

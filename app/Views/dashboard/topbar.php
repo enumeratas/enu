@@ -423,6 +423,11 @@ foreach (
             }
 
             function pollUnread() {
+                if (window.__bisNotifPollMutedUntil && Date.now() < window.__bisNotifPollMutedUntil) {
+                    return;
+                }
+
+                const startedAt = Date.now();
                 fetch(
                         '<?= esc(site_url('resident/notifications/poll')) ?>?_=' + Date.now(), {
                             credentials: 'same-origin',
@@ -433,6 +438,9 @@ foreach (
                         return r.json();
                     })
                     .then(function(data) {
+                        if (window.__bisNotifPollMutedUntil && startedAt < window.__bisNotifPollMutedUntil) {
+                            return;
+                        }
                         applyNotifCount(data.unread || 0);
                     })
                     .catch(function() {});
@@ -517,6 +525,11 @@ foreach (
             }
 
             function pollAdmin() {
+                if (window.__bisNotifPollMutedUntil && Date.now() < window.__bisNotifPollMutedUntil) {
+                    return;
+                }
+
+                const startedAt = Date.now();
                 fetch(
                         '<?= esc(site_url($notificationRole . '/notifications/poll')) ?>?_=' + Date.now(), {
                             credentials: 'same-origin',
@@ -527,6 +540,9 @@ foreach (
                         return r.json();
                     })
                     .then(function(data) {
+                        if (window.__bisNotifPollMutedUntil && startedAt < window.__bisNotifPollMutedUntil) {
+                            return;
+                        }
                         applyNotifCount(data.unread || 0);
                     })
                     .catch(function() {});

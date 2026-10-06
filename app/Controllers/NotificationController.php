@@ -36,15 +36,19 @@ class NotificationController extends BaseController
     public function markRead(int $id): \CodeIgniter\HTTP\ResponseInterface
     {
         $userId = (int) session()->get('user_id');
+        $unread = 0;
+
         if ($userId) {
             $role = strtolower((string) session()->get('role'));
-            $this->model->markReadById(
-                $id,
-                $userId,
-                NotificationModel::includesBroadcastsForRole($role)
-            );
+            $includeBroadcasts = NotificationModel::includesBroadcastsForRole($role);
+            $this->model->markReadById($id, $userId, $includeBroadcasts);
+            $unread = $this->model->countUnread($userId, $includeBroadcasts);
         }
-        return $this->response->setJSON(['ok' => true]);
+
+        return $this->response->setJSON([
+            'ok'     => true,
+            'unread' => $unread,
+        ]);
     }
 
     // ── POST /resident/notifications/read-all  (AJAX) ────────────────────────
