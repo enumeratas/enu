@@ -1043,6 +1043,49 @@ class UIController extends BaseController
         // De-duplicate the display by the person's identifying census fields so the
         // Residents page represents people, not duplicate rows.
         $allResidents = $this->attachCensusAccounts($db->query($unionSql)->getResultArray());
+        
+        // ── Also include resident accounts that have no matching census record ──
+        // Get all resident accounts and find which ones weren't matched
+        $allResidentAccounts = $db->table('users')
+            ->select('id, first_name, middle_name, last_name, username, email, status, role, household_no')
+            ->where('role', 'resident')
+            ->where('status !=', 'deleted')
+            ->get()->getResultArray();
+        
+        $matchedUserIds = array_filter(array_column($allResidents, 'user_id'));
+        
+        foreach ($allResidentAccounts as $account) {
+            if (in_array((int) $account['id'], $matchedUserIds, true)) {
+                continue; // Already matched to a census record
+            }
+            
+            // Get zone from household if available
+            $zone = '';
+            $householdNo = trim((string) ($account['household_no'] ?? ''));
+            if ($householdNo !== '') {
+                $household = $db->table('households')->where('household_no', $householdNo)->get()->getRowArray();
+                $zone = $household['zone'] ?? '';
+            }
+            
+            // Add this account as a resident without census record
+            $allResidents[] = [
+                'household_no'    => $householdNo,
+                'last_name'       => $account['last_name'] ?? '',
+                'first_name'      => $account['first_name'] ?? '',
+                'middle_name'     => $account['middle_name'] ?? '',
+                'suffix'          => '',
+                'date_of_birth'   => null,
+                'gender'          => null,
+                'zone'            => $zone,
+                'relationship'    => $householdNo !== '' ? 'Account Holder' : 'Resident',
+                'user_id'         => (int) $account['id'],
+                'username'        => $account['username'] ?? null,
+                'email'           => $account['email'] ?? null,
+                'account_status'  => $account['status'] ?? null,
+                'account_role'    => $account['role'] ?? null,
+            ];
+        }
+        
         if ($filterAcct === 'active') {
             $allResidents = array_values(array_filter(
                 $allResidents,
@@ -1069,8 +1112,19 @@ class UIController extends BaseController
 
             return $byLast !== 0 ? $byLast : strcasecmp((string) $a['first_name'], (string) $b['first_name']);
         });
+        
+        // De-duplicate by user_id first (prefer entries with user accounts)
+        $seenUserIds = [];
         $uniqueResidents = [];
         foreach ($allResidents as $resident) {
+            $userId = $resident['user_id'] ?? null;
+            if ($userId !== null) {
+                if (isset($seenUserIds[$userId])) {
+                    continue; // Skip duplicate user
+                }
+                $seenUserIds[$userId] = true;
+            }
+            
             $identity = implode('|', [
                 strtoupper(trim((string) ($resident['last_name'] ?? ''))),
                 strtoupper(trim((string) ($resident['first_name'] ?? ''))),
@@ -1895,8 +1949,17 @@ class UIController extends BaseController
             static fn(array $user): bool => ($user['status'] ?? '') !== 'deleted'
         ));
 
+        // Build a lookup by household_no for faster matching
+        $usersByHousehold = [];
+        foreach ($users as $user) {
+            $hno = trim((string) ($user['household_no'] ?? ''));
+            if ($hno !== '') {
+                $usersByHousehold[$hno][] = $user;
+            }
+        }
+
         foreach ($people as &$person) {
-            $match = $this->bestCensusAccount($person, $users);
+            $match = $this->bestCensusAccount($person, $users, $usersByHousehold);
             $person['user_id'] = $match['id'] ?? null;
             $person['username'] = $match['username'] ?? null;
             $person['email'] = $match['email'] ?? null;
@@ -1911,25 +1974,44 @@ class UIController extends BaseController
     /**
      * @param array<string, mixed> $person
      * @param list<array<string, mixed>> $users
+     * @param array<string, list<array<string, mixed>>> $usersByHousehold
      * @return array<string, mixed>|null
      */
-    private function bestCensusAccount(array $person, array $users): ?array
+    private function bestCensusAccount(array $person, array $users, array $usersByHousehold = []): ?array
     {
+        $personHousehold = trim((string) ($person['household_no'] ?? ''));
         $best = null;
         $bestRank = -1;
-        foreach ($users as $user) {
-            if (! $this->censusPersonMatchesAccount($person, $user)) {
-                continue;
+
+        // First, try to match by household_no (most reliable)
+        if ($personHousehold !== '' && isset($usersByHousehold[$personHousehold])) {
+            foreach ($usersByHousehold[$personHousehold] as $user) {
+                // Check if names match (even loosely)
+                if ($this->censusPersonMatchesAccount($person, $user)) {
+                    $rank = $this->censusAccountRank((string) ($user['status'] ?? '')) + 20; // Bonus for household match
+                    if ($best === null || $rank > $bestRank) {
+                        $best = $user;
+                        $bestRank = $rank;
+                    }
+                }
             }
-            $rank = $this->censusAccountRank((string) ($user['status'] ?? ''));
-            $personHousehold = trim((string) ($person['household_no'] ?? ''));
-            $userHousehold = trim((string) ($user['household_no'] ?? ''));
-            if ($personHousehold !== '' && $personHousehold === $userHousehold) {
-                $rank += 10;
-            }
-            if ($best === null || $rank > $bestRank || ($rank === $bestRank && (int) $user['id'] < (int) $best['id'])) {
-                $best = $user;
-                $bestRank = $rank;
+        }
+
+        // If no match found by household, try name matching across all users
+        if ($best === null) {
+            foreach ($users as $user) {
+                if (! $this->censusPersonMatchesAccount($person, $user)) {
+                    continue;
+                }
+                $rank = $this->censusAccountRank((string) ($user['status'] ?? ''));
+                $userHousehold = trim((string) ($user['household_no'] ?? ''));
+                if ($personHousehold !== '' && $personHousehold === $userHousehold) {
+                    $rank += 10;
+                }
+                if ($best === null || $rank > $bestRank || ($rank === $bestRank && (int) $user['id'] < (int) $best['id'])) {
+                    $best = $user;
+                    $bestRank = $rank;
+                }
             }
         }
 
