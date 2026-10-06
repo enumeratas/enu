@@ -1089,8 +1089,13 @@ class UIController extends BaseController
         $totalHeads   = (int) $db->table('households')->countAllResults();
         $totalMembers = (int) $db->table('household_members')->countAllResults();
         $totalPop     = $totalHeads + $totalMembers;
-        $activeAccts  = (int) $db->table('users')->where('status', 'active')->countAllResults();
+        // Only count resident accounts (not admin, secretary, captain, council, or SK)
+        $activeAccts  = (int) $db->table('users')
+            ->where('role', 'resident')
+            ->where('status', 'active')
+            ->countAllResults();
         $pendingAccts = (int) $db->table('users')
+            ->where('role', 'resident')
             ->groupStart()->where('status', 'pending')->orWhere('status', 'unverified')->groupEnd()
             ->countAllResults();
         $cutoffMinor  = date('Y-m-d', strtotime('-18 years'));
@@ -1874,12 +1879,17 @@ class UIController extends BaseController
      * @param list<array<string, mixed>> $people
      * @return list<array<string, mixed>>
      */
-    private function attachCensusAccounts(array $people): array
+    private function attachCensusAccounts(array $people, bool $residentsOnly = true): array
     {
-        $users = \Config\Database::connect()->table('users')
-            ->select('id, first_name, middle_name, last_name, username, email, status, role, household_no')
-            ->get()
-            ->getResultArray();
+        $query = \Config\Database::connect()->table('users')
+            ->select('id, first_name, middle_name, last_name, username, email, status, role, household_no');
+        
+        // On the Residents page, only match resident accounts (not admin, secretary, etc.)
+        if ($residentsOnly) {
+            $query->where('role', 'resident');
+        }
+        
+        $users = $query->get()->getResultArray();
         $users = array_values(array_filter(
             $users,
             static fn(array $user): bool => ($user['status'] ?? '') !== 'deleted'

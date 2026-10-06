@@ -312,19 +312,26 @@
                 <?= csrf_field() ?>
                 <div class="db-modal-body" style="padding:22px 24px;display:flex;flex-direction:column;gap:16px;">
                     <div class="db-form-group db-form-group--full">
-                        <label for="secretaryResident">Resident Account <span style="color:#c0392b;">*</span></label>
-                        <input type="text" id="secretaryResident" list="secretaryResidentList" required autocomplete="off"
-                            placeholder="Type resident name..." oninput="selectSecretaryResident(this.value)" style="width:100%;">
-                        <input type="hidden" name="resident_user_id" id="secretaryResidentId" value="">
-                        <datalist id="secretaryResidentList">
-                            <?php foreach (($residentAccounts ?? []) as $resident): ?>
-                                <option value="<?= esc(trim(($resident['last_name'] ?? '') . ', ' . ($resident['first_name'] ?? ''))) ?>"></option>
-                            <?php endforeach; ?>
-                        </datalist>
+                        <label for="secretaryResidentSearch">Resident Account <span style="color:#c0392b;">*</span></label>
+                        <div class="resident-dropdown" id="residentDropdown">
+                            <div class="resident-dropdown-input" onclick="toggleResidentDropdown()">
+                                <i class="fas fa-user" style="color:#9aa0b4;"></i>
+                                <input type="text" id="secretaryResidentSearch" autocomplete="off" required
+                                    placeholder="Search active resident..." oninput="filterResidentDropdown(this.value)">
+                                <i class="fas fa-chevron-down resident-dropdown-arrow"></i>
+                            </div>
+                            <div class="resident-dropdown-menu" id="residentDropdownMenu">
+                                <div class="resident-dropdown-empty" id="residentDropdownEmpty">
+                                    <i class="fas fa-search"></i> Type to search residents...
+                                </div>
+                                <div class="resident-dropdown-list" id="residentDropdownList"></div>
+                            </div>
+                        </div>
+                        <input type="hidden" name="resident_user_id" id="secretaryResidentId" value="" required>
                         <?php if (empty($residentAccounts)): ?>
                             <small style="color:#c0392b;">No active resident accounts are available.</small>
                         <?php else: ?>
-                            <small style="color:#9aa0b4;">The request will be recorded under this resident's account.</small>
+                            <small style="color:#9aa0b4;">Only active resident accounts are shown.</small>
                         <?php endif; ?>
                     </div>
 
@@ -560,6 +567,156 @@
             font-weight: 500;
         }
 
+        /* ── Custom Resident Dropdown ── */
+        .resident-dropdown {
+            position: relative;
+            width: 100%;
+        }
+
+        .resident-dropdown-input {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border: 1.5px solid #e2e5ef;
+            border-radius: 10px;
+            background: #fff;
+            cursor: text;
+            transition: border-color .18s, box-shadow .18s;
+        }
+
+        .resident-dropdown-input:focus-within {
+            border-color: #5b6fd6;
+            box-shadow: 0 0 0 3px rgba(91, 111, 214, 0.12);
+        }
+
+        .resident-dropdown-input input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 13px;
+            color: #1a1d2e;
+            background: transparent;
+        }
+
+        .resident-dropdown-input input::placeholder {
+            color: #9aa0b4;
+        }
+
+        .resident-dropdown-arrow {
+            color: #9aa0b4;
+            font-size: 11px;
+            transition: transform .2s;
+        }
+
+        .resident-dropdown.open .resident-dropdown-arrow {
+            transform: rotate(180deg);
+        }
+
+        .resident-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            max-height: 260px;
+            overflow-y: auto;
+            background: #fff;
+            border: 1.5px solid #e2e5ef;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(29, 36, 72, 0.12);
+            z-index: 100;
+            display: none;
+        }
+
+        .resident-dropdown.open .resident-dropdown-menu {
+            display: block;
+        }
+
+        .resident-dropdown-empty {
+            padding: 20px;
+            text-align: center;
+            color: #9aa0b4;
+            font-size: 13px;
+        }
+
+        .resident-dropdown-empty i {
+            margin-right: 6px;
+        }
+
+        .resident-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            cursor: pointer;
+            transition: background .12s;
+            border-bottom: 1px solid #f3f4f8;
+        }
+
+        .resident-dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .resident-dropdown-item:hover,
+        .resident-dropdown-item.highlighted {
+            background: #f0f2ff;
+        }
+
+        .resident-dropdown-item.selected {
+            background: #e8ebff;
+        }
+
+        .resident-dropdown-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #5b6fd6, #7c8ce0);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .resident-dropdown-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .resident-dropdown-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1a1d2e;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .resident-dropdown-meta {
+            font-size: 11px;
+            color: #9aa0b4;
+            margin-top: 2px;
+        }
+
+        .resident-dropdown-badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 100px;
+            background: #e6f9f1;
+            color: #0e9464;
+            border: 1px solid #b2e8d2;
+        }
+
+        .resident-dropdown-no-results {
+            padding: 20px;
+            text-align: center;
+            color: #9aa0b4;
+            font-size: 13px;
+        }
+
         /* ── Print ── */
         @media print {
 
@@ -589,6 +746,9 @@
 
         const secretaryResidentEligibility = <?= json_encode($residentEligibility ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
         let secretaryResidents = [];
+        let selectedResidentId = null;
+        let highlightedIndex = -1;
+
         // Use current role prefix for the API call (admin, secretary, captain)
         const rolePrefix = (location.pathname.match(/^\/(admin|secretary|captain)(?=\/)/) || [null, 'secretary'])[1];
         fetch('/' + rolePrefix + '/pii/directory/residents', {
@@ -597,8 +757,128 @@
             secretaryResidents = (Array.isArray(rows) ? rows : []).map(item => ({
                 id: item.id,
                 name: item.label || item.display || item.name || '',
+                username: item.username || '',
+                email: item.email || '',
             }));
+            // Pre-populate dropdown list
+            renderResidentDropdown('');
         }).catch(() => { secretaryResidents = []; });
+
+        function toggleResidentDropdown() {
+            const dropdown = document.getElementById('residentDropdown');
+            dropdown.classList.toggle('open');
+            if (dropdown.classList.contains('open')) {
+                document.getElementById('secretaryResidentSearch').focus();
+                renderResidentDropdown(document.getElementById('secretaryResidentSearch').value);
+            }
+        }
+
+        function closeResidentDropdown() {
+            document.getElementById('residentDropdown').classList.remove('open');
+            highlightedIndex = -1;
+        }
+
+        function filterResidentDropdown(query) {
+            document.getElementById('residentDropdown').classList.add('open');
+            renderResidentDropdown(query);
+        }
+
+        function renderResidentDropdown(query) {
+            const list = document.getElementById('residentDropdownList');
+            const empty = document.getElementById('residentDropdownEmpty');
+            const q = query.trim().toLowerCase();
+
+            // Filter residents by search query
+            const filtered = secretaryResidents.filter(r => 
+                r.name.toLowerCase().includes(q) || 
+                (r.username && r.username.toLowerCase().includes(q))
+            );
+
+            if (secretaryResidents.length === 0) {
+                empty.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading residents...';
+                empty.style.display = 'block';
+                list.innerHTML = '';
+                return;
+            }
+
+            if (filtered.length === 0) {
+                empty.innerHTML = '<i class="fas fa-search"></i> No residents found';
+                empty.style.display = 'block';
+                list.innerHTML = '';
+                return;
+            }
+
+            empty.style.display = 'none';
+            list.innerHTML = filtered.slice(0, 50).map((resident, idx) => {
+                const initial = (resident.name.charAt(0) || 'R').toUpperCase();
+                const isSelected = selectedResidentId === resident.id;
+                return `
+                    <div class="resident-dropdown-item ${isSelected ? 'selected' : ''}" 
+                         data-id="${resident.id}" 
+                         data-name="${escapeHtml(resident.name)}"
+                         onclick="selectResidentFromDropdown(${resident.id}, '${escapeHtml(resident.name)}')">
+                        <div class="resident-dropdown-avatar">${initial}</div>
+                        <div class="resident-dropdown-info">
+                            <div class="resident-dropdown-name">${escapeHtml(resident.name)}</div>
+                            <div class="resident-dropdown-meta">${resident.username ? '@' + escapeHtml(resident.username) : ''}</div>
+                        </div>
+                        <span class="resident-dropdown-badge">Active</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function selectResidentFromDropdown(id, name) {
+            selectedResidentId = id;
+            document.getElementById('secretaryResidentSearch').value = name;
+            document.getElementById('secretaryResidentId').value = id;
+            closeResidentDropdown();
+            updateSecretaryDocuments(id);
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('residentDropdown');
+            if (dropdown && !dropdown.contains(e.target)) {
+                closeResidentDropdown();
+            }
+        });
+
+        // Keyboard navigation
+        document.getElementById('secretaryResidentSearch')?.addEventListener('keydown', function(e) {
+            const items = document.querySelectorAll('.resident-dropdown-item');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                highlightedIndex = Math.min(highlightedIndex + 1, items.length - 1);
+                updateHighlight(items);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                highlightedIndex = Math.max(highlightedIndex - 1, 0);
+                updateHighlight(items);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (highlightedIndex >= 0 && items[highlightedIndex]) {
+                    items[highlightedIndex].click();
+                }
+            } else if (e.key === 'Escape') {
+                closeResidentDropdown();
+            }
+        });
+
+        function updateHighlight(items) {
+            items.forEach((item, idx) => {
+                item.classList.toggle('highlighted', idx === highlightedIndex);
+                if (idx === highlightedIndex) {
+                    item.scrollIntoView({ block: 'nearest' });
+                }
+            });
+        }
 
         function selectSecretaryResident(name) {
             const resident = secretaryResidents.find(item => item.name.toLowerCase() === name.trim().toLowerCase());
