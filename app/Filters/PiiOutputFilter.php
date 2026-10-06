@@ -32,6 +32,10 @@ class PiiOutputFilter implements FilterInterface
             return $response;
         }
 
+        if (PiiGuard::showsPlainText()) {
+            return $response;
+        }
+
         $body = $response->getBody();
         if (! is_string($body) || $body === '' || ! str_contains($body, '<')) {
             return $response;

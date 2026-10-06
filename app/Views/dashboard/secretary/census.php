@@ -387,12 +387,7 @@
                                     <?php foreach ($pendingSeparations as $sr): ?>
                                         <tr>
                                             <td>
-                                                <div style="font-weight:600;color:#1a1d2e;">
-                                                    <?= esc($sr['member_last_name']) ?>, <?= esc($sr['member_first_name']) ?>
-                                                    <?php if (! empty($sr['member_middle_name'])): ?>
-                                                        <?= esc(strtoupper($sr['member_middle_name'][0])) ?>.
-                                                    <?php endif; ?>
-                                                </div>
+                                                <span class="sep-plain" data-pii-plain><?= esc($sr['member_last_name']) ?>, <?= esc($sr['member_first_name']) ?><?php if (! empty($sr['member_middle_name'])): ?> <?= esc(strtoupper($sr['member_middle_name'][0])) ?>.<?php endif; ?></span>
                                             </td>
                                             <td>
                                                 <a href="/secretary/household/<?= esc($sr['original_household_no']) ?>"
@@ -414,8 +409,9 @@
                                                     <i class="fas fa-times-circle" style="color:#dc3545;" title="Not Verified"></i>
                                                 <?php endif; ?>
                                             </td>
-                                            <td style="font-size:12px;color:#6b7280;">
-                                                <?= esc(trim(($sr['requested_by_name'] ?? '') . ' ' . ($sr['requested_by_last'] ?? ''))) ?: '—' ?>
+                                            <td>
+                                                <?php $requestedBy = trim(($sr['requested_by_name'] ?? '') . ' ' . ($sr['requested_by_last'] ?? '')); ?>
+                                                <span class="sep-plain" data-pii-plain><?= esc($requestedBy !== '' ? $requestedBy : '—') ?></span>
                                             </td>
                                             <td style="font-size:12px;color:#9aa0b4;">
                                                 <?= $sr['created_at'] ? date('M d, Y', strtotime($sr['created_at'])) : '—' ?>
@@ -484,6 +480,18 @@
                 </div>
 
                 <style>
+                    .sep-plain {
+                        font-family: 'Poppins', sans-serif;
+                        font-style: normal;
+                        font-variant: normal;
+                        font-weight: 500;
+                        font-size: 13px;
+                        letter-spacing: 0;
+                        text-transform: none;
+                        line-height: 1.45;
+                        color: #555;
+                    }
+
                     .sep-panel-hidden {
                         display: none;
                     }

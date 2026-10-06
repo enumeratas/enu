@@ -24,11 +24,26 @@ class PiiGuard
         return '/' . $role . '/pii/' . self::token($text, $variant);
     }
 
+    /**
+     * Council, secretary, and admin read resident names in tables as normal text.
+     * Other roles still receive the picture rendering.
+     */
+    public static function showsPlainText(): bool
+    {
+        $role = strtolower(trim((string) session()->get('role')));
+
+        return in_array($role, ['admin', 'secretary', 'council'], true);
+    }
+
     public static function img(?string $text, string $variant = 'body'): string
     {
         $text = trim((string) $text);
         if ($text === '' || $text === '—' || $text === '-') {
             return esc($text === '' ? '—' : $text);
+        }
+
+        if (self::showsPlainText()) {
+            return esc($text);
         }
 
         return '<img class="pii-text pii-text--' . esc($variant, 'attr') . '" src="' . esc(self::url($text, $variant), 'attr') . '" alt="" draggable="false">';
@@ -136,7 +151,7 @@ class PiiGuard
         }
 
         $parts = preg_split(
-            '/(<script\b[^>]*>.*?<\/script>|<style\b[^>]*>.*?<\/style>|<textarea\b[^>]*>.*?<\/textarea>|<option\b[^>]*>.*?<\/option>|<input\b[^>]*>)/is',
+            '/(<script\b[^>]*>.*?<\/script>|<style\b[^>]*>.*?<\/style>|<textarea\b[^>]*>.*?<\/textarea>|<option\b[^>]*>.*?<\/option>|<input\b[^>]*>|<span\b[^>]*\bdata-pii-plain\b[^>]*>.*?<\/span>)/is',
             $html,
             -1,
             PREG_SPLIT_DELIM_CAPTURE
@@ -207,7 +222,8 @@ class PiiGuard
 
     private static function isProtectedChunk(string $chunk): bool
     {
-        return preg_match('/^<(script|style|textarea|option|input)\b/i', $chunk) === 1;
+        return preg_match('/^<(script|style|textarea|option|input)\b/i', $chunk) === 1
+            || preg_match('/^<span\b[^>]*\bdata-pii-plain\b/i', $chunk) === 1;
     }
 
     private static function fromTable($db, string $table, array $columns): array

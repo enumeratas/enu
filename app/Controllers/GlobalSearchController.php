@@ -151,7 +151,7 @@ class GlobalSearchController extends BaseController
             } else {
                 $href = $prefix . '/census';
             }
-            $results[] = $this->item('People', '', $href, $this->nameImage($name), ucfirst((string) ($row['role'] ?? 'user')));
+            $results[] = $this->withName('People', '', $name, $href, ucfirst((string) ($row['role'] ?? 'user')));
         }
 
         return $results;
@@ -190,11 +190,11 @@ class GlobalSearchController extends BaseController
             if (! empty($row['zone'])) {
                 $hint .= ' · Zone ' . $row['zone'];
             }
-            $results[] = $this->item(
+            $results[] = $this->withName(
                 'Census',
                 '',
+                $name,
                 $prefix . '/household/' . rawurlencode((string) $row['household_no']),
-                $this->nameImage($name),
                 $hint
             );
         }
@@ -222,11 +222,11 @@ class GlobalSearchController extends BaseController
         $results = [];
         foreach ($rows as $row) {
             $name = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''));
-            $results[] = $this->item(
+            $results[] = $this->withName(
                 'Census',
                 '',
+                $name,
                 $prefix . '/household/' . rawurlencode((string) $row['household_no']),
-                $this->nameImage($name),
                 'Household ' . ($row['household_no'] ?? '')
             );
         }
@@ -260,13 +260,9 @@ class GlobalSearchController extends BaseController
         foreach ($rows as $row) {
             $href = $userId === null ? $link . '/request/' . (int) $row['id'] : $link;
             $name = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''));
-            $results[] = $this->item(
-                'Clearance',
-                (string) ($row['document_type'] ?? 'Clearance'),
-                $href,
-                $userId === null ? $this->nameImage($name) : null,
-                ucfirst((string) ($row['status'] ?? ''))
-            );
+            $results[] = $userId === null
+                ? $this->withName('Clearance', (string) ($row['document_type'] ?? 'Clearance'), $name, $href, ucfirst((string) ($row['status'] ?? '')))
+                : $this->item('Clearance', (string) ($row['document_type'] ?? 'Clearance'), $href, null, ucfirst((string) ($row['status'] ?? '')));
         }
 
         return $results;
@@ -294,11 +290,11 @@ class GlobalSearchController extends BaseController
 
         $results = [];
         foreach ($rows as $row) {
-            $results[] = $this->item(
+            $results[] = $this->withName(
                 'Blotter',
                 (string) ($row['incident_type'] ?? 'Blotter'),
+                (string) ($row['complainant_name'] ?? ''),
                 $prefix . '/blotter/' . (int) $row['id'],
-                $this->nameImage((string) ($row['complainant_name'] ?? '')),
                 ucfirst((string) ($row['status'] ?? ''))
             );
         }
@@ -328,13 +324,9 @@ class GlobalSearchController extends BaseController
         $results = [];
         foreach ($rows as $row) {
             $href = $userId === null ? $link . '/' . (int) $row['id'] : $link;
-            $results[] = $this->item(
-                'Concerns',
-                (string) ($row['subject'] ?? $row['category'] ?? 'Concern'),
-                $href,
-                $userId === null ? $this->nameImage((string) ($row['full_name'] ?? '')) : null,
-                ucfirst((string) ($row['status'] ?? ''))
-            );
+            $results[] = $userId === null
+                ? $this->withName('Concerns', (string) ($row['subject'] ?? $row['category'] ?? 'Concern'), (string) ($row['full_name'] ?? ''), $href, ucfirst((string) ($row['status'] ?? '')))
+                : $this->item('Concerns', (string) ($row['subject'] ?? $row['category'] ?? 'Concern'), $href, null, ucfirst((string) ($row['status'] ?? '')));
         }
 
         return $results;
@@ -416,7 +408,7 @@ class GlobalSearchController extends BaseController
         $results = [];
         foreach ($rows as $row) {
             $name = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''));
-            $results[] = $this->item('SK Profiling', '', $prefix . '/profiling/view/' . (int) $row['id'], $this->nameImage($name), 'Youth profile');
+            $results[] = $this->withName('SK Profiling', '', $name, $prefix . '/profiling/view/' . (int) $row['id'], 'Youth profile');
         }
 
         return $results;
@@ -448,6 +440,22 @@ class GlobalSearchController extends BaseController
         }
 
         return $results;
+    }
+
+    /** @return array<string, string|null> */
+    private function withName(string $group, string $label, string $name, string $href, string $hint): array
+    {
+        $name = trim($name);
+        if (\App\Libraries\PiiGuard::showsPlainText()) {
+            $title = $label;
+            if ($name !== '' && ($title === '' || stripos($title, $name) === false)) {
+                $title = $title === '' ? $name : $title . ' — ' . $name;
+            }
+
+            return $this->item($group, $title, $href, null, $hint);
+        }
+
+        return $this->item($group, $label, $href, $this->nameImage($name), $hint);
     }
 
     private function nameImage(string $name): ?string

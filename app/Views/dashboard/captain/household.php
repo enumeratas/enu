@@ -2088,8 +2088,21 @@
             return res.json();
         }
 
-        function piiSet(el, src) {
+        const usePlainNames = <?= json_encode(\App\Libraries\PiiGuard::showsPlainText()) ?>;
+
+        function memberPlainName(member) {
+            return [member.first_name, member.middle_name, member.last_name]
+                .map(function (part) { return String(part || '').trim(); })
+                .filter(Boolean)
+                .join(' ');
+        }
+
+        function piiSet(el, src, plainText) {
             if (!el) return;
+            if (usePlainNames) {
+                el.textContent = plainText || '—';
+                return;
+            }
             el.textContent = '';
             if (!src) {
                 el.textContent = '—';
@@ -2482,7 +2495,7 @@
         async function openDeceasedMemberModal(id) {
             const m = await loadHouseholdMember(id);
             document.getElementById('dm-avatar').textContent = '?';
-            piiSet(document.getElementById('dm-name'), m.name_img || m.full_name_img);
+            piiSet(document.getElementById('dm-name'), m.name_img || m.full_name_img, memberPlainName(m));
             document.getElementById('dm-rel').textContent =
                 m.relationship ? m.relationship.charAt(0).toUpperCase() + m.relationship.slice(1) : '—';
             document.getElementById('dm-year').value = '';
@@ -2494,7 +2507,7 @@
         // ── Separate Household modal ─────────────────────────────────────────
         async function openSeparateModal(id) {
             const m = typeof id === 'object' ? id : await loadHouseholdMember(id);
-            piiSet(document.getElementById('sep-member-name'), m.full_name_img || m.name_img);
+            piiSet(document.getElementById('sep-member-name'), m.full_name_img || m.name_img, memberPlainName(m));
             document.getElementById('sep-member-rel').textContent = m.relationship || '—';
             document.getElementById('separateForm').action =
                 '/<?= $role ?>/census/member/separate/' + m.id;
