@@ -499,10 +499,10 @@ class ClearanceController extends BaseController
         ];
     }
 
-    /** Secretary: create a request for an existing resident account. */
+    /** Secretary/Admin: create a request for an existing resident account. */
     public function storeSecretary()
     {
-        if (! can_role('secretary')) {
+        if (! can_role('secretary', 'admin', 'captain')) {
             return redirect()->to('/login')->with('error', 'You do not have permission to create resident requests.');
         }
 

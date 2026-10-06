@@ -53,7 +53,7 @@ class PiiController extends BaseController
 
     public function residentDirectory()
     {
-        if (! can_role('secretary', 'captain', 'council')) {
+        if (! can_role('secretary', 'captain', 'council', 'admin')) {
             return $this->jsonResponse([], 403);
         }
 
@@ -63,7 +63,7 @@ class PiiController extends BaseController
                       h.date_of_birth AS head_dob, h.first_name AS head_first, h.middle_name AS head_middle, h.last_name AS head_last')
             ->join('households h', 'h.household_no = u.household_no', 'left')
             ->where('u.role', 'resident')
-            ->whereIn('u.status', ['active', 'unverified', 'pending'])
+            ->where('u.status', 'active')
             ->orderBy('u.last_name', 'ASC')
             ->orderBy('u.first_name', 'ASC')
             ->get()->getResultArray();

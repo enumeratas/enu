@@ -307,7 +307,8 @@
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <form action="/secretary/clearance/store-secretary" method="post">
+            <?php $formRole = session()->get('role') === 'admin' ? 'admin' : 'secretary'; ?>
+            <form action="/<?= esc($formRole) ?>/clearance/store-secretary" method="post">
                 <?= csrf_field() ?>
                 <div class="db-modal-body" style="padding:22px 24px;display:flex;flex-direction:column;gap:16px;">
                     <div class="db-form-group db-form-group--full">
@@ -588,7 +589,9 @@
 
         const secretaryResidentEligibility = <?= json_encode($residentEligibility ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
         let secretaryResidents = [];
-        fetch('/secretary/pii/directory/residents', {
+        // Use current role prefix for the API call (admin, secretary, captain)
+        const rolePrefix = (location.pathname.match(/^\/(admin|secretary|captain)(?=\/)/) || [null, 'secretary'])[1];
+        fetch('/' + rolePrefix + '/pii/directory/residents', {
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         }).then(r => r.json()).then(rows => {
             secretaryResidents = (Array.isArray(rows) ? rows : []).map(item => ({
