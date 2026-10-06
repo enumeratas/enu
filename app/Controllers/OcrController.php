@@ -674,13 +674,59 @@ class OcrController extends BaseController
 
         // Also try with OCR corrections applied
         $correctedFlat = $this->flattenDateText($this->correctOcrErrorsForDates($text));
+        
+        // Also try with aggressive OCR error correction on the raw text
+        $aggressiveCorrected = $this->flattenDateText($this->correctOcrErrors($text));
 
-        return $this->numericDatePresent($flat, $month, $day, $year)
+        // Full date match attempts
+        if ($this->numericDatePresent($flat, $month, $day, $year)
             || $this->numericDatePresent($correctedFlat, $month, $day, $year)
+            || $this->numericDatePresent($aggressiveCorrected, $month, $day, $year)
             || $this->wordDatePresent($flat, $month, $day, $year)
             || $this->wordDatePresent($correctedFlat, $month, $day, $year)
+            || $this->wordDatePresent($aggressiveCorrected, $month, $day, $year)
             || $this->philippineDateFormats($flat, $month, $day, $year)
-            || $this->philippineDateFormats($correctedFlat, $month, $day, $year);
+            || $this->philippineDateFormats($correctedFlat, $month, $day, $year)
+            || $this->philippineDateFormats($text, $month, $day, $year)) {
+            return true;
+        }
+        
+        // Partial match: If year + month OR year + day are found, consider it a match
+        // This handles OCR errors where one component is misread
+        if ($this->partialDateMatch($flat, $month, $day, $year)
+            || $this->partialDateMatch($correctedFlat, $month, $day, $year)
+            || $this->partialDateMatch($aggressiveCorrected, $month, $day, $year)) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Partial date matching - matches if year + at least one other component is found.
+     */
+    private function partialDateMatch(string $text, int $month, int $day, int $year): bool
+    {
+        $yearFound = preg_match('/(?<!\d)' . $year . '(?!\d)/', $text);
+        $shortYearFound = preg_match('/(?<!\d)' . sprintf('%02d', $year % 100) . '(?!\d)/', $text);
+        
+        if (!$yearFound && !$shortYearFound) {
+            return false;
+        }
+        
+        $mm = sprintf('%02d', $month);
+        $dd = sprintf('%02d', $day);
+        
+        // Check if month is found
+        $monthFound = preg_match('/(?<!\d)0?' . $month . '(?!\d)/', $text)
+            || preg_match('/(?<!\d)' . $mm . '(?!\d)/', $text);
+            
+        // Check if day is found
+        $dayFound = preg_match('/(?<!\d)0?' . $day . '(?!\d)/', $text)
+            || preg_match('/(?<!\d)' . $dd . '(?!\d)/', $text);
+        
+        // Year + Month or Year + Day = partial match
+        return $monthFound || $dayFound;
     }
 
     /**
@@ -693,6 +739,23 @@ class OcrController extends BaseController
         $text = preg_replace('/\b0ct(?:ober)?\b/i', 'Oct', $text) ?? $text;
         $text = preg_replace('/\bN0v(?:ember)?\b/i', 'Nov', $text) ?? $text;
         $text = preg_replace('/\bSept\b/i', 'Sept', $text) ?? $text;
+        
+        // More OCR corrections for dates
+        $text = preg_replace('/\bJan(?:uary)?\b/i', 'Jan', $text) ?? $text;
+        $text = preg_replace('/\bFeb(?:ruary)?\b/i', 'Feb', $text) ?? $text;
+        $text = preg_replace('/\bMar(?:ch)?\b/i', 'Mar', $text) ?? $text;
+        $text = preg_replace('/\bApr(?:il)?\b/i', 'Apr', $text) ?? $text;
+        $text = preg_replace('/\bJun(?:e)?\b/i', 'Jun', $text) ?? $text;
+        $text = preg_replace('/\bJu[l1](?:y)?\b/i', 'Jul', $text) ?? $text;
+        $text = preg_replace('/\bAug(?:ust)?\b/i', 'Aug', $text) ?? $text;
+        $text = preg_replace('/\bDec(?:ember)?\b/i', 'Dec', $text) ?? $text;
+        
+        // Common OCR misreads in dates: l/1/I confusion, O/0 confusion
+        // Replace common patterns like "l9" -> "19", "2O" -> "20"
+        $text = preg_replace('/\bl9([0-9]{2})\b/', '19$1', $text) ?? $text;
+        $text = preg_replace('/\b2O([0-9]{2})\b/', '20$1', $text) ?? $text;
+        $text = preg_replace('/\b19O([0-9])\b/', '190$1', $text) ?? $text;
+        $text = preg_replace('/\b20O([0-9])\b/', '200$1', $text) ?? $text;
 
         return $text;
     }
