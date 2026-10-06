@@ -759,6 +759,8 @@
                 name: item.label || item.display || item.name || '',
                 username: item.username || '',
                 email: item.email || '',
+                relationship: item.relationship || 'Resident',
+                zone: item.zone || '',
             }));
             // Pre-populate dropdown list
             renderResidentDropdown('');
@@ -812,6 +814,11 @@
             list.innerHTML = filtered.slice(0, 50).map((resident, idx) => {
                 const initial = (resident.name.charAt(0) || 'R').toUpperCase();
                 const isSelected = selectedResidentId === resident.id;
+                const rel = resident.relationship || 'Resident';
+                const isHead = rel.toLowerCase().includes('head');
+                const relClass = isHead ? 'rel-head' : 'rel-member';
+                const relIcon = isHead ? 'fa-user-tie' : 'fa-user';
+                const zoneMeta = resident.zone ? ' • ' + escapeHtml(resident.zone) : '';
                 return `
                     <div class="resident-dropdown-item ${isSelected ? 'selected' : ''}" 
                          data-id="${resident.id}" 
@@ -820,7 +827,9 @@
                         <div class="resident-dropdown-avatar">${initial}</div>
                         <div class="resident-dropdown-info">
                             <div class="resident-dropdown-name">${escapeHtml(resident.name)}</div>
-                            <div class="resident-dropdown-meta">${resident.username ? '@' + escapeHtml(resident.username) : ''}</div>
+                            <div class="resident-dropdown-meta">
+                                <i class="fas ${relIcon}"></i> ${escapeHtml(rel)}${zoneMeta}
+                            </div>
                         </div>
                         <span class="resident-dropdown-badge">Active</span>
                     </div>

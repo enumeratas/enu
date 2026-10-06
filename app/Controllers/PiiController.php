@@ -58,9 +58,12 @@ class PiiController extends BaseController
         }
 
         $db = \Config\Database::connect();
+        
+        // Fetch all active resident accounts
         $rows = $db->table('users u')
             ->select('u.id, u.first_name, u.middle_name, u.last_name, u.username, u.email, u.household_no,
-                      h.date_of_birth AS head_dob, h.first_name AS head_first, h.middle_name AS head_middle, h.last_name AS head_last')
+                      h.date_of_birth AS head_dob, h.first_name AS head_first, h.middle_name AS head_middle, 
+                      h.last_name AS head_last, h.zone')
             ->join('households h', 'h.household_no = u.household_no', 'left')
             ->where('u.role', 'resident')
             ->where('u.status', 'active')
@@ -68,14 +71,17 @@ class PiiController extends BaseController
             ->orderBy('u.first_name', 'ASC')
             ->get()->getResultArray();
 
+        // Get all household numbers to fetch members
         $householdNos = array_values(array_filter(array_unique(array_map(
             static fn(array $row): string => trim((string) ($row['household_no'] ?? '')),
             $rows
         ))));
+        
+        // Fetch all household members for matching
         $membersByHousehold = [];
         if ($householdNos !== []) {
             $members = $db->table('household_members')
-                ->select('household_no, first_name, middle_name, last_name, date_of_birth')
+                ->select('household_no, first_name, middle_name, last_name, date_of_birth, relationship')
                 ->whereIn('household_no', $householdNos)
                 ->get()->getResultArray();
             foreach ($members as $member) {
@@ -89,12 +95,16 @@ class PiiController extends BaseController
             $middle = trim((string) ($r['middle_name'] ?? ''));
             $last = trim((string) ($r['last_name'] ?? ''));
             $dob = null;
+            $relationship = 'Resident';
+            $zone = trim((string) ($r['zone'] ?? ''));
 
+            // Check if user is household head
             $headFirst = trim((string) ($r['head_first'] ?? ''));
             $headLast = trim((string) ($r['head_last'] ?? ''));
             $isHead = $headFirst !== ''
                 && strcasecmp($first, $headFirst) === 0
                 && ($last === '' || strcasecmp($last, $headLast) === 0);
+            
             if ($isHead) {
                 if ($last === '') {
                     $last = $headLast;
@@ -103,8 +113,10 @@ class PiiController extends BaseController
                     $middle = trim((string) ($r['head_middle'] ?? ''));
                 }
                 $dob = $r['head_dob'] ?? null;
+                $relationship = 'Household Head';
             }
 
+            // Check if user matches a household member
             foreach ($membersByHousehold[(string) ($r['household_no'] ?? '')] ?? [] as $member) {
                 $memberFirst = trim((string) ($member['first_name'] ?? ''));
                 $memberLast = trim((string) ($member['last_name'] ?? ''));
@@ -122,6 +134,11 @@ class PiiController extends BaseController
                 if (! empty($member['date_of_birth'])) {
                     $dob = $member['date_of_birth'];
                 }
+                // Get relationship from census
+                $rel = trim((string) ($member['relationship'] ?? ''));
+                if ($rel !== '') {
+                    $relationship = ucfirst(strtolower($rel));
+                }
                 break;
             }
 
@@ -133,13 +150,15 @@ class PiiController extends BaseController
             }
 
             $out[] = [
-                'id'       => (int) $r['id'],
-                'label'    => $label,
-                'name'     => trim($given . ($last !== '' ? ' ' . $last : '')),
-                'display'  => $label,
-                'username' => (string) ($r['username'] ?? ''),
-                'email'    => (string) ($r['email'] ?? ''),
-                'age'      => $this->ageFromDob(is_string($dob) ? $dob : null),
+                'id'           => (int) $r['id'],
+                'label'        => $label,
+                'name'         => trim($given . ($last !== '' ? ' ' . $last : '')),
+                'display'      => $label,
+                'username'     => (string) ($r['username'] ?? ''),
+                'email'        => (string) ($r['email'] ?? ''),
+                'age'          => $this->ageFromDob(is_string($dob) ? $dob : null),
+                'relationship' => $relationship,
+                'zone'         => $zone,
             ];
         }
 
