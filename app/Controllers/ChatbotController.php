@@ -11,8 +11,13 @@ use App\Models\ChatMessageModel;
 class ChatbotController extends ResourceController
 {
     protected string $apiKey = '';
-    protected string $apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
-    protected string $aiModel = 'openai/gpt-4o-mini';
+    protected string $apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
+    protected string $aiModel = 'openai/gpt-oss-20b';
+    protected string $voiceModel = 'whisper-large-v3-turbo';
+    protected string $sttUrl = 'https://api.groq.com/openai/v1/audio/transcriptions';
+    protected string $ttsModel = 'canopylabs/orpheus-v1-english';
+    protected string $ttsVoice = 'autumn';
+    protected string $ttsUrl = 'https://api.groq.com/openai/v1/audio/speech';
 
     protected int $maxRetrievedDocuments = 3;
     protected int $maxRetries = 2;
@@ -42,8 +47,33 @@ class ChatbotController extends ResourceController
     public function __construct()
     {
         $this->apiKey = trim(
-            (string) env('OPENROUTER_API_KEY', '')
+            (string) env('GROQ_API_KEY', '')
         );
+
+        $configuredUrl = trim((string) env('GROQ_API_URL', ''));
+        if ($configuredUrl !== '') {
+            $this->apiUrl = $configuredUrl;
+        }
+
+        $configuredModel = trim((string) env('GROQ_MODEL', ''));
+        if ($configuredModel !== '') {
+            $this->aiModel = $configuredModel;
+        }
+
+        $configuredVoice = trim((string) env('GROQ_MODEL_VOICE', ''));
+        if ($configuredVoice !== '') {
+            $this->voiceModel = $configuredVoice;
+        }
+
+        $configuredTts = trim((string) env('GROQ_TTS_MODEL', ''));
+        if ($configuredTts !== '') {
+            $this->ttsModel = $configuredTts;
+        }
+
+        $configuredTtsVoice = trim((string) env('GROQ_TTS_VOICE', ''));
+        if ($configuredTtsVoice !== '') {
+            $this->ttsVoice = $configuredTtsVoice;
+        }
 
         $this->householdModel = new HouseholdModel();
         $this->memberModel = new HouseholdMemberModel();
@@ -52,7 +82,7 @@ class ChatbotController extends ResourceController
 
         log_message(
             'debug',
-            'ChatbotController initialized. OpenRouter key loaded: ' .
+            'ChatbotController initialized. Groq key loaded: ' .
                 ($this->apiKey !== '' ? 'YES' : 'NO')
         );
     }
@@ -102,8 +132,9 @@ class ChatbotController extends ResourceController
 
             $userId = $this->getAuthenticatedUserId();
             $role = $this->getCurrentUserRole();
-            $this->limitToWebsiteTopics = $this->isPublicLandingChat(
-                $jsonInput
+            $this->limitToWebsiteTopics = $this->shouldLimitToSystemTopics(
+                $jsonInput,
+                $role
             );
 
             /*
@@ -133,7 +164,9 @@ class ChatbotController extends ResourceController
                         ->setJSON([
                             'success' => false,
                             'response' =>
-                            'Please log in to request a Barangay staff member through customer service.',
+                            $this->resolveReplyLanguage($message) === 'tagalog'
+                                ? 'Mag-login muna para makahingi ng tulong sa tauhan ng Barangay sa customer service.'
+                                : 'Please log in to request a Barangay staff member through customer service.',
                             'source' => 'human_support_authentication_required',
                             'support_mode' => self::SUPPORT_AI,
                             'waiting_for_staff' => false
@@ -265,6 +298,8 @@ class ChatbotController extends ResourceController
                     'I can connect you with a Barangay support staff member. ' .
                     'Your request has been placed in the support queue. ' .
                     'Please wait for a secretary or authorized staff member to assist you.';
+
+                $handoffMessage = $this->withTagalogVoiceNotice($message, $handoffMessage);
 
                 $this->saveSupportMessage(
                     $supportConversationId,
@@ -449,8 +484,17 @@ class ChatbotController extends ResourceController
 
             if ($this->apiKey === '' && $this->isBusinessPermitQuestion($message)) {
 
-                $businessPermitResponse =
-                    'To request a <strong>Business Permit</strong>:<br><br>' .
+                $businessPermitResponse = $this->resolveReplyLanguage($message) === 'tagalog'
+                    ? 'Para mag-request ng <strong>Business Permit</strong>:<br><br>' .
+                        '1. Pumunta sa <strong>Resident Dashboard</strong>.<br>' .
+                        '2. Sa <strong>Barangay Clearances</strong>, i-click ang <strong>Request Now</strong>.<br>' .
+                        '3. I-click ang <strong>New Request</strong>.<br>' .
+                        '4. Piliin ang <strong>Document Type</strong>.<br>' .
+                        '5. Sa window na <strong>New Document Request</strong>, piliin ang <strong>Business Permit</strong>.<br>' .
+                        '6. Ilagay ang <strong>Purpose</strong>.<br>' .
+                        '7. I-click ang <strong>Submit Request</strong>.<br><br>' .
+                        'Mare-record ang request sa sistema at maaari mo itong subaybayan sa iyong mga request.'
+                    : 'To request a <strong>Business Permit</strong>:<br><br>' .
                     '1. Go to your <strong>Resident Dashboard</strong>.<br>' .
                     '2. Under <strong>Barangay Clearances</strong>, click <strong>Request Now</strong>.<br>' .
                     '3. Click <strong>New Request</strong>.<br>' .
@@ -460,7 +504,7 @@ class ChatbotController extends ResourceController
                     '7. Click <strong>Submit Request</strong>.<br><br>' .
                     'Your Business Permit request will then be recorded in the system and can be monitored through your requests.';
 
-                $this->saveConversationExchange(
+                $businessPermitResponse = $this->saveConversationExchange(
                     $conversationId,
                     $message,
                     $businessPermitResponse
@@ -485,7 +529,7 @@ class ChatbotController extends ResourceController
                 : null;
 
             if ($documentResponse !== null) {
-                $this->saveConversationExchange(
+                $documentResponse = $this->saveConversationExchange(
                     $conversationId,
                     $message,
                     $documentResponse
@@ -514,7 +558,7 @@ class ChatbotController extends ResourceController
                 : null;
 
             if ($simpleResponse !== null) {
-                $this->saveConversationExchange(
+                $simpleResponse = $this->saveConversationExchange(
                     $conversationId,
                     $message,
                     $simpleResponse
@@ -531,6 +575,31 @@ class ChatbotController extends ResourceController
                 ]);
             }
 
+            if ($this->isAppointmentAvailabilityQuestion($message)) {
+                $appointmentResponse = $this->buildAppointmentAvailabilityResponse($message, $role);
+
+                log_message(
+                    'info',
+                    'Chatbot answered from live appointment availability.'
+                );
+
+                $appointmentResponse = $this->saveConversationExchange(
+                    $conversationId,
+                    $message,
+                    $appointmentResponse
+                );
+
+                return $this->response->setJSON([
+                    'success' => true,
+                    'response' => $appointmentResponse,
+                    'source' => 'appointment_availability',
+                    'ai_available' => $this->apiKey !== '',
+                    'retrieved_documents' => 0,
+                    'conversation_id' => $conversationId,
+                    'live_data' => true
+                ]);
+            }
+
             if (
                 $this->limitToWebsiteTopics
                 && $this->isEventsCalendarQuestion($message)
@@ -542,7 +611,7 @@ class ChatbotController extends ResourceController
                     'Landing chatbot answered from the events calendar.'
                 );
 
-                $this->saveConversationExchange(
+                $eventsResponse = $this->saveConversationExchange(
                     $conversationId,
                     $message,
                     $eventsResponse
@@ -561,16 +630,23 @@ class ChatbotController extends ResourceController
 
             if (
                 $this->limitToWebsiteTopics
-                && ! $this->isWebsiteRelatedQuestion($message)
+                && (
+                    $this->isOffTopicIntent($this->normalizeChatText($message))
+                    || (
+                        $this->isPublicLandingChat($jsonInput)
+                        && ! $this->isWebsiteRelatedQuestion($message)
+                        && ! $this->isOnTopicFollowUp($message, $history)
+                    )
+                )
             ) {
-                $refusal = $this->websiteTopicRefusal();
+                $refusal = $this->websiteTopicRefusal($message);
 
                 log_message(
                     'info',
-                    'Landing chatbot refused an off-topic prompt.'
+                    'Chatbot refused an off-topic prompt.'
                 );
 
-                $this->saveConversationExchange(
+                $refusal = $this->saveConversationExchange(
                     $conversationId,
                     $message,
                     $refusal
@@ -615,9 +691,11 @@ class ChatbotController extends ResourceController
                     );
                 } else {
 
-                    $censusAccessMessage =
-                        '📊 Current census statistics are available to logged-in residents and authorized barangay personnel. ' .
-                        'Please log in to view aggregate census information.';
+                    $censusAccessMessage = $this->resolveReplyLanguage($message) === 'tagalog'
+                        ? '📊 Available ang kasalukuyang census statistics sa naka-login na residente at awtorisadong tauhan ng barangay. '
+                            . 'Mag-login muna para makita ang aggregate census information.'
+                        : '📊 Current census statistics are available to logged-in residents and authorized barangay personnel. '
+                            . 'Please log in to view aggregate census information.';
 
                     log_message(
                         'info',
@@ -645,7 +723,7 @@ class ChatbotController extends ResourceController
 
             if ($censusAccessMessage !== null) {
 
-                $this->saveConversationExchange(
+                $censusAccessMessage = $this->saveConversationExchange(
                     $conversationId,
                     $message,
                     $censusAccessMessage
@@ -678,7 +756,7 @@ class ChatbotController extends ResourceController
                         $documents
                     );
 
-                $this->saveConversationExchange(
+                $fallback = $this->saveConversationExchange(
                     $conversationId,
                     $message,
                     $fallback
@@ -698,10 +776,10 @@ class ChatbotController extends ResourceController
             }
 
             // ------------------------------------------------------------
-            // OPENROUTER
+            // GROQ
             // ------------------------------------------------------------
 
-            $aiResponse = $this->callOpenRouter(
+            $aiResponse = $this->callGroq(
                 $message,
                 $this->buildRagContext($documents),
                 $history,
@@ -713,9 +791,11 @@ class ChatbotController extends ResourceController
                 $aiResponse !== null &&
                 trim($aiResponse) !== ''
             ) {
-                $responseText = $this->fixListNumbers(trim($aiResponse));
+                $responseText = $this->formatAssistantReply(
+                    $this->fixListNumbers(trim($aiResponse))
+                );
 
-                $this->saveConversationExchange(
+                $responseText = $this->saveConversationExchange(
                     $conversationId,
                     $message,
                     $responseText
@@ -725,8 +805,8 @@ class ChatbotController extends ResourceController
                     'success' => true,
                     'response' => $responseText,
                     'source' => $liveCensus !== null
-                        ? 'openrouter_live_data'
-                        : 'openrouter_rag',
+                        ? 'groq_live_data'
+                        : 'groq_rag',
                     'ai_available' => true,
                     'retrieved_documents' => count($documents),
                     'live_data' => $liveCensus !== null,
@@ -748,7 +828,7 @@ class ChatbotController extends ResourceController
                     $documents
                 );
 
-            $this->saveConversationExchange(
+            $fallback = $this->saveConversationExchange(
                 $conversationId,
                 $message,
                 $fallback
@@ -3007,6 +3087,27 @@ class ChatbotController extends ResourceController
         return $this->getAuthenticatedUserId() === null;
     }
 
+    protected function shouldLimitToSystemTopics(
+        array $jsonInput,
+        ?string $role
+    ): bool {
+        if ($this->isPublicLandingChat($jsonInput)) {
+            return true;
+        }
+
+        if ($this->isResidentRole($role)) {
+            return true;
+        }
+
+        $source = strtolower(trim((string) (
+            $this->request->getPost('source')
+            ?? $jsonInput['source']
+            ?? ''
+        )));
+
+        return $source === 'voice';
+    }
+
     /**
      * Landing questions that ask to see this system's events calendar.
      * How-to questions such as "how do I add an event" stay with the
@@ -3083,22 +3184,37 @@ class ChatbotController extends ResourceController
         } catch (\Throwable $e) {
             log_message('error', 'Calendar lookup failed: ' . $e->getMessage());
 
-            return '📅 I could not check the events calendar right now. Please try again in a moment.';
+            return $this->resolveReplyLanguage($message) === 'tagalog'
+                ? '📅 Hindi ko masiyasat ang events calendar sa ngayon. Subukan ulit after a moment.'
+                : '📅 I could not check the events calendar right now. Please try again in a moment.';
         }
 
-        $calendarLink = ' Open the <a href="/events">public events calendar</a> anytime, no account needed.';
+        $tagalog = $this->resolveReplyLanguage($message) === 'tagalog';
+        $label = $this->eventsCalendarLabel($label, $tagalog);
+        $calendarLink = $tagalog
+            ? ' Buksan ang <a href="/events">pampublikong kalendaryo ng events</a> anytime; walang account na kailangan.'
+            : ' Open the <a href="/events">public events calendar</a> anytime, no account needed.';
 
         if ($events === []) {
-            return '📅 There are no events on the Barangay Bacolod calendar for <strong>'
-                . $this->escapeChatHtml($label)
-                . '</strong>. Blotter hearings stay on the official calendar and are not listed here.'
-                . $calendarLink;
+            return $tagalog
+                ? '📅 Walang event sa kalendaryo ng Barangay Bacolod para sa <strong>'
+                    . $this->escapeChatHtml($label)
+                    . '</strong>. Ang blotter hearings ay nasa opisyal na kalendaryo at hindi nakalista rito.'
+                    . $calendarLink
+                : '📅 There are no events on the Barangay Bacolod calendar for <strong>'
+                    . $this->escapeChatHtml($label)
+                    . '</strong>. Blotter hearings stay on the official calendar and are not listed here.'
+                    . $calendarLink;
         }
 
         $lines = [
-            '📅 Here are the events on the Barangay Bacolod calendar for <strong>'
-                . $this->escapeChatHtml($label)
-                . '</strong>:',
+            $tagalog
+                ? '📅 Narito ang mga event sa kalendaryo ng Barangay Bacolod para sa <strong>'
+                    . $this->escapeChatHtml($label)
+                    . '</strong>:'
+                : '📅 Here are the events on the Barangay Bacolod calendar for <strong>'
+                    . $this->escapeChatHtml($label)
+                    . '</strong>:',
         ];
 
         foreach ($events as $index => $event) {
@@ -3123,7 +3239,9 @@ class ChatbotController extends ResourceController
 
             $location = trim((string) ($event['location'] ?? ''));
             if ($location !== '') {
-                $block .= '<br>Place: ' . $this->escapeChatHtml($location);
+                $block .= $tagalog
+                    ? '<br>Lugar: ' . $this->escapeChatHtml($location)
+                    : '<br>Place: ' . $this->escapeChatHtml($location);
             }
 
             $description = trim(preg_replace(
@@ -3141,7 +3259,9 @@ class ChatbotController extends ResourceController
             $lines[] = $block;
         }
 
-        $lines[] = 'Blotter hearings stay on the official calendar and are not listed here. Open the <a href="/events">public events calendar</a> anytime, no account needed.';
+        $lines[] = $tagalog
+            ? 'Ang blotter hearings ay nasa opisyal na kalendaryo at hindi nakalista rito. Buksan ang <a href="/events">pampublikong kalendaryo ng events</a> anytime; walang account na kailangan.'
+            : 'Blotter hearings stay on the official calendar and are not listed here. Open the <a href="/events">public events calendar</a> anytime, no account needed.';
 
         return implode('<br><br>', $lines);
     }
@@ -3227,6 +3347,298 @@ class ChatbotController extends ResourceController
         return $stamp === false ? '' : date('g:i A', $stamp);
     }
 
+    protected function isAppointmentAvailabilityQuestion(string $message): bool
+    {
+        $normalized = $this->normalizeChatText($message);
+        if ($normalized === '' || $this->isOffTopicIntent($normalized)) {
+            return false;
+        }
+
+        if (
+            preg_match('/\b(?:my|ko|akin|akong)\s+(?:appointment|schedule|concern)/u', $normalized) === 1
+            || preg_match('/\b(?:appointment|schedule)\s+(?:ko|ko po)\b/u', $normalized) === 1
+        ) {
+            return false;
+        }
+
+        $asksAppointment = $this->containsTopicTerm($normalized, 'appointment')
+            || $this->containsTopicTerm($normalized, 'concern')
+            || str_contains($normalized, 'pa appointment')
+            || str_contains($normalized, 'pagpa appointment');
+        $asksAvailability = $this->containsTopicTerm($normalized, 'available')
+            || $this->containsTopicTerm($normalized, 'availability')
+            || $this->containsTopicTerm($normalized, 'open')
+            || $this->containsTopicTerm($normalized, 'slot')
+            || $this->containsTopicTerm($normalized, 'booking')
+            || $this->containsTopicTerm($normalized, 'vacant')
+            || preg_match('/\b(?:when can i|when can we|kailan|anong petsa|next date)\b/u', $normalized) === 1;
+        $asksDate = $this->containsTopicTerm($normalized, 'date')
+            || $this->containsTopicTerm($normalized, 'day')
+            || $this->containsTopicTerm($normalized, 'petsa')
+            || $this->containsTopicTerm($normalized, 'schedule');
+
+        if ($asksAppointment && ($asksAvailability || $asksDate)) {
+            return true;
+        }
+
+        return in_array($normalized, [
+            'available date',
+            'available dates',
+            'appointment date',
+            'appointment dates',
+            'available appointment',
+            'open appointment',
+            'open appointments',
+            'available schedule',
+        ], true);
+    }
+
+    protected function buildAppointmentAvailabilityResponse(string $message, ?string $role = null): string
+    {
+        $tagalog = $this->resolveReplyLanguage($message) === 'tagalog';
+        $dates = $this->upcomingAvailableAppointmentDates(10);
+
+        $bookHref = $this->appointmentBookingHref($role);
+        $bookLink = $bookHref === '/login'
+            ? ($tagalog
+                ? ' Mag-login, then buksan ang <strong>Appointment / Concerns</strong> para pumili ng oras.'
+                : ' Log in, then open <strong>Appointment / Concerns</strong> to pick a time.')
+            : ($tagalog
+                ? ' I-book ito sa <a href="' . $this->escapeChatHtml($bookHref) . '">Appointment / Concerns</a>.'
+                : ' Book it from <a href="' . $this->escapeChatHtml($bookHref) . '">Appointment / Concerns</a>.');
+
+        $rules = $tagalog
+            ? 'Ang appointment sa Barangay Hall ay oras-oras mula <strong>8:00 AM hanggang 5:00 PM</strong>. Ang pinakamaagang petsa ay <strong>bukas</strong>. Sarado tuwing Linggo.'
+            : 'Barangay Hall appointments use hourly slots from <strong>8:00 AM to 5:00 PM</strong>. The earliest date is <strong>tomorrow</strong>. Sundays are closed.';
+
+        if ($dates === []) {
+            return $tagalog
+                ? '📅 Wala akong makitang bukas na appointment date sa susunod na 3 linggo. Subukan ulit sa Appointment / Concerns, o pumunta sa Barangay Hall.'
+                    . $bookLink
+                : '📅 I do not see an open appointment date in the next 3 weeks. Check again in Appointment / Concerns, or visit the Barangay Hall.'
+                    . $bookLink;
+        }
+
+        $years = [];
+        foreach ($dates as $date) {
+            $stamp = strtotime($date);
+            if ($stamp) {
+                $years[] = date('Y', $stamp);
+            }
+        }
+        $years = array_values(array_unique($years));
+        $sameYear = count($years) === 1 ? $years[0] : null;
+
+        $heading = $tagalog
+            ? '📅 Narito ang mga available na appointment date sa Barangay Hall'
+            : '📅 Here are the available appointment dates at the Barangay Hall';
+        if ($sameYear !== null) {
+            $heading .= $tagalog
+                ? ' para sa ' . $sameYear
+                : ' for ' . $sameYear;
+        }
+        $heading .= ':';
+
+        $lines = [$heading];
+
+        foreach ($dates as $date) {
+            $stamp = strtotime($date);
+            if (! $stamp) {
+                $lines[] = '• ' . $this->escapeChatHtml($date);
+                continue;
+            }
+            $label = $sameYear !== null
+                ? date('l, F j', $stamp)
+                : date('l, F j', $stamp) . ' of ' . date('Y', $stamp);
+            $lines[] = '• ' . $this->escapeChatHtml($label);
+        }
+
+        return implode('<br>', $lines) . '<br><br>' . $rules . $bookLink;
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function upcomingAvailableAppointmentDates(int $limit = 10): array
+    {
+        $start = date('Y-m-d', strtotime('+1 day'));
+        $end = date('Y-m-d', strtotime('+21 days'));
+        $occupancy = $this->appointmentOccupancyByDate($start, $end);
+        $open = [];
+
+        for ($offset = 1; $offset <= 21 && count($open) < $limit; $offset++) {
+            $date = date('Y-m-d', strtotime('+' . $offset . ' day'));
+            if ((int) date('w', strtotime($date)) === 0) {
+                continue;
+            }
+            if (! $this->isAppointmentDateFullyBooked($date, $occupancy)) {
+                $open[] = $date;
+            }
+        }
+
+        return $open;
+    }
+
+    protected function appointmentBookingHref(?string $role): string
+    {
+        return match ($role) {
+            'resident' => '/resident/concerns',
+            'sk' => '/sk/concerns',
+            'secretary' => '/secretary/concerns',
+            'captain' => '/captain/concerns',
+            'admin' => '/admin/concerns',
+            default => '/login',
+        };
+    }
+
+    /**
+     * @return array{blocked: array<string, true>, intervals: array<string, list<array{0: string, 1: string}>>}
+     */
+    protected function appointmentOccupancyByDate(string $start, string $end): array
+    {
+        $blocked = [];
+        $intervals = [];
+
+        try {
+            $db = \Config\Database::connect();
+
+            foreach (
+                $db->table('schedules')
+                    ->select('event_date, start_time, end_time')
+                    ->where('event_date >=', $start)
+                    ->where('event_date <=', $end)
+                    ->get()
+                    ->getResultArray() as $row
+            ) {
+                $day = substr((string) ($row['event_date'] ?? ''), 0, 10);
+                if ($day === '') {
+                    continue;
+                }
+                if (empty($row['start_time'])) {
+                    $blocked[$day] = true;
+                    continue;
+                }
+                $begin = strtotime($day . ' ' . $row['start_time']);
+                $finish = ! empty($row['end_time'])
+                    ? strtotime($day . ' ' . $row['end_time'])
+                    : $begin + 3600;
+                $intervals[$day][] = [date('H:i', $begin), date('H:i', $finish)];
+            }
+
+            foreach (
+                $db->table('blotter_reports')
+                    ->select('appointment_date, appointment_time, hearing_date, hearing_time')
+                    ->groupStart()
+                    ->where('appointment_date >=', $start)
+                    ->where('appointment_date <=', $end)
+                    ->orGroupStart()
+                    ->where('hearing_date >=', $start)
+                    ->where('hearing_date <=', $end)
+                    ->groupEnd()
+                    ->groupEnd()
+                    ->get()
+                    ->getResultArray() as $row
+            ) {
+                foreach (
+                    [
+                        [(string) ($row['appointment_date'] ?? ''), $row['appointment_time'] ?? null],
+                        [(string) ($row['hearing_date'] ?? ''), $row['hearing_time'] ?? null],
+                    ] as [$rawDay, $time]
+                ) {
+                    $day = substr($rawDay, 0, 10);
+                    if ($day < $start || $day > $end) {
+                        continue;
+                    }
+                    if (empty($time)) {
+                        $blocked[$day] = true;
+                        continue;
+                    }
+                    $begin = strtotime($day . ' ' . $time);
+                    $intervals[$day][] = [date('H:i', $begin), date('H:i', $begin + 3600)];
+                }
+            }
+
+            foreach (
+                $db->table('concern_submissions')
+                    ->select('appointment_date, appointment_time')
+                    ->where('appointment_date >=', $start)
+                    ->where('appointment_date <=', $end)
+                    ->whereIn('status', ['pending', 'approved'])
+                    ->get()
+                    ->getResultArray() as $row
+            ) {
+                $day = substr((string) ($row['appointment_date'] ?? ''), 0, 10);
+                if ($day === '' || empty($row['appointment_time'])) {
+                    continue;
+                }
+                $begin = strtotime($day . ' ' . $row['appointment_time']);
+                $intervals[$day][] = [date('H:i', $begin), date('H:i', $begin + 3600)];
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'Appointment occupancy lookup failed: ' . $e->getMessage());
+        }
+
+        return [
+            'blocked' => $blocked,
+            'intervals' => $intervals,
+        ];
+    }
+
+    /**
+     * @param array{blocked: array<string, true>, intervals: array<string, list<array{0: string, 1: string}>>} $occupancy
+     */
+    protected function isAppointmentDateFullyBooked(string $date, array $occupancy): bool
+    {
+        if (isset($occupancy['blocked'][$date])) {
+            return true;
+        }
+
+        $intervals = $occupancy['intervals'][$date] ?? [];
+        if ($intervals === []) {
+            return false;
+        }
+
+        usort($intervals, static fn(array $left, array $right): int => strcmp($left[0], $right[0]));
+        $coveredUntil = '08:00';
+        foreach ($intervals as [$start, $end]) {
+            if ($end <= $coveredUntil) {
+                continue;
+            }
+            if ($start > $coveredUntil) {
+                return false;
+            }
+            $coveredUntil = max($coveredUntil, $end);
+            if ($coveredUntil >= '17:00') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function buildAppointmentAvailabilityLiveContext(): string
+    {
+        $dates = $this->upcomingAvailableAppointmentDates(10);
+        $lines = [
+            'APPOINTMENT AVAILABILITY is live BIS data. Answer questions about available appointment dates from this block.',
+            'Rules: hourly slots 8:00 AM to 5:00 PM; earliest date is tomorrow; Sundays are closed; a date is available when at least one hourly slot is still open.',
+            'Residents book through Appointment / Concerns in the resident dashboard.',
+        ];
+
+        if ($dates === []) {
+            $lines[] = 'No open appointment dates were found in the next 21 days.';
+        } else {
+            $labels = [];
+            foreach ($dates as $date) {
+                $stamp = strtotime($date);
+                $labels[] = $stamp ? date('l, F j, Y', $stamp) : $date;
+            }
+            $lines[] = 'Next available appointment dates: ' . implode('; ', $labels);
+        }
+
+        return implode("\n", $lines);
+    }
+
     protected function normalizeChatText(string $message): string
     {
         $normalized = mb_strtolower(trim($message));
@@ -3289,6 +3701,17 @@ class ChatbotController extends ResourceController
             'what can you do',
             'what can you help me with',
             'what can you help with',
+            'who am i',
+            'what is my name',
+            'whats my name',
+            "what's my name",
+            'ano ako',
+            'sino ako',
+            'anong pangalan ko',
+            'ano ang pangalan ko',
+            'help po',
+            'tulong',
+            'tulong po',
         ];
 
         return in_array($normalized, $prompts, true);
@@ -3328,6 +3751,22 @@ class ChatbotController extends ResourceController
             'magkwento',
             'tumula',
             'biro',
+            'kwento',
+            'horoscope',
+            'lottery',
+            'lotto',
+            'celebrity',
+            'girlfriend',
+            'boyfriend',
+            'dating',
+            'basketball',
+            'football',
+            'soccer',
+            'nba',
+            'pba',
+            'chatgpt',
+            'openai',
+            'translate this',
             'ignore previous',
             'ignore your instructions',
             'disregard your',
@@ -3403,6 +3842,12 @@ class ChatbotController extends ResourceController
             'opisina',
             'schedule',
             'appointment',
+            'available date',
+            'available dates',
+            'appointment date',
+            'appointment dates',
+            'slot',
+            'booking',
             'event',
             'events',
             'calendar',
@@ -3414,6 +3859,21 @@ class ChatbotController extends ResourceController
             'youth',
             'pwd',
             'newborn',
+            'new born',
+            'new-born',
+            'baby',
+            'infant',
+            'birth',
+            'anak',
+            'family',
+            'family member',
+            'household member',
+            'member',
+            'members',
+            'census update',
+            'update census',
+            'add member',
+            'report',
             'senior',
             'secretary',
             'kalihim',
@@ -3449,7 +3909,63 @@ class ChatbotController extends ResourceController
             'announcement',
             'id upload',
             'valid id',
+            'notification',
+            'notipikasyon',
+            'ticket',
+            'profile',
+            'propayl',
+            'username',
+            'request',
+            'status',
+            'kagawad',
+            'tanod',
+            'support',
+            'chatbot',
+            'assistant',
+            'household no',
+            'household number',
+            'zone',
+            'email',
+            'contact number',
+            'my account',
+            'akong account',
+            'pangalan',
         ];
+    }
+
+    protected function isOnTopicFollowUp(string $message, array $history): bool
+    {
+        if ($history === []) {
+            return false;
+        }
+
+        $normalized = $this->normalizeChatText($message);
+        if ($normalized === '' || $this->isOffTopicIntent($normalized)) {
+            return false;
+        }
+
+        if (mb_strlen($normalized) > 80) {
+            return false;
+        }
+
+        $looksLikeFollowUp = mb_strlen($normalized) <= 24
+            || preg_match(
+                '/^(?:and |what about |how about |how much|when|where|who|which|paano |pano |saka |tsaka |ano naman|pano naman|magkano|saan |kailan |yun ba|iyon ba)/u',
+                $normalized
+            ) === 1;
+
+        if (! $looksLikeFollowUp) {
+            return false;
+        }
+
+        foreach (array_reverse($history) as $item) {
+            $previous = trim((string) ($item['message'] ?? ''));
+            if ($previous !== '' && $this->isWebsiteRelatedQuestion($previous)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected function containsTopicTerm(string $haystack, string $term): bool
@@ -3459,8 +3975,192 @@ class ChatbotController extends ResourceController
         return preg_match($pattern, $haystack) === 1;
     }
 
-    protected function websiteTopicRefusal(): string
+    protected function isVoiceChatRequest(): bool
     {
+        $jsonInput = $this->getJsonInput();
+        $source = strtolower(trim((string) (
+            $this->request->getPost('source')
+            ?? $jsonInput['source']
+            ?? ''
+        )));
+
+        return $source === 'voice';
+    }
+
+    protected function resolveReplyLanguage(string $message): string
+    {
+        if ($this->isVoiceChatRequest()) {
+            return 'english';
+        }
+
+        return $this->detectReplyLanguage($message);
+    }
+
+    protected function detectReplyLanguage(string $message): string
+    {
+        $text = mb_strtolower(trim($message));
+
+        if ($text === '') {
+            return 'english';
+        }
+
+        $normalized = preg_replace('/[^\p{L}\p{N}\s\-]/u', ' ', $text) ?? $text;
+        $normalized = trim((string) preg_replace('/\s+/u', ' ', $normalized));
+        $tokens = preg_split('/\s+/u', $normalized, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        $tagalogWords = array_flip([
+            'ang', 'mga', 'ng', 'sa', 'ay', 'po', 'opo', 'ho',
+            'ako', 'ikaw', 'kayo', 'kami', 'tayo', 'sila',
+            'ko', 'mo', 'namin', 'ninyo', 'nila', 'natin', 'nyo', 'niyo', 'niya',
+            'ano', 'anong', 'alin', 'saan', 'kailan', 'bakit', 'paano', 'pano',
+            'sino', 'ilan', 'ilang', 'pila',
+            'ba', 'naman', 'lang', 'pala', 'kasi', 'kung',
+            'gusto', 'kailangan', 'pwede', 'puwede', 'pwedeng', 'puwedeng', 'maaari',
+            'ito', 'iyan', 'iyon', 'yan', 'yun', 'yung', 'nung', 'doon', 'dito', 'dun',
+            'meron', 'mayroon', 'mayroong', 'wala', 'walang', 'hindi', 'huwag',
+            'salamat', 'kumusta', 'kamusta', 'pasensya', 'pasensiya',
+            'oras', 'opisina', 'tulong', 'dokumento', 'sertipiko',
+            'humingi', 'kumuha', 'magkano', 'sige',
+            'magandang', 'umaga', 'hapon', 'gabi',
+            'nagsasara', 'bukas', 'sarado',
+            'nga', 'daw', 'raw', 'rin',
+            'paki', 'pakiusap', 'pakisagot',
+            'para', 'parang', 'tungkol', 'ukol',
+            'mabuti', 'oo', 'hoy',
+            'pwede ba', 'pano ba',
+            'mag-request', 'magrequest',
+            'paumanhin', 'ngunit', 'lamang', 'tanong', 'mga tanong',
+            'nito', 'serbisyo', 'serbisyong', 'kaugnay', 'makakatulong',
+        ]);
+
+        $englishWords = array_flip([
+            'the', 'is', 'are', 'was', 'were', 'am', 'be', 'been', 'being',
+            'what', 'whats', 'how', 'where', 'when', 'why', 'who', 'which',
+            'can', 'could', 'would', 'should', 'will', 'please',
+            'this', 'that', 'these', 'those',
+            'do', 'does', 'did', 'dont',
+            'i', 'my', 'me', 'we', 'our', 'you', 'your',
+            'a', 'an', 'of', 'for', 'to', 'and', 'or', 'with', 'from', 'on', 'in', 'at',
+            'need', 'want', 'help', 'hello', 'hi', 'hey', 'thanks', 'thank',
+            'request', 'documents', 'document', 'office', 'hours', 'events', 'calendar',
+            'available', 'about', 'tell', 'give', 'show', 'list',
+            'open', 'close', 'closing', 'schedule', 'speak', 'talk',
+        ]);
+
+        $tagalogScore = 0;
+        $englishScore = 0;
+
+        foreach ($tokens as $token) {
+            if (isset($tagalogWords[$token])) {
+                $tagalogScore++;
+            }
+
+            if (isset($englishWords[$token])) {
+                $englishScore++;
+            }
+        }
+
+        if ($tagalogScore > $englishScore) {
+            return 'tagalog';
+        }
+
+        if ($englishScore > $tagalogScore) {
+            return 'english';
+        }
+
+        return $tagalogScore > 0 ? 'tagalog' : 'english';
+    }
+
+    protected function replyLanguagePromptRule(string $language): string
+    {
+        if ($this->isVoiceChatRequest()) {
+            return <<<'PROMPT'
+This is voice chat. Reply entirely in English even if the user spoke Tagalog or Filipino.
+Do not reply in Tagalog. Do not mix Tagalog into the explanation.
+The knowledge, census figures, and barangay facts may be written in English. Keep the spoken answer in English.
+Keep official names, document titles, place names, fees, dates, and numbers unchanged.
+PROMPT;
+        }
+
+        if ($language === 'tagalog') {
+            return <<<'PROMPT'
+Match the user's latest typed message exactly.
+The user's message is Tagalog or Filipino, so the whole reply must be Tagalog.
+The knowledge, census figures, and barangay facts may be written in English. Translate the explanation into Tagalog.
+Keep official names, document titles, place names, fees, dates, and numbers unchanged. You may add a short translation beside an official title.
+Never default to English when the user typed in Tagalog.
+PROMPT;
+        }
+
+        return <<<'PROMPT'
+Match the user's latest typed message exactly.
+If that message is English, the whole reply must be English.
+The knowledge, census figures, and barangay facts may be written in English.
+Keep official names, document titles, place names, fees, dates, and numbers unchanged.
+If the user mixes languages in a typed message, use the language of the question itself.
+PROMPT;
+    }
+
+    protected function languageLockInstruction(string $language): string
+    {
+        if ($language === 'tagalog') {
+            return <<<'PROMPT'
+============================================================
+REPLY LANGUAGE LOCK — TAGALOG
+============================================================
+
+The user's latest message is Tagalog/Filipino.
+
+You MUST write the entire reply in Tagalog. Every sentence must be Tagalog.
+Do not answer in English. Do not mix English explanations with Tagalog.
+Do not add an English version of the answer.
+
+Keep official names, document titles, place names, fees, dates, and numbers in their original form. You may keep those English titles and explain them in Tagalog.
+PROMPT;
+        }
+
+        $voiceNote = $this->isVoiceChatRequest()
+            ? 'This is voice chat. The user may have spoken Tagalog or mixed languages. Still write the entire reply in English.'
+            : 'The user\'s latest message is English.';
+
+        return <<<PROMPT
+============================================================
+REPLY LANGUAGE LOCK — ENGLISH
+============================================================
+
+{$voiceNote}
+
+You MUST write the entire reply in English. Every sentence must be English.
+Do not answer in Tagalog or Filipino. Do not mix Tagalog into the explanation.
+Do not add a Tagalog version of the answer.
+
+Keep official names, document titles, place names, fees, dates, and numbers unchanged.
+PROMPT;
+    }
+
+    protected function eventsCalendarLabel(string $label, bool $tagalog): string
+    {
+        if (! $tagalog) {
+            return $label;
+        }
+
+        return match ($label) {
+            'today' => 'ngayon',
+            'tomorrow' => 'bukas',
+            'this week' => 'ngayong linggo',
+            'this month' => 'ngayong buwan',
+            'the past 30 days' => 'nakaraang 30 araw',
+            'the next 90 days' => 'susunod na 90 araw',
+            default => $label,
+        };
+    }
+
+    protected function websiteTopicRefusal(string $message = ''): string
+    {
+        if ($this->resolveReplyLanguage($message) === 'tagalog') {
+            return 'Maaari ko lang sagutin ang mga tanong tungkol sa Barangay Bacolod Information System at mga serbisyo nito, tulad ng mga dokumento, blotter reports, account, iskedyul, bayarin, at oras ng opisina.';
+        }
+
         return 'I can only answer questions about the Barangay Bacolod Information System and its services, such as documents, blotter reports, accounts, schedules, fees, and office information.';
     }
 
@@ -3522,8 +4222,13 @@ class ChatbotController extends ResourceController
                         $message
                 );
 
-                return
-                    '🕐 <strong>Barangay Hall Office Hours</strong>' .
+                return $this->resolveReplyLanguage($message) === 'tagalog'
+                    ? '🕐 <strong>Oras ng Barangay Hall</strong>' .
+                    '<br><br>' .
+                    'Lunes hanggang Biyernes: <strong>8:00 AM hanggang 5:00 PM</strong>.' .
+                    '<br><br>' .
+                    'Ang BIS online portal ay maaaring magamit 24/7, ngunit ang mga request na kailangan ng tauhan ng barangay ay pinoproseso sa oras ng opisina.'
+                    : '🕐 <strong>Barangay Hall Office Hours</strong>' .
                     '<br><br>' .
                     'Monday to Friday: <strong>8:00 AM to 5:00 PM</strong>.' .
                     '<br><br>' .
@@ -3544,8 +4249,18 @@ class ChatbotController extends ResourceController
 
         if (in_array($m, $greetings, true)) {
 
-            return
-                '👋 Hello! I\'m the <strong>BIS Assistant</strong> ' .
+            return $this->resolveReplyLanguage($message) === 'tagalog'
+                ? '👋 Kumusta! Ako ang <strong>BIS Assistant</strong> ' .
+                'ng Barangay Bacolod, Bato, Camarines Sur.' .
+                '<br><br>' .
+                'Makakatulong ako sa:<br>' .
+                '• 📄 Mga dokumento ng barangay<br>' .
+                '• 📋 Blotter reports<br>' .
+                '• 👤 Account registration at login<br>' .
+                '• 🏘️ Aggregate census information<br>' .
+                '• 📅 Mga iskedyul ng barangay<br><br>' .
+                'Ano ang gusto mong malaman?'
+                : '👋 Hello! I\'m the <strong>BIS Assistant</strong> ' .
                 'for Barangay Bacolod, Bato, Camarines Sur.' .
                 '<br><br>' .
                 'I can help you with:<br>' .
@@ -3567,8 +4282,10 @@ class ChatbotController extends ResourceController
 
         if (in_array($m, $thanks, true)) {
 
-            return
-                '😊 You\'re welcome! If you have another question ' .
+            return $this->resolveReplyLanguage($message) === 'tagalog'
+                ? '😊 Walang anuman! Kung may iba ka pang tanong ' .
+                'tungkol sa Barangay Information System, sige lang, tanong ka lang.'
+                : '😊 You\'re welcome! If you have another question ' .
                 'about the Barangay Information System, feel free to ask.';
         }
 
@@ -3582,8 +4299,12 @@ class ChatbotController extends ResourceController
 
         if (in_array($m, $identity, true)) {
 
-            return
-                '🤖 I\'m the <strong>BIS Assistant</strong>, ' .
+            return $this->resolveReplyLanguage($message) === 'tagalog'
+                ? '🤖 Ako ang <strong>BIS Assistant</strong>, ' .
+                'AI assistant ng Barangay Bacolod, ' .
+                'Bato, Camarines Sur. Tumutulong ako sa mga residente ' .
+                'na maintindihan ang Barangay Information System at ang mga serbisyo nito.'
+                : '🤖 I\'m the <strong>BIS Assistant</strong>, ' .
                 'an AI-powered assistant for Barangay Bacolod, ' .
                 'Bato, Camarines Sur. I help residents understand ' .
                 'the Barangay Information System and its services.';
@@ -4059,13 +4780,27 @@ class ChatbotController extends ResourceController
                     'update household',
                     'change address',
                     'update information',
-                    'change household information'
+                    'change household information',
+                    'newborn',
+                    'new born',
+                    'new born family',
+                    'family member',
+                    'household member',
+                    'add family',
+                    'add member',
+                    'report newborn',
+                    'report new born',
+                    'census update'
                 ],
                 'content' =>
-                'Census and household information is managed by authorized barangay personnel. ' .
-                    'Residents who need to update household information such as address or household members ' .
-                    'should visit the Barangay Hall and request an update. ' .
-                    'A valid identification document may be requested for verification.'
+                'Residents report a newborn or other new family member through the BIS Census Update page. ' .
+                    '1. Log in to the Resident Dashboard. ' .
+                    '2. Open Census Update, or the census update notice on the dashboard if a census update drive is active. ' .
+                    '3. The household head reviews the household form and adds the new family member, such as a newborn. ' .
+                    '4. Click Submit for Approval. ' .
+                    '5. The Barangay Secretary reviews and approves the update. ' .
+                    'A household member who is not the household head can update their own personal details, but household-level changes such as adding a newborn must be submitted by the household head. ' .
+                    'If Census Update is not available yet, the household head should wait for a census update drive or visit the Barangay Hall for help.'
             ],
 
             [
@@ -4122,14 +4857,23 @@ class ChatbotController extends ResourceController
                     'calendar',
                     'schedule',
                     'appointment',
+                    'appointment date',
+                    'available date',
+                    'available dates',
+                    'available appointment',
+                    'open appointment',
                     'add event',
                     'meeting',
                     'schedule management'
                 ],
                 'content' =>
-                'The BIS calendar is used by authorized barangay officials to manage appointments, meetings, ' .
-                    'hearings and events. Blotter hearing dates may appear automatically. ' .
-                    'The Captain and Secretary can manage applicable shared schedules according to their permissions.'
+                'Residents can ask the BIS Assistant for available appointment dates. ' .
+                    'Appointments at the Barangay Hall use hourly slots from 8:00 AM to 5:00 PM. ' .
+                    'The earliest bookable date is tomorrow. Sundays are closed. Saturday remains open unless that date is fully booked. ' .
+                    'A date is available when at least one hourly slot is still open. Fully booked dates are not offered. ' .
+                    'To book, open Appointment / Concerns in the resident dashboard, choose an open date and time, then submit the concern. ' .
+                    'The BIS calendar is also used by authorized barangay officials to manage appointments, meetings, hearings and events. ' .
+                    'Blotter hearing dates may appear automatically. The Captain and Secretary can manage applicable shared schedules according to their permissions.'
             ],
 
             [
@@ -4428,10 +5172,10 @@ class ChatbotController extends ResourceController
     }
 
     // ========================================================================
-    // OPENROUTER
+    // GROQ
     // ========================================================================
 
-    protected function callOpenRouter(
+    protected function callGroq(
         string $userMessage,
         string $ragContext,
         array $conversationHistory = [],
@@ -4455,6 +5199,18 @@ class ChatbotController extends ResourceController
                 );
         }
 
+        $normalizedMessage = $this->normalizeChatText($userMessage);
+        if (
+            $this->isAppointmentAvailabilityQuestion($userMessage)
+            || $this->containsTopicTerm($normalizedMessage, 'appointment')
+            || $this->containsTopicTerm($normalizedMessage, 'concern')
+        ) {
+            $appointmentLive = $this->buildAppointmentAvailabilityLiveContext();
+            $liveContext = $liveCensus !== null
+                ? $liveContext . "\n\n" . $appointmentLive
+                : $appointmentLive;
+        }
+
         $accountContext = $this->buildSignedInAccountContext();
         $barangayContext = $this->buildBarangayFactsContext();
 
@@ -4468,6 +5224,10 @@ class ChatbotController extends ResourceController
                 ' - Full Administrative Access';
         }
 
+        $replyLanguage = $this->resolveReplyLanguage($userMessage);
+        $languageLock = $this->languageLockInstruction($replyLanguage);
+        $languageRule = $this->replyLanguagePromptRule($replyLanguage);
+
         $systemPrompt = <<<PROMPT
 You are the BIS Assistant for Barangay Bacolod, Bato, Camarines Sur, Philippines.
 
@@ -4476,6 +5236,8 @@ You are an AI assistant integrated into the Barangay Information System (BIS).
 CURRENT USER ROLE:
 {$roleDescription}
 
+{$languageLock}
+
 ============================================================
 PRIMARY RULES
 ============================================================
@@ -4483,11 +5245,7 @@ PRIMARY RULES
 1. Help users understand the actual BIS and barangay services.
 
 LANGUAGE:
-Reply in the same language as the user's latest message. This applies to every language, including English, Filipino, Tagalog, Bikol, Bisaya, and any other language the user writes in.
-The knowledge, census figures, and barangay facts may be written in English. Translate the explanation into the user's language.
-Keep official names, document titles, place names, fees, dates, and numbers unchanged. You may add a short translation beside an official title.
-If the user mixes languages, answer in the language they used for the question.
-Do not switch the answer to English unless the user wrote in English.
+{$languageRule}
 
 2. Use the provided BIS knowledge context for procedures and system information.
 
@@ -4519,7 +5277,7 @@ The current user may be a resident.
 
 When the user role is Resident:
 
-- Answer questions about this Barangay Information System, including documents, clearances, blotter reports, appointments, concerns, activities, SK services, notifications, census, and how to use the portal.
+- Answer questions about this Barangay Information System, including documents, clearances, blotter reports, appointments, available appointment dates, concerns, activities, SK services, notifications, census, and how to use the portal.
 - Answer questions about this resident using SIGNED-IN ACCOUNT. That includes who they are, their username, role, status, contact, email, household, and their own requests.
 - If they ask who they are, answer from SIGNED-IN ACCOUNT. Do not say you cannot access their information when that block is present.
 - Aggregate census statistics are allowed.
@@ -4592,7 +5350,7 @@ Important:
 ANSWER STYLE
 ============================================================
 
-- Answer in the user's language, as required by the LANGUAGE rule.
+- Answer in the required reply language from the REPLY LANGUAGE LOCK.
 - Be concise but informative.
 - Use numbered steps only for procedures.
 - For census questions, organize statistics clearly.
@@ -4604,6 +5362,8 @@ ANSWER STYLE
 - Number procedure steps 1, 2, 3 in order. Never label every step as 1.
 - Use the system and the saved database records for names, fees, addresses, contacts, schedules, and activities. If a record is not saved, say so.
 - Give the same facts to every role.
+- Do not use markdown. Do not use asterisks, underscores, hashtags, or code fences.
+- Write fees as "50 pesos" or "PHP 50". Do not use *, ?, or other symbols around amounts.
 
 ============================================================
 BARANGAY FACTS
@@ -4649,7 +5409,8 @@ Philippines
 PROMPT;
 
         if ($this->limitToWebsiteTopics) {
-            $systemPrompt .= <<<'PROMPT'
+            $scopeLock = $replyLanguage === 'tagalog'
+                ? <<<'PROMPT'
 
 
 ============================================================
@@ -4658,10 +5419,24 @@ WEBSITE SCOPE LOCK
 
 This conversation is the assistant for the Barangay Bacolod Information System.
 
-If the user is talking about this system, answer them. That includes documents, accounts, login, this website, appointments, concerns, officials, fees, schedules, census, SK services, and how to use the barangay portal. A statement such as "I have an account on this website" is about this system, so answer it.
+If the user is talking about this system, answer them. That includes documents, accounts, login, this website, appointments, available appointment dates, open schedule slots, concerns, officials, fees, schedules, the BIS calendar, census, SK services, and how to use the barangay portal. A statement such as "I have an account on this website" is about this system, so answer it. A question such as "What is the available date for appointment?" is about this system, so answer it with the live appointment dates when they are provided.
 
-If you judge that the prompt is not about this system, do not answer it. Do not explain, solve, or continue that topic. Reply with only a refusal that you can answer questions about the Barangay Bacolod Information System and its services, such as documents, blotter reports, accounts, schedules, fees, and office information. Write that refusal in the user's language.
+If you judge that the prompt is not about this system, do not answer it. Do not explain, solve, or continue that topic. Reply with only a Tagalog refusal that you can answer questions about the Barangay Bacolod Information System and its services, such as documents, blotter reports, accounts, schedules, appointment dates, fees, and office information.
+PROMPT
+                : <<<'PROMPT'
+
+
+============================================================
+WEBSITE SCOPE LOCK
+============================================================
+
+This conversation is the assistant for the Barangay Bacolod Information System.
+
+If the user is talking about this system, answer them. That includes documents, accounts, login, this website, appointments, available appointment dates, open schedule slots, concerns, officials, fees, schedules, the BIS calendar, census, SK services, and how to use the barangay portal. A statement such as "I have an account on this website" is about this system, so answer it. A question such as "What is the available date for appointment?" is about this system, so answer it with the live appointment dates when they are provided.
+
+If you judge that the prompt is not about this system, do not answer it. Do not explain, solve, or continue that topic. Reply with only an English refusal that you can answer questions about the Barangay Bacolod Information System and its services, such as documents, blotter reports, accounts, schedules, appointment dates, fees, and office information.
 PROMPT;
+            $systemPrompt .= $scopeLock;
         }
 
         $messages = [
@@ -4695,17 +5470,25 @@ PROMPT;
             }
         }
 
+        $languageNudge = $replyLanguage === 'tagalog'
+            ? "\n\nMahalaga: Sagutin nang buo sa Tagalog. Huwag gumamit ng Ingles sa paliwanag. Panatilihin ang opisyal na titulo, pangalan, bayarin, petsa, at numero."
+            : "\n\nImportant: Answer entirely in English. Do not reply in Tagalog. Keep official titles, names, fees, dates, and numbers unchanged.";
+
         $messages[] = [
             'role' => 'user',
-            'content' => $userMessage . "\n\nReply in the same language as the question above."
+            'content' => $userMessage . $languageNudge
         ];
 
         $payload = [
             'model' => $this->aiModel,
             'messages' => $messages,
             'temperature' => 0.2,
-            'max_tokens' => 1200
+            'max_tokens' => 2048
         ];
+
+        if (stripos($this->aiModel, 'gpt-oss') !== false) {
+            $payload['reasoning_effort'] = 'low';
+        }
 
         $jsonPayload = json_encode(
             $payload,
@@ -4717,7 +5500,7 @@ PROMPT;
 
             log_message(
                 'error',
-                'Failed to encode OpenRouter payload.'
+                'Failed to encode Groq payload.'
             );
 
             return null;
@@ -4725,7 +5508,7 @@ PROMPT;
 
         log_message(
             'info',
-            'OpenRouter request: model=' .
+            'Groq request: model=' .
                 $this->aiModel .
                 ', role=' .
                 ($role ?? 'guest') .
@@ -4764,15 +5547,7 @@ PROMPT;
 
                     'Content-Type: application/json',
 
-                    'Accept: application/json',
-
-                    'HTTP-Referer: ' .
-                        rtrim(
-                            (string) base_url(),
-                            '/'
-                        ),
-
-                    'X-Title: Barangay Information System'
+                    'Accept: application/json'
                 ],
 
                 CURLOPT_CONNECTTIMEOUT => 15,
@@ -4799,7 +5574,7 @@ PROMPT;
 
                 log_message(
                     'error',
-                    "OpenRouter cURL error on attempt {$attempt}: " .
+                    "Groq cURL error on attempt {$attempt}: " .
                         $curlError
                 );
 
@@ -4808,7 +5583,7 @@ PROMPT;
 
             log_message(
                 'info',
-                "OpenRouter HTTP {$httpCode} response: " .
+                "Groq HTTP {$httpCode} response: " .
                     mb_substr(
                         $response,
                         0,
@@ -4823,7 +5598,7 @@ PROMPT;
 
                 log_message(
                     'error',
-                    "OpenRouter HTTP error: {$httpCode}"
+                    "Groq HTTP error: {$httpCode}"
                 );
 
                 continue;
@@ -4838,7 +5613,7 @@ PROMPT;
 
                 log_message(
                     'error',
-                    'OpenRouter returned invalid JSON.'
+                    'Groq returned invalid JSON.'
                 );
 
                 continue;
@@ -4848,7 +5623,7 @@ PROMPT;
 
                 log_message(
                     'error',
-                    'OpenRouter API error: ' .
+                    'Groq API error: ' .
                         json_encode(
                             $decoded['error']
                         )
@@ -4865,7 +5640,7 @@ PROMPT;
 
                 log_message(
                     'error',
-                    'OpenRouter response did not contain message content.'
+                    'Groq response did not contain message content.'
                 );
 
                 continue;
@@ -4877,7 +5652,7 @@ PROMPT;
 
                 log_message(
                     'error',
-                    'OpenRouter returned empty content.'
+                    'Groq returned empty content.'
                 );
 
                 continue;
@@ -4899,6 +5674,942 @@ PROMPT;
         }
 
         return null;
+    }
+
+    // ========================================================================
+    // VOICE: WHISPER STT + TTS
+    // ========================================================================
+
+    public function transcribe()
+    {
+        if ($this->getAuthenticatedUserId() === null) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'success' => false,
+                    'response' => 'Please log in to use voice chat.',
+                ]);
+        }
+
+        if ($this->apiKey === '') {
+            return $this->response
+                ->setStatusCode(500)
+                ->setJSON([
+                    'success' => false,
+                    'response' => 'Voice chat is not configured.',
+                ]);
+        }
+
+        $file = $this->request->getFile('audio');
+
+        if ($file === null || ! $file->isValid()) {
+            return $this->response
+                ->setStatusCode(400)
+                ->setJSON([
+                    'success' => false,
+                    'response' => 'Please record a short voice message first.',
+                ]);
+        }
+
+        if ($file->getSize() > 8 * 1024 * 1024) {
+            return $this->response
+                ->setStatusCode(400)
+                ->setJSON([
+                    'success' => false,
+                    'response' => 'That recording is too long. Please keep it under 30 seconds.',
+                ]);
+        }
+
+        $extension = strtolower((string) ($file->getExtension() ?: ''));
+        if ($extension === '') {
+            $clientName = strtolower((string) $file->getClientName());
+            $extension = strtolower((string) pathinfo($clientName, PATHINFO_EXTENSION));
+        }
+        if ($extension === '') {
+            $extension = 'webm';
+        }
+
+        $allowed = ['webm', 'wav', 'mp3', 'mp4', 'm4a', 'ogg', 'mpeg', 'mpga', 'flac'];
+        if (! in_array($extension, $allowed, true)) {
+            return $this->response
+                ->setStatusCode(400)
+                ->setJSON([
+                    'success' => false,
+                    'response' => 'That audio format is not supported.',
+                ]);
+        }
+
+        // Optional recent-conversation context from the client. Whisper uses
+        // the `prompt` field to bias decoding toward on-topic vocabulary, so
+        // feeding it a short slice of the ongoing chat dramatically improves
+        // accuracy on names, documents, and Taglish phrases.
+        $context = (string) ($this->request->getPost('context') ?? '');
+        // Strip control chars and clamp length (Whisper caps prompt at ~224
+        // tokens, so keep combined prompt safely under ~900 chars).
+        $context = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $context) ?? '';
+        $context = trim(preg_replace('/\s+/u', ' ', $context) ?? '');
+        if (mb_strlen($context) > 600) {
+            $context = mb_substr($context, -600);
+        }
+
+        log_message(
+            'info',
+            'Voice upload received: size=' . (int) $file->getSize() . 'B'
+            . ' ext=' . $extension
+            . ' mime=' . ($file->getClientMimeType() ?: '(none)')
+            . ' context_chars=' . mb_strlen($context)
+        );
+
+        $text = $this->transcribeAudioFile(
+            $file->getTempName(),
+            'voice.' . $extension,
+            $file->getClientMimeType() ?: 'audio/' . $extension,
+            $context
+        );
+
+        if ($text === null || $text === '') {
+            return $this->response
+                ->setStatusCode(422)
+                ->setJSON([
+                    'success' => false,
+                    'response' => 'I could not hear a clear question. Please try again.',
+                ]);
+        }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'text' => $text,
+            'model' => $this->voiceModel,
+        ]);
+    }
+
+    public function speak()
+    {
+        if ($this->getAuthenticatedUserId() === null) {
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON([
+                    'success' => false,
+                    'response' => 'Please log in to use voice chat.',
+                ]);
+        }
+
+        if ($this->apiKey === '') {
+            return $this->response
+                ->setStatusCode(500)
+                ->setJSON([
+                    'success' => false,
+                    'response' => 'Voice chat is not configured.',
+                ]);
+        }
+
+        $jsonInput = $this->getJsonInput();
+        $raw = (string) (
+            $this->request->getPost('text')
+            ?? $jsonInput['text']
+            ?? ''
+        );
+
+        $probe = html_entity_decode(strip_tags($raw), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if ($this->detectReplyLanguage($probe) === 'tagalog') {
+            return $this->response
+                ->setStatusCode(422)
+                ->setJSON([
+                    'success' => false,
+                    'fallback' => true,
+                    'language' => 'tagalog',
+                ]);
+        }
+
+        $text = $this->textForSpeech($raw);
+        if ($text === '') {
+            return $this->response
+                ->setStatusCode(400)
+                ->setJSON([
+                    'success' => false,
+                    'response' => 'There is no text to read aloud.',
+                ]);
+        }
+
+        $audio = $this->synthesizeSpeech($text);
+        if ($audio === null || $audio === '') {
+            return $this->response
+                ->setStatusCode(502)
+                ->setJSON([
+                    'success' => false,
+                    'response' => 'I could not generate spoken audio right now.',
+                ]);
+        }
+
+        return $this->response
+            ->setHeader('Content-Type', 'audio/wav')
+            ->setHeader('Cache-Control', 'no-store')
+            ->setBody($audio);
+    }
+
+    protected function transcribeAudioFile(
+        string $path,
+        string $filename,
+        string $mime,
+        string $extraContext = ''
+    ): ?string {
+        if (! is_file($path) || $this->apiKey === '') {
+            return null;
+        }
+
+        // Rich domain vocabulary. Whisper's `prompt` field biases its decoder
+        // toward tokens that look like the prompt text, so we spell out the
+        // specific names, documents, offices, and common Taglish phrases a
+        // resident is likely to say.
+        //
+        // IMPORTANT: Groq's Whisper API enforces a hard limit of 896
+        // characters on the `prompt` field. We stay well under 880 so there
+        // is room for the recent-conversation context without ever hitting
+        // HTTP 400 "prompt length must be 896 characters or fewer". That
+        // 400 error was what caused the "I could not hear a clear question"
+        // response on every call after the first turn.
+        $basePrompt = 'Barangay Information System for Barangay Bacolod, Bato, Camarines Sur. '
+            . 'Documents: barangay clearance, indigency, residency, cedula, community tax, '
+            . 'blotter, business permit, business clearance, barangay ID, first-time job seeker, '
+            . 'OSCA senior citizen. '
+            . 'Officials: captain, kagawad, SK chairman, secretary, treasurer, tanod. '
+            . 'Topics: requirements, fees, release, pickup, follow up, office hours, contact, admin. '
+            . 'Taglish: paano mag-request, kailangan ko po, gusto ko po makipag-usap sa admin, '
+            . 'magkano po, kailan po pwedeng kunin, saan po ang barangay hall.';
+
+        $maxPromptChars = 880; // safe margin under Groq's 896-char limit
+
+        if ($extraContext !== '') {
+            $suffix   = ' Recent: ' . $extraContext;
+            $budget   = $maxPromptChars - mb_strlen($basePrompt);
+            if ($budget > 20) {
+                if (mb_strlen($suffix) > $budget) {
+                    $suffix = mb_substr($suffix, 0, $budget);
+                }
+                $prompt = $basePrompt . $suffix;
+            } else {
+                $prompt = mb_substr($basePrompt, 0, $maxPromptChars);
+            }
+        } else {
+            $prompt = mb_strlen($basePrompt) > $maxPromptChars
+                ? mb_substr($basePrompt, 0, $maxPromptChars)
+                : $basePrompt;
+        }
+
+        $text = $this->callWhisper($path, $filename, $mime, $prompt, 'en');
+
+        if ($text === null || $this->looksGarbled($text)) {
+            log_message('info', 'Whisper EN pass failed or garbled, retrying with language=tl: ' . ($text ?? '(null)'));
+            $tagalogText = $this->callWhisper($path, $filename, $mime, $prompt, 'tl');
+            if ($tagalogText !== null) {
+                $text = $tagalogText;
+            }
+        }
+
+        return $text;
+    }
+
+    protected function callWhisper(
+        string $path,
+        string $filename,
+        string $mime,
+        string $prompt,
+        ?string $language
+    ): ?string {
+        // Defensive final clamp. Groq rejects prompts longer than 896 chars
+        // with HTTP 400 and we would then lose the entire transcription.
+        if (mb_strlen($prompt) > 880) {
+            $prompt = mb_substr($prompt, 0, 880);
+        }
+
+        $fields = [
+            'file' => new \CURLFile($path, $mime, $filename),
+            'model' => $this->voiceModel,
+            // `verbose_json` returns per-segment `no_speech_prob` and
+            // `avg_logprob` so we can drop obvious silence / hallucinations.
+            'response_format' => 'verbose_json',
+            'temperature' => '0',
+            'prompt' => $prompt,
+        ];
+
+        if ($language !== null && $language !== '') {
+            $fields['language'] = $language;
+        }
+
+        $ch = curl_init($this->sttUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $fields,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $this->apiKey,
+                'Accept: application/json',
+            ],
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_TIMEOUT => 60,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($response === false) {
+            log_message('error', 'Groq Whisper cURL error: ' . $curlError);
+            return null;
+        }
+
+        $decoded = json_decode((string) $response, true);
+        if ($httpCode < 200 || $httpCode >= 300) {
+            log_message(
+                'error',
+                'Groq Whisper HTTP ' . $httpCode . ': ' . mb_substr((string) $response, 0, 1000)
+            );
+            return null;
+        }
+
+        if (! is_array($decoded)) {
+            log_message('info', 'Whisper returned non-JSON body: ' . mb_substr((string) $response, 0, 300));
+            return null;
+        }
+
+        $text = trim((string) ($decoded['text'] ?? ''));
+
+        // Diagnostic logging. Lets us see on every call whether Whisper
+        // returned text and how confident it was. Available in
+        // writable/logs/log-YYYY-MM-DD.log.
+        $segments = isset($decoded['segments']) && is_array($decoded['segments'])
+            ? $decoded['segments']
+            : [];
+        $noSpeechMax = 0.0;
+        $logprobSum  = 0.0;
+        $segCount    = 0;
+        foreach ($segments as $seg) {
+            if (! is_array($seg)) {
+                continue;
+            }
+            $segCount++;
+            $noSpeechMax = max($noSpeechMax, (float) ($seg['no_speech_prob'] ?? 0.0));
+            $logprobSum += (float) ($seg['avg_logprob'] ?? 0.0);
+        }
+        $avgLogprob = $segCount > 0 ? $logprobSum / $segCount : 0.0;
+        log_message(
+            'info',
+            'Whisper lang=' . ($language ?? '(auto)')
+            . ' segs=' . $segCount
+            . ' no_speech=' . round($noSpeechMax, 3)
+            . ' avg_logprob=' . round($avgLogprob, 3)
+            . ' text="' . mb_substr($text, 0, 160) . '"'
+        );
+
+        // No confidence-based rejection. If Whisper decoded anything at all
+        // we return it; the chatbot layer can then route it to the normal
+        // chat pipeline. The `looksGarbled` + Tagalog fallback handled by
+        // `transcribeAudioFile` is still in place as a safety net.
+        return $text !== '' ? $text : null;
+    }
+
+    protected function looksGarbled(string $text): bool
+    {
+        $foreign = preg_match_all('/[àâãäåæçèêëìîïðñòôõöøùûüýþÿ]/iu', $text);
+        $words = count(preg_split('/\s+/', $text, -1, PREG_SPLIT_NO_EMPTY));
+        if ($words < 2) {
+            return false;
+        }
+        if ($foreign >= 2 || ($foreign > 0 && $foreign / max($words, 1) >= 0.3)) {
+            return true;
+        }
+        $clean = preg_replace('/[^a-zA-Z\s]/u', '', $text);
+        $cleanWords = preg_split('/\s+/', trim($clean), -1, PREG_SPLIT_NO_EMPTY);
+        if (count($cleanWords) < 2) {
+            return false;
+        }
+        $shortGibberish = 0;
+        foreach ($cleanWords as $word) {
+            if (mb_strlen($word) <= 2 && ! in_array(strtolower($word), ['i', 'a', 'an', 'ok', 'po', 'ko', 'ng', 'sa', 'ay', 'ba', 'no', 'si', 'ka', 'ni', 'mo', 'to', 'na', 'at', 'di', 'pa', 'go', 'do', 'my', 'me', 'we', 'is', 'it', 'in', 'on', 'of', 'or', 'so', 'up', 'am', 'be', 'if', 'by', 'id', 'sk', 'ho'], true)) {
+                $shortGibberish++;
+            }
+        }
+        return $shortGibberish / max(count($cleanWords), 1) >= 0.4;
+    }
+
+    protected function synthesizeSpeech(string $text): ?string
+    {
+        $chunks = $this->splitSpeechChunks($text, 190);
+        if ($chunks === []) {
+            return null;
+        }
+
+        $parts = [];
+        foreach (array_slice($chunks, 0, 12) as $chunk) {
+            $wav = $this->requestSpeechChunk($chunk);
+            if ($wav === null || $wav === '') {
+                return $parts === [] ? null : $this->concatenateWavFiles($parts);
+            }
+            $parts[] = $wav;
+        }
+
+        return count($parts) === 1
+            ? $parts[0]
+            : $this->concatenateWavFiles($parts);
+    }
+
+    protected function requestSpeechChunk(string $text): ?string
+    {
+        $payload = json_encode([
+            'model' => $this->ttsModel,
+            'voice' => $this->ttsVoice,
+            'input' => $text,
+            'response_format' => 'wav',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        if ($payload === false) {
+            return null;
+        }
+
+        $ch = curl_init($this->ttsUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $this->apiKey,
+                'Content-Type: application/json',
+                'Accept: audio/wav, application/json',
+            ],
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_TIMEOUT => 60,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $contentType = (string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($response === false) {
+            log_message('error', 'Groq TTS cURL error: ' . $curlError);
+
+            return null;
+        }
+
+        if ($httpCode < 200 || $httpCode >= 300) {
+            log_message(
+                'error',
+                'Groq TTS HTTP ' . $httpCode . ': ' . mb_substr((string) $response, 0, 1000)
+            );
+
+            return null;
+        }
+
+        if (str_contains(strtolower($contentType), 'application/json')) {
+            log_message('error', 'Groq TTS returned JSON: ' . mb_substr((string) $response, 0, 1000));
+
+            return null;
+        }
+
+        return is_string($response) && $response !== '' ? $response : null;
+    }
+
+    protected function formatAssistantReply(string $text): string
+    {
+        $text = trim(str_replace(["\r\n", "\r"], "\n", $text));
+        if ($text === '') {
+            return $text;
+        }
+
+        $text = preg_replace('/\?(?=\d+(?:\.\d{1,2})?\b)/u', '₱', $text) ?? $text;
+        $text = preg_replace('/\bPHP\s*(?=\d)/iu', '₱', $text) ?? $text;
+        $text = preg_replace('/\*\*(.+?)\*\*/us', '<strong>$1</strong>', $text) ?? $text;
+        $text = preg_replace('/__(.+?)__/us', '<strong>$1</strong>', $text) ?? $text;
+        $text = preg_replace('/^#{1,6}\s+/um', '', $text) ?? $text;
+        $text = str_replace(['```', '`', '~~'], '', $text);
+        $text = preg_replace('/\*+/u', '', $text) ?? $text;
+        $text = preg_replace('/^[-•]\s+/um', '', $text) ?? $text;
+        $text = preg_replace('/\s+-{1,3}\s+/u', ': ', $text) ?? $text;
+
+        if (! str_contains(strtolower($text), '<br')) {
+            $text = nl2br($text, false);
+        }
+
+        return $text;
+    }
+
+    protected function textForSpeech(string $html): string
+    {
+        $text = str_ireplace(
+            ['<br>', '<br/>', '<br />', '</p>', '</li>', '</h1>', '</h2>', '</h3>', '</div>', '</strong>', '</b>'],
+            ', ',
+            $html
+        );
+        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/[*_#`~]+/u', '', $text) ?? $text;
+        $text = preg_replace('/[₱P]\s*(\d+)(?:\.00)?\b/u', '$1 pesos', $text) ?? $text;
+        $text = preg_replace('/\?\s*(\d+)(?:\.00)?\b/u', '$1 pesos', $text) ?? $text;
+        $text = preg_replace('/\bPHP\s*(\d+)(?:\.00)?\b/iu', '$1 pesos', $text) ?? $text;
+        $text = preg_replace('/\b(\d+)(?:\.00)?\s*pesos?\b/iu', '$1 pesos', $text) ?? $text;
+        $text = preg_replace('/^\s*[-•–—]\s+/um', '', $text) ?? $text;
+        $text = preg_replace('/\s+[-–—:]+\s+/u', ', ', $text) ?? $text;
+        $text = str_replace(['|', '/', '\\', '•', '→', '←'], ' ', $text);
+        $language = $this->detectReplyLanguage($text);
+        $text = $this->applyBisLetterSpelling($text);
+        if ($language !== 'tagalog') {
+            $text = $this->applySpeechPronunciation($text);
+            $text = $this->expandMoneyForSpeech($text);
+            $text = $this->expandDatesForSpeech($text);
+            $text = $this->expandClockTimesForSpeech($text);
+            $text = $this->expandYearsForSpeech($text);
+            $text = $this->expandRemainingDigitsForSpeech($text);
+        }
+        $text = $this->expandAddressDotsForSpeech($text);
+        $text = $this->softenSpeechPunctuation($text);
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+
+        return trim($text);
+    }
+
+    protected function expandDatesForSpeech(string $text): string
+    {
+        $weekdays = 'Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday';
+        $months = 'January|February|March|April|May|June|July|August|September|October|November|December';
+        $withYear = '/\b(' . $weekdays . ')[,]?\s+(' . $months . ')\s+(\d{1,2})(?:st|nd|rd|th)?(?:[,]|\s+of)?\s+((?:19|20)\d{2})\b/iu';
+
+        $text = preg_replace('/\b\d{1,2}\.\s+/u', '', $text) ?? $text;
+
+        preg_match_all($withYear, $text, $found, PREG_SET_ORDER);
+        $years = [];
+        foreach ($found as $match) {
+            $years[] = (int) $match[4];
+        }
+        $sameYear = $years !== [] && count(array_unique($years)) === 1;
+        $yearPrefixUsed = false;
+
+        $text = preg_replace_callback(
+            $withYear,
+            function (array $match) use ($sameYear, &$yearPrefixUsed): string {
+                $date = $match[1] . ', ' . $match[2] . ' '
+                    . $this->dayToOrdinalSpokenWords((int) $match[3]);
+                $year = $this->yearToSpokenWords((int) $match[4]);
+                if ($sameYear) {
+                    if (! $yearPrefixUsed) {
+                        $yearPrefixUsed = true;
+                        $date = 'in ' . $year . ', ' . $date;
+                    }
+                } else {
+                    $date .= ', ' . $year;
+                }
+
+                return $date . ',';
+            },
+            $text
+        ) ?? $text;
+
+        $text = preg_replace_callback(
+            '/\b(' . $months . ')\s+(\d{1,2})(?:st|nd|rd|th)?(?:[,]|\s+of)?\s+((?:19|20)\d{2})\b/iu',
+            function (array $match): string {
+                return $match[1] . ' '
+                    . $this->dayToOrdinalSpokenWords((int) $match[2])
+                    . ', ' . $this->yearToSpokenWords((int) $match[3])
+                    . ',';
+            },
+            $text
+        ) ?? $text;
+
+        $text = preg_replace_callback(
+            '/\b(' . $weekdays . ')[,]?\s+(' . $months . ')\s+(\d{1,2})(?:st|nd|rd|th)?\b/iu',
+            function (array $match): string {
+                return $match[1] . ', ' . $match[2] . ' '
+                    . $this->dayToOrdinalSpokenWords((int) $match[3])
+                    . ',';
+            },
+            $text
+        ) ?? $text;
+
+        return $text;
+    }
+
+    protected function softenSpeechPunctuation(string $text): string
+    {
+        $text = str_replace(['•', '·', '●', '▪', '◦', '…', '...'], ' ', $text);
+        $text = preg_replace('/[.!?;:]+/u', ',', $text) ?? $text;
+        $text = preg_replace('/[()\[\]{}"“”\'‘’]/u', ' ', $text) ?? $text;
+        $text = preg_replace('/\s*,(?:\s*,)+/u', ',', $text) ?? $text;
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+
+        return trim($text, " \t\n\r\0\x0B,");
+    }
+
+    protected function expandAddressDotsForSpeech(string $text): string
+    {
+        $text = preg_replace_callback(
+            '/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/iu',
+            fn (array $match): string => $this->speakDotsInAddress($match[0]),
+            $text
+        ) ?? $text;
+
+        $text = preg_replace_callback(
+            '/(?:https?:\/\/|www\.)[^\s,;<>]+/iu',
+            function (array $match): string {
+                $url = preg_replace('#^https?://#i', '', $match[0]) ?? $match[0];
+
+                return $this->speakDotsInAddress((string) $url);
+            },
+            $text
+        ) ?? $text;
+
+        $text = preg_replace_callback(
+            '/\b(?:[a-z0-9-]+\.)+(?:com|org|net|edu|gov|ph|io|co|info|xyz|online|site|html)\b/iu',
+            fn (array $match): string => $this->speakDotsInAddress($match[0]),
+            $text
+        ) ?? $text;
+
+        return $text;
+    }
+
+    protected function speakDotsInAddress(string $token): string
+    {
+        $token = str_ireplace(['http://', 'https://'], '', $token);
+        $token = str_replace(['@', '/', '?', '&', '=', '#', '_'], [' at ', ' ', ' ', ' ', ' ', ' ', ' '], $token);
+        $token = str_replace('.', ' dot ', $token);
+        $token = preg_replace('/\s+/u', ' ', $token) ?? $token;
+
+        return trim($token);
+    }
+
+    protected function expandMoneyForSpeech(string $text): string
+    {
+        return preg_replace_callback(
+            '/\b(\d+)(?:\.\d{1,2})?\s*pesos?\b/iu',
+            function (array $match): string {
+                return $this->integerToSpokenWords((int) $match[1]) . ' pesos';
+            },
+            $text
+        ) ?? $text;
+    }
+
+    protected function expandRemainingDigitsForSpeech(string $text): string
+    {
+        return preg_replace_callback(
+            '/\d+/u',
+            function (array $match): string {
+                $parts = [];
+                foreach (str_split($match[0]) as $digit) {
+                    $parts[] = $this->smallNumberToSpokenWords((int) $digit);
+                }
+
+                return implode(' ', $parts);
+            },
+            $text
+        ) ?? $text;
+    }
+
+    protected function integerToSpokenWords(int $number): string
+    {
+        if ($number < 100) {
+            return $this->smallNumberToSpokenWords($number);
+        }
+
+        if ($number < 1000) {
+            $spoken = $this->smallNumberToSpokenWords(intdiv($number, 100)) . ' hundred';
+            $rest = $number % 100;
+
+            return $rest > 0 ? $spoken . ' ' . $this->smallNumberToSpokenWords($rest) : $spoken;
+        }
+
+        $spoken = $this->integerToSpokenWords(intdiv($number, 1000)) . ' thousand';
+        $rest = $number % 1000;
+
+        return $rest > 0 ? $spoken . ' ' . $this->integerToSpokenWords($rest) : $spoken;
+    }
+
+    protected function expandClockTimesForSpeech(string $text): string
+    {
+        return preg_replace_callback(
+            '/\b(\d{1,2})(?::(\d{2}))?\s*(A\.?\s*M\.?|P\.?\s*M\.?)\b/iu',
+            function (array $match): string {
+                $hour = (int) $match[1];
+                $minute = isset($match[2]) ? (int) $match[2] : 0;
+                $meridiem = stripos($match[3], 'p') !== false ? 'P M' : 'A M';
+                $spoken = $this->smallNumberToSpokenWords($hour === 0 ? 12 : $hour);
+                if ($minute > 0) {
+                    $spoken .= ' ' . ($minute < 10
+                        ? 'oh ' . $this->smallNumberToSpokenWords($minute)
+                        : $this->smallNumberToSpokenWords($minute));
+                }
+
+                return $spoken . ' ' . $meridiem;
+            },
+            $text
+        ) ?? $text;
+    }
+
+    protected function dayToOrdinalSpokenWords(int $day): string
+    {
+        $special = [
+            1 => 'first',
+            2 => 'second',
+            3 => 'third',
+            4 => 'fourth',
+            5 => 'fifth',
+            6 => 'sixth',
+            7 => 'seventh',
+            8 => 'eighth',
+            9 => 'ninth',
+            10 => 'tenth',
+            11 => 'eleventh',
+            12 => 'twelfth',
+            13 => 'thirteenth',
+            14 => 'fourteenth',
+            15 => 'fifteenth',
+            16 => 'sixteenth',
+            17 => 'seventeenth',
+            18 => 'eighteenth',
+            19 => 'nineteenth',
+            20 => 'twentieth',
+            21 => 'twenty first',
+            22 => 'twenty second',
+            23 => 'twenty third',
+            24 => 'twenty fourth',
+            25 => 'twenty fifth',
+            26 => 'twenty sixth',
+            27 => 'twenty seventh',
+            28 => 'twenty eighth',
+            29 => 'twenty ninth',
+            30 => 'thirtieth',
+            31 => 'thirty first',
+        ];
+
+        return $special[$day] ?? (string) $day;
+    }
+
+    protected function expandYearsForSpeech(string $text): string
+    {
+        return preg_replace_callback(
+            '/\b((?:19|20)\d{2})\b/u',
+            function (array $match): string {
+                return $this->yearToSpokenWords((int) $match[1]);
+            },
+            $text
+        ) ?? $text;
+    }
+
+    protected function yearToSpokenWords(int $year): string
+    {
+        if ($year >= 2000 && $year <= 2099) {
+            $rest = $year - 2000;
+            if ($rest < 10) {
+                return 'twenty oh ' . $this->smallNumberToSpokenWords($rest);
+            }
+
+            return 'twenty ' . str_replace(' ', '-', $this->smallNumberToSpokenWords($rest));
+        }
+
+        if ($year >= 1900 && $year <= 1999) {
+            $rest = $year - 1900;
+            if ($rest === 0) {
+                return 'nineteen hundred';
+            }
+
+            return 'nineteen ' . $this->smallNumberToSpokenWords($rest);
+        }
+
+        return (string) $year;
+    }
+
+    protected function smallNumberToSpokenWords(int $number): string
+    {
+        $ones = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+        $teens = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+        $tens = [
+            2 => 'twenty',
+            3 => 'thirty',
+            4 => 'forty',
+            5 => 'fifty',
+            6 => 'sixty',
+            7 => 'seventy',
+            8 => 'eighty',
+            9 => 'ninety',
+        ];
+
+        if ($number < 10) {
+            return $ones[$number];
+        }
+
+        if ($number < 20) {
+            return $teens[$number - 10];
+        }
+
+        $ten = intdiv($number, 10);
+        $one = $number % 10;
+
+        return $one === 0 ? $tens[$ten] : $tens[$ten] . ' ' . $ones[$one];
+    }
+
+    protected function applyBisLetterSpelling(string $text): string
+    {
+        $map = [
+            'b. i. s.' => 'B I S',
+            'b.i.s.' => 'B I S',
+            'bis' => 'B I S',
+        ];
+
+        foreach ($map as $from => $to) {
+            $pattern = '/(?<![\p{L}\p{N}])' . preg_quote($from, '/') . '(?![\p{L}\p{N}])/iu';
+            $text = preg_replace($pattern, $to, $text) ?? $text;
+        }
+
+        return $text;
+    }
+
+    protected function applySpeechPronunciation(string $text): string
+    {
+        $map = [
+            'punong barangay' => 'poonong barangguy',
+            'barangay bacolod' => 'barangguy bah koh LOD',
+            'barangay hall' => 'barangguy hall',
+            'barangay captain' => 'barangguy captain',
+            'barangay secretary' => 'barangguy secretary',
+            'sangguniang kabataan' => 'sanggooneeang kahbahtahahn',
+            'camarines sur' => 'kahmareeness soor',
+            'barangays' => 'barangguys',
+            'barangay' => 'barangguy',
+            'bacolod' => 'bah koh LOD',
+            'camarines' => 'kahmareeness',
+            'kagawad' => 'kahgawad',
+            'kapitan' => 'kahpeetahn',
+            'kalihim' => 'kahleehim',
+            'indigency' => 'indijensee',
+            'sertipiko' => 'sairteepeeko',
+            'dokumento' => 'dokoomentoh',
+            'residente' => 'rehseedenteh',
+            'opisina' => 'opeeseenah',
+            'kalendaryo' => 'kahlendahryo',
+            'aktibidad' => 'akteebeedahd',
+            'bayad' => 'bahyahd',
+            'purok' => 'poorok',
+            'bato' => 'bahtoh',
+        ];
+
+        uksort(
+            $map,
+            static function (string $left, string $right): int {
+                return mb_strlen($right) <=> mb_strlen($left);
+            }
+        );
+
+        foreach ($map as $from => $to) {
+            $pattern = '/(?<![\p{L}\p{N}])' . preg_quote($from, '/') . '(?![\p{L}\p{N}])/iu';
+            $text = preg_replace($pattern, $to, $text) ?? $text;
+        }
+
+        return $text;
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function splitSpeechChunks(string $text, int $maxChars = 190): array
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return [];
+        }
+
+        $chunks = [];
+        while (mb_strlen($text) > $maxChars) {
+            $slice = mb_substr($text, 0, $maxChars);
+            $breakAt = 0;
+            foreach (['. ', '? ', '! ', '; ', ', ', ' '] as $mark) {
+                $pos = mb_strrpos($slice, $mark);
+                if ($pos !== false && $pos >= 40) {
+                    $breakAt = $pos + mb_strlen($mark);
+                    break;
+                }
+            }
+            if ($breakAt < 40) {
+                $breakAt = $maxChars;
+            }
+
+            $chunk = trim(mb_substr($text, 0, $breakAt));
+            if ($chunk !== '') {
+                $chunks[] = $chunk;
+            }
+            $text = trim(mb_substr($text, $breakAt));
+        }
+
+        if ($text !== '') {
+            $chunks[] = $text;
+        }
+
+        return $chunks;
+    }
+
+    /**
+     * @param list<string> $parts
+     */
+    protected function concatenateWavFiles(array $parts): string
+    {
+        if ($parts === []) {
+            return '';
+        }
+
+        if (count($parts) === 1) {
+            return $parts[0];
+        }
+
+        $data = '';
+        $header = substr($parts[0], 0, 44);
+        if (strlen($header) < 44 || substr($header, 0, 4) !== 'RIFF') {
+            return $parts[0];
+        }
+
+        $silence = $this->wavSilencePadding($parts[0], 0.03);
+
+        foreach ($parts as $index => $part) {
+            if (strlen($part) <= 44 || substr($part, 0, 4) !== 'RIFF') {
+                continue;
+            }
+            if ($index > 0 && $silence !== '') {
+                $data .= $silence;
+            }
+            $data .= substr($part, 44);
+        }
+
+        if ($data === '') {
+            return $parts[0];
+        }
+
+        $header = substr_replace($header, pack('V', 36 + strlen($data)), 4, 4);
+        $header = substr_replace($header, pack('V', strlen($data)), 40, 4);
+
+        return $header . $data;
+    }
+
+    protected function wavSilencePadding(string $referenceWav, float $seconds): string
+    {
+        if (strlen($referenceWav) < 44 || $seconds <= 0) {
+            return '';
+        }
+
+        $channels = unpack('v', substr($referenceWav, 22, 2));
+        $rate = unpack('V', substr($referenceWav, 24, 4));
+        $bits = unpack('v', substr($referenceWav, 34, 2));
+        $channelCount = (int) ($channels[1] ?? 1);
+        $sampleRate = (int) ($rate[1] ?? 24000);
+        $bitDepth = (int) ($bits[1] ?? 16);
+
+        if ($channelCount < 1 || $sampleRate < 8000 || $bitDepth < 8) {
+            return '';
+        }
+
+        $bytesPerFrame = (int) max(1, $channelCount * ($bitDepth / 8));
+        $frames = (int) round($sampleRate * $seconds);
+
+        return str_repeat("\x00", $frames * $bytesPerFrame);
     }
 
     // ========================================================================
@@ -5393,11 +7104,42 @@ PROMPT;
         );
     }
 
+    protected function tagalogVoiceUnsupportedNotice(): string
+    {
+        return 'Tagalog voice is not supported. ';
+    }
+
+    protected function withTagalogVoiceNotice(string $userMessage, string $response): string
+    {
+        $response = trim($response);
+        if ($response === '' || ! $this->isVoiceChatRequest()) {
+            return $response;
+        }
+
+        if ($this->detectReplyLanguage($userMessage) !== 'tagalog') {
+            return $response;
+        }
+
+        $notice = $this->tagalogVoiceUnsupportedNotice();
+        $plain = trim((string) preg_replace(
+            '/\s+/u',
+            ' ',
+            html_entity_decode(strip_tags($response), ENT_QUOTES | ENT_HTML5, 'UTF-8')
+        ));
+        $noticePlain = trim(strip_tags($notice));
+        if ($noticePlain !== '' && stripos($plain, $noticePlain) === 0) {
+            return $response;
+        }
+
+        return $notice . $response;
+    }
+
     protected function saveConversationExchange(
         int $conversationId,
         string $userMessage,
         string $assistantResponse
-    ): void {
+    ): string {
+        $assistantResponse = $this->withTagalogVoiceNotice($userMessage, $assistantResponse);
 
         if ($conversationId <= 0) {
 
@@ -5406,7 +7148,7 @@ PROMPT;
                 'Guest chatbot conversation was not persisted.'
             );
 
-            return;
+            return $assistantResponse;
         }
 
         try {
@@ -5427,7 +7169,7 @@ PROMPT;
                         $conversationId
                 );
 
-                return;
+                return $assistantResponse;
             }
 
             $titleNow = trim((string) ($conversation['title'] ?? ''));
@@ -5468,7 +7210,7 @@ PROMPT;
                         $conversationId
                 );
 
-                return;
+                return $assistantResponse;
             }
 
             $assistantMessageId =
@@ -5500,7 +7242,7 @@ PROMPT;
                         $conversationId
                 );
 
-                return;
+                return $assistantResponse;
             }
 
             $db =
@@ -5542,6 +7284,8 @@ PROMPT;
                     $conversationId
             );
         }
+
+        return $assistantResponse;
     }
 
     // ========================================================================
@@ -5550,7 +7294,7 @@ PROMPT;
 
     /**
      * Determine whether a resident is asking to speak with a human staff member.
-     * This intentionally runs locally and does not consume an OpenRouter call.
+     * This intentionally runs locally and does not consume a Groq call.
      */
     protected function isHumanSupportRequest(string $message): bool
     {
@@ -5793,6 +7537,8 @@ PROMPT;
         $reply = 'To speak with the ' . $label . ', submit a support ticket. Add a title and describe your concern. '
             . 'After the ' . $label . ' approves it, this chat will open a live conversation with that office.<br>'
             . '<a class="gpt-ticket-link" href="/resident/support-ticket?to=' . $deskRole . '">Submit a ticket to the ' . $label . '</a>';
+
+        $reply = $this->withTagalogVoiceNotice($message, $reply);
 
         $this->saveSupportMessage($conversationId, 'user', $message, $userId);
         $this->saveSupportMessage($conversationId, 'assistant', $reply, null);
@@ -7256,10 +9002,23 @@ PROMPT;
         array $documents
     ): string {
 
+        $tagalog = $this->resolveReplyLanguage($message) === 'tagalog';
+
         if (empty($documents)) {
 
-            return
-                '🤔 I\'m not sure how to answer that based on the available BIS information.' .
+            return $tagalog
+                ? '🤔 Hindi ko masagot iyan batay sa available na BIS information.' .
+                '<br><br>' .
+                'Subukan magtanong tungkol sa:<br>' .
+                '• Barangay Clearance<br>' .
+                '• Certificate of Residency<br>' .
+                '• Certificate of Indigency<br>' .
+                '• Good Moral Certificate<br>' .
+                '• First Time Job Seeker Certificate<br>' .
+                '• Blotter Reports<br>' .
+                '• Census Records<br>' .
+                '• Account Registration'
+                : '🤔 I\'m not sure how to answer that based on the available BIS information.' .
                 '<br><br>' .
                 'Please try asking about:<br>' .
                 '• Barangay Clearance<br>' .
@@ -7285,6 +9044,8 @@ PROMPT;
                 )
             ) .
             '<br><br>' .
-            'For information not covered here, please confirm with the Barangay Hall.';
+            ($tagalog
+                ? 'Kung may kailangan pang detalye na wala rito, kumpirmahin ito sa Barangay Hall.'
+                : 'For information not covered here, please confirm with the Barangay Hall.');
     }
 }

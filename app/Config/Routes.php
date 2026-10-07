@@ -643,6 +643,8 @@ $routes->group('/resident', ['filter' => ['auth', 'role:resident']], function ($
     $routes->post('support-ticket',               'SupportTicketController::store');
     $routes->get('support-ticket/live',           'SupportTicketController::live');
     $routes->post('chatbot/api/chat',           'ChatbotController::chat');
+    $routes->post('chatbot/api/transcribe',     'ChatbotController::transcribe');
+    $routes->post('chatbot/api/speak',          'ChatbotController::speak');
     $routes->post('chatbot/api/conversation',   'ChatbotController::newConversation');
     $routes->get('chatbot/api/history',         'ChatbotController::getHistory');
     $routes->get('chatbot/api/conversation/(:num)', 'ChatbotController::getConversation/$1');
@@ -753,6 +755,5 @@ $routes->group('/sk', ['filter' => ['auth', 'role:sk']], function ($routes) use 
     $routes->post('notifications/dismiss-feed', 'NotificationController::dismissFeed');
 
     $routes->get('test-env', 'TestEnv::index');
-    $routes->get('test-openrouter', 'ChatbotController::testOpenRouter');
     $routes->get('test-email', 'EmailTestController::index');
 });

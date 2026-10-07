@@ -525,104 +525,6 @@
             }
         }
 
-        gap: 8px;
-        padding: 8px 14px;
-        border: 1.5px solid #e2e5ef;
-        border-radius: 100px;
-        cursor: pointer;
-        font-size: 12.5px;
-        font-weight: 500;
-        color: #4a5068;
-        background: #fff;
-        transition: all .2s;
-        font-family: 'Poppins',
-        sans-serif;
-        }
-
-        .clr-member-pill:hover {
-            border-color: #1d2448;
-            color: #1d2448;
-            background: #f0f2ff;
-        }
-
-        .clr-member-pill.selected {
-            border-color: #1d2448;
-            background: #1d2448;
-            color: #fff;
-        }
-
-        .clr-member-pill input[type="radio"] {
-            display: none;
-        }
-
-        .clr-member-avatar {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            font-weight: 700;
-        }
-
-        .clr-member-pill:not(.selected) .clr-member-avatar {
-            background: #eef0fb;
-            color: #1d2448;
-        }
-
-        /* Doc type cards */
-        .clr-doc-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-        }
-
-        .clr-doc-card {
-            border: 1.5px solid #e2e5ef;
-            border-radius: 10px;
-            padding: 12px 10px;
-            text-align: center;
-            cursor: pointer;
-            transition: all .2s;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        .clr-doc-card:hover {
-            border-color: #1d2448;
-            background: #f0f2ff;
-        }
-
-        .clr-doc-card.selected {
-            border-color: #1d2448;
-            background: #1d2448;
-            color: #fff;
-        }
-
-        .clr-doc-card input[type="radio"] {
-            display: none;
-        }
-
-        .clr-doc-card i {
-            font-size: 20px;
-            display: block;
-            margin-bottom: 6px;
-        }
-
-        .clr-doc-card span {
-            font-size: 11px;
-            font-weight: 600;
-            line-height: 1.3;
-            display: block;
-        }
-
-        .clr-doc-card .clr-doc-fee {
-            font-size: 10px;
-            margin-top: 3px;
-            opacity: .7;
-        }
-
         /* Match the compact horizontal document cards used by official requests. */
         .clr-doc-grid {
             grid-template-columns: repeat(2, 1fr);
@@ -696,79 +598,6 @@
             margin: 0;
             font-size: 9px;
         }
-
-        /* Submit btn */
-        .clr-submit-btn {
-            width: 100%;
-            padding: 12px;
-            background: linear-gradient(135deg, #1d2448, #2e3a6e);
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            font-family: 'Poppins', sans-serif;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: opacity .2s, transform .15s;
-        }
-
-        .clr-submit-btn:hover {
-            opacity: .92;
-            transform: translateY(-1px);
-        }
-
-        /* Status badges */
-        .clr-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 11.5px;
-            font-weight: 600;
-            padding: 3px 10px;
-            border-radius: 100px;
-        }
-
-        .clr-badge--pending {
-            background: #fff8f0;
-            color: #b7600a;
-            border: 1px solid #fde8c8;
-        }
-
-        .clr-badge--approved {
-            background: #f0faf6;
-            color: #1a7a55;
-            border: 1px solid #c3e8d8;
-        }
-
-        .clr-badge--rejected {
-            background: #fff0f1;
-            color: #c0392b;
-            border: 1px solid #fad4d4;
-        }
-
-        .clr-badge--released {
-            background: #eef0fb;
-            color: #1d2448;
-            border: 1px solid #d0d8f5;
-        }
-
-        /* No household warning */
-        .clr-no-hh {
-            background: #fff8f0;
-            border: 1px solid #fde8c8;
-            border-radius: 10px;
-            padding: 14px 16px;
-            font-size: 13px;
-            color: #b7600a;
-            display: flex;
-            gap: 10px;
-            align-items: flex-start;
-            margin-bottom: 20px;
-        }
     </style>
 </head>
 
@@ -793,22 +622,22 @@
     <div class="db-main">
         <?php include(APPPATH . 'Views/dashboard/topbar.php'); ?>
 
-        <?php if ($flashMessage): ?>
-            <div id="clearanceFlash" class="db-alert <?= $flashClass ?> clr-flash-alert" role="status">
-                <i class="fas <?= $flashSuccess ? 'fa-check-circle' : 'fa-exclamation-circle' ?>"></i>
-                <?= esc($flashMessage) ?>
-            </div>
-        <?php endif; ?>
-
-        <!-- Welcome -->
-        <div class="db-welcome">
-            <div>
-                <h2>Hello, <?= esc(session()->get('full_name') ?? session()->get('username') ?? 'Resident') ?> 👋</h2>
-                <p>Barangay Bacolod, Bato, Camarines Sur — Barangay Information System</p>
-            </div>
-            <div class="db-welcome-icon"><i class="fas fa-users"></i></div>
-        </div>
         <div class="db-content">
+
+            <?php if ($flashMessage): ?>
+                <div id="clearanceFlash" class="db-alert <?= $flashClass ?> clr-flash-alert" role="status">
+                    <i class="fas <?= $flashSuccess ? 'fa-check-circle' : 'fa-exclamation-circle' ?>"></i>
+                    <?= esc($flashMessage) ?>
+                </div>
+            <?php endif; ?>
+
+            <div class="db-welcome">
+                <div>
+                    <h2>Hello, <?= esc(session()->get('full_name') ?? session()->get('username') ?? 'Resident') ?> 👋</h2>
+                    <p>Barangay Bacolod, Bato, Camarines Sur — Barangay Information System</p>
+                </div>
+                <div class="db-welcome-icon"><i class="fas fa-users"></i></div>
+            </div>
 
             <?php if (empty($members)): ?>
                 <div class="clr-no-hh">

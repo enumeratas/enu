@@ -18,6 +18,13 @@
             height: 100vh;
             min-height: 0;
             overflow: hidden;
+            padding-top: 72px;
+        }
+
+        @media (max-width: 900px) {
+            body.db-body:has(.resident-chat-page) .db-main {
+                padding-top: 118px;
+            }
         }
 
         .resident-chat-page {
@@ -561,7 +568,8 @@
         }
 
         .resident-assistant .gpt-new,
-        .resident-assistant .gpt-send {
+        .resident-assistant .gpt-send,
+        .resident-assistant .gpt-mic {
             border: 0;
             font-family: inherit;
             cursor: pointer;
@@ -599,9 +607,39 @@
             flex: 0 0 auto;
         }
 
-        .resident-assistant .gpt-send:disabled {
+        .resident-assistant .gpt-send:disabled,
+        .resident-assistant .gpt-mic:disabled {
             opacity: .4;
             cursor: default;
+        }
+
+        .resident-assistant .gpt-mic {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #eef2f7;
+            color: #16325c;
+            flex: 0 0 auto;
+        }
+
+        .resident-assistant .gpt-mic:hover:not(:disabled) {
+            background: #e3e9f2;
+        }
+
+        .resident-assistant .gpt-mic.is-recording {
+            background: #c62828;
+            color: #fff;
+            animation: residentMicPulse 1.1s ease-in-out infinite;
+        }
+
+        .resident-assistant .gpt-mic.is-busy {
+            background: #16325c;
+            color: #fff;
+        }
+
+        @keyframes residentMicPulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(198, 40, 40, .35); }
+            50% { transform: scale(1.04); box-shadow: 0 0 0 8px rgba(198, 40, 40, 0); }
         }
 
         .resident-assistant .gpt-note {
@@ -723,6 +761,7 @@
                         <h1>How can I help you?</h1>
                         <div class="gpt-chips">
                             <button class="gpt-chip" type="button">What documents can I request?</button>
+                            <button class="gpt-chip" type="button">What is the available date for appointment?</button>
                             <button class="gpt-chip" type="button">What events are on the calendar?</button>
                             <button class="gpt-chip" type="button">How do I send a concern?</button>
                             <button class="gpt-chip" type="button">What are the office hours?</button>
@@ -739,6 +778,9 @@
                             <i class="fas fa-plus"></i> <span>New chat</span>
                         </button>
                         <textarea id="gptInput" rows="1" placeholder="Message BIS Assistant"></textarea>
+                        <button class="gpt-mic" id="gptMic" type="button" aria-label="Start voice message" title="Speak to BIS Assistant">
+                            <i class="fas fa-microphone"></i>
+                        </button>
                         <button class="gpt-send" id="gptSend" type="submit" aria-label="Send" disabled>
                             <i class="fas fa-arrow-up"></i>
                         </button>
@@ -752,12 +794,15 @@
 
     <script>
         const chatEndpoint = '/resident/chatbot/api/chat';
+        const transcribeEndpoint = '/resident/chatbot/api/transcribe';
+        const speakEndpoint = '/resident/chatbot/api/speak';
         const thread = document.getElementById('gptThread');
         const empty = document.getElementById('gptEmpty');
         const list = document.getElementById('gptList');
         const side = document.getElementById('gptSide');
         const input = document.getElementById('gptInput');
         const sendBtn = document.getElementById('gptSend');
+        const micBtn = document.getElementById('gptMic');
         const form = document.getElementById('gptForm');
         const savedChatKey = 'bisResidentChatId';
         const liveBanner = document.getElementById('gptLive');
@@ -772,6 +817,70 @@
         let liveConversationId = 0;
         let liveLabel = '';
         let lastLiveMessageId = 0;
+        let mediaRecorder = null;
+        let mediaStream = null;
+        let recordedChunks = [];
+        let recordingTimer = null;
+        let voiceAudio = null;
+        let speechQueue = [];
+        let speechPauseTimer = null;
+        let micArming = false;
+        // Voice-activity detection state. Auto-stops the recorder shortly
+        // after the user stops talking so Whisper sees clean, trimmed audio.
+        let vadAudioCtx = null;
+        let vadAnalyser = null;
+        let vadSource = null;
+        let vadBuffer = null;
+        let vadRafId = null;
+        let vadStartedAt = 0;
+        let vadLastSpeechAt = 0;
+        let vadPeakLevel = 0;
+        let vadNoiseFloor = 0;        // adaptive ambient noise RMS, learned during warmup
+        let vadDynThreshold = 0;      // absolute RMS a frame must beat to count as speech
+        let vadHeardSpeech = false;
+        let vadAutoStopped = false;
+        // Absolute floor so we never go below "actual silence". The DYNAMIC
+        // threshold used at runtime is `max(VAD_MIN_THRESHOLD, noiseFloor * N)`
+        // so that in a noisy room (fan, aircon, TV) we auto-raise the bar and
+        // ignore the background, while in a quiet room we stay very sensitive.
+        const VAD_MIN_THRESHOLD = 0.010;
+        const VAD_NOISE_MULTIPLIER = 2.8;          // speech must be ~3x louder than ambient
+        const VAD_SILENCE_MS = 1600;               // auto-stop after this much trailing silence
+        const VAD_MIN_UTTERANCE_MS = 400;          // require at least this much speech first
+        const VAD_WARMUP_MS = 400;                 // ambient calibration window
+        const VAD_MAX_RECORD_MS = 45000;           // absolute hard cap
+        const micChimeUrl = '/sounds/' + encodeURIComponent('Voicy_   iOS 16 Siri Sound .mp3');
+        const micChime = new Audio(micChimeUrl);
+        micChime.preload = 'auto';
+        micChime.volume = 0.45;
+        const defaultPlaceholder = 'Message BIS Assistant';
+
+        function playMicChime() {
+            return new Promise(function (resolve) {
+                let settled = false;
+                const finish = function () {
+                    if (settled) return;
+                    settled = true;
+                    micChime.removeEventListener('ended', finish);
+                    micChime.removeEventListener('error', finish);
+                    resolve();
+                };
+                try {
+                    micChime.pause();
+                    micChime.currentTime = 0;
+                    micChime.addEventListener('ended', finish);
+                    micChime.addEventListener('error', finish);
+                    const play = micChime.play();
+                    if (play && typeof play.catch === 'function') {
+                        play.catch(function () { finish(); });
+                    }
+                    setTimeout(finish, 700);
+                } catch (error) {
+                    finish();
+                }
+            });
+        }
+
 
         function rememberChat(id) {
             if (id) {
@@ -887,7 +996,7 @@
             liveNotice.hidden = true;
             liveConversationId = 0;
             liveLabel = '';
-            input.placeholder = 'Message BIS Assistant';
+            input.placeholder = defaultPlaceholder;
         }
 
         async function openLiveConversation(data) {
@@ -1029,10 +1138,13 @@
             input.focus();
         }
 
-        async function sendMessage(text) {
+        async function sendMessage(text, options) {
             const message = text.trim();
+            const shouldSpeak = !!(options && options.speak);
             if (message === '' || sending) return;
             sending = true;
+            stopSpeech();
+            setMicIdle();
             resizeInput();
             input.value = '';
             resizeInput();
@@ -1042,6 +1154,9 @@
                 const body = new URLSearchParams();
                 body.append('message', message);
                 body.append('conversation_id', conversationId ? String(conversationId) : '');
+                if (shouldSpeak) {
+                    body.append('source', 'voice');
+                }
                 const response = await fetch(chatEndpoint, {
                     method: 'POST',
                     credentials: 'same-origin',
@@ -1061,10 +1176,14 @@
                 if (data && data.support_mode === 'human' && !data.response) {
                     await checkLiveDesk();
                 } else {
-                    addMessage(
-                        (data && data.response) ? data.response : 'Sorry, I could not answer that. Please try again.',
-                        false
-                    );
+                    let reply = (data && data.response) ? data.response : 'Sorry, I could not answer that. Please try again.';
+                    if (shouldSpeak) {
+                        reply = withTagalogVoiceNotice(message, reply);
+                    }
+                    addMessage(reply, false);
+                    if (shouldSpeak && data && data.response) {
+                        speakReply(reply);
+                    }
                 }
                 loadHistory(false);
             } catch (error) {
@@ -1072,7 +1191,7 @@
                 addMessage('Sorry, I could not connect to the BIS service. Please try again.', false);
             } finally {
                 sending = false;
-                resizeInput();
+                setMicIdle();
                 input.focus();
             }
         }
@@ -1151,6 +1270,852 @@
             event.preventDefault();
             sendMessage(input.value);
         });
+
+        function replaceSpeechPhrases(text, map) {
+            map.slice().sort(function (a, b) { return b[0].length - a[0].length; }).forEach(function (pair) {
+                const pattern = new RegExp('(?<![A-Za-z0-9])' + pair[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![A-Za-z0-9])', 'gi');
+                text = text.replace(pattern, pair[1]);
+            });
+            return text;
+        }
+
+        function applyBisLetterSpelling(text) {
+            return replaceSpeechPhrases(text, [
+                ['b. i. s.', 'B I S'],
+                ['b.i.s.', 'B I S'],
+                ['bis', 'B I S']
+            ]);
+        }
+
+        function applySpeechPronunciation(text) {
+            return replaceSpeechPhrases(text, [
+                ['punong barangay', 'poonong barangguy'],
+                ['barangay bacolod', 'barangguy bahhkoahlod'],
+                ['barangay hall', 'barangguy hall'],
+                ['barangay captain', 'barangguy captain'],
+                ['barangay secretary', 'barangguy secretary'],
+                ['sangguniang kabataan', 'sanggooneeang kahbahtahahn'],
+                ['camarines sur', 'kahmareeness soor'],
+                ['barangays', 'barangguys'],
+                ['barangay', 'barangguy'],
+                ['bacolod', 'bahhkoahlod'],
+                ['camarines', 'kahmareeness'],
+                ['kagawad', 'kahgawad'],
+                ['kapitan', 'kahpeetahn'],
+                ['kalihim', 'kahleehim'],
+                ['indigency', 'indijensee'],
+                ['sertipiko', 'sairteepeeko'],
+                ['dokumento', 'dokoomentoh'],
+                ['residente', 'rehseedenteh'],
+                ['opisina', 'opeeseenah'],
+                ['kalendaryo', 'kahlendahryo'],
+                ['aktibidad', 'akteebeedahd'],
+                ['bayad', 'bahyahd'],
+                ['purok', 'poorok'],
+                ['bato', 'bahtoh']
+            ]);
+        }
+
+        function withTagalogVoiceNotice(userText, reply) {
+            if (detectSpeechLanguage(userText) !== 'tagalog') return reply;
+            const notice = 'Tagalog voice is not supported.';
+            const plain = String(reply || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+            if (plain.toLowerCase().indexOf(notice.toLowerCase()) === 0) return reply;
+            return notice + ' ' + reply;
+        }
+
+        function detectSpeechLanguage(text) {
+            const tokens = String(text).toLowerCase().replace(/[^a-z0-9ñáéíóúàèìòù\s\-]/gi, ' ').split(/\s+/).filter(Boolean);
+            const tagalogWords = {
+                ang: 1, mga: 1, ng: 1, sa: 1, ay: 1, po: 1, opo: 1, ho: 1,
+                ako: 1, ikaw: 1, kayo: 1, kami: 1, tayo: 1, sila: 1,
+                ko: 1, mo: 1, namin: 1, ninyo: 1, nila: 1, natin: 1, nyo: 1, niyo: 1, niya: 1,
+                ano: 1, anong: 1, alin: 1, saan: 1, kailan: 1, bakit: 1, paano: 1, pano: 1,
+                sino: 1, ilan: 1, ilang: 1, pila: 1,
+                ba: 1, naman: 1, lang: 1, pala: 1, kasi: 1, kung: 1,
+                gusto: 1, kailangan: 1, pwede: 1, puwede: 1, pwedeng: 1, puwedeng: 1, maaari: 1,
+                ito: 1, iyan: 1, iyon: 1, yan: 1, yun: 1, yung: 1, nung: 1, doon: 1, dito: 1, dun: 1,
+                meron: 1, mayroon: 1, mayroong: 1, wala: 1, walang: 1, hindi: 1, huwag: 1,
+                salamat: 1, kumusta: 1, kamusta: 1, pasensya: 1, pasensiya: 1, paumanhin: 1,
+                oras: 1, opisina: 1, tulong: 1, dokumento: 1, sertipiko: 1,
+                humingi: 1, kumuha: 1, magkano: 1, sige: 1,
+                magandang: 1, umaga: 1, hapon: 1, gabi: 1,
+                nagsasara: 1, bukas: 1, sarado: 1,
+                nga: 1, daw: 1, raw: 1, rin: 1,
+                paki: 1, pakiusap: 1, pakisagot: 1,
+                para: 1, parang: 1, tungkol: 1, ukol: 1,
+                mabuti: 1, oo: 1, hoy: 1,
+                ngunit: 1, lamang: 1, tanong: 1, nito: 1,
+                serbisyo: 1, serbisyong: 1, kaugnay: 1, makakatulong: 1
+            };
+            const englishWords = {
+                the: 1, is: 1, are: 1, was: 1, were: 1, am: 1, be: 1, been: 1, being: 1,
+                what: 1, whats: 1, how: 1, where: 1, when: 1, why: 1, who: 1, which: 1,
+                can: 1, could: 1, would: 1, should: 1, will: 1, please: 1,
+                this: 1, that: 1, these: 1, those: 1,
+                do: 1, does: 1, did: 1, dont: 1,
+                i: 1, my: 1, me: 1, we: 1, our: 1, you: 1, your: 1,
+                a: 1, an: 1, of: 1, for: 1, to: 1, and: 1, or: 1, with: 1, from: 1, on: 1, in: 1, at: 1,
+                need: 1, want: 1, help: 1, hello: 1, hi: 1, hey: 1, thanks: 1, thank: 1,
+                request: 1, documents: 1, document: 1, office: 1, hours: 1, events: 1, calendar: 1,
+                available: 1, about: 1, tell: 1, give: 1, show: 1, list: 1,
+                open: 1, close: 1, closing: 1, schedule: 1, speak: 1, talk: 1
+            };
+            let tagalogScore = 0;
+            let englishScore = 0;
+            tokens.forEach(function (token) {
+                if (tagalogWords[token]) tagalogScore += 1;
+                if (englishWords[token]) englishScore += 1;
+            });
+            if (tagalogScore > englishScore) return 'tagalog';
+            if (englishScore > tagalogScore) return 'english';
+            return tagalogScore > 0 ? 'tagalog' : 'english';
+        }
+
+        function yearToSpokenWords(year) {
+            if (year >= 2000 && year <= 2099) {
+                const rest = year - 2000;
+                if (rest < 10) return 'twenty oh ' + smallNumberToSpokenWords(rest);
+                return 'twenty ' + smallNumberToSpokenWords(rest).replace(/ /g, '-');
+            }
+            if (year >= 1900 && year <= 1999) {
+                const rest = year - 1900;
+                if (rest === 0) return 'nineteen hundred';
+                return 'nineteen ' + smallNumberToSpokenWords(rest);
+            }
+            return String(year);
+        }
+
+        function smallNumberToSpokenWords(number) {
+            const ones = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+            const teens = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+            const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+            if (number < 10) return ones[number];
+            if (number < 20) return teens[number - 10];
+            const ten = Math.floor(number / 10);
+            const one = number % 10;
+            return one === 0 ? tens[ten] : tens[ten] + ' ' + ones[one];
+        }
+
+        function dayToOrdinalSpokenWords(day) {
+            const special = {
+                1: 'first', 2: 'second', 3: 'third', 4: 'fourth', 5: 'fifth',
+                6: 'sixth', 7: 'seventh', 8: 'eighth', 9: 'ninth', 10: 'tenth',
+                11: 'eleventh', 12: 'twelfth', 13: 'thirteenth', 14: 'fourteenth',
+                15: 'fifteenth', 16: 'sixteenth', 17: 'seventeenth', 18: 'eighteenth',
+                19: 'nineteenth', 20: 'twentieth', 21: 'twenty first', 22: 'twenty second',
+                23: 'twenty third', 24: 'twenty fourth', 25: 'twenty fifth',
+                26: 'twenty sixth', 27: 'twenty seventh', 28: 'twenty eighth',
+                29: 'twenty ninth', 30: 'thirtieth', 31: 'thirty first'
+            };
+            return special[day] || String(day);
+        }
+
+        function expandDatesForSpeech(text) {
+            const weekdays = 'Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday';
+            const months = 'January|February|March|April|May|June|July|August|September|October|November|December';
+            const withYearSource = '\\b(' + weekdays + ')[,]?\\s+(' + months + ')\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:[,]|\\s+of)?\\s+((?:19|20)\\d{2})\\b';
+            text = String(text).replace(/\b\d{1,2}\.\s+/g, '');
+            const years = [];
+            String(text).replace(new RegExp(withYearSource, 'gi'), function (_, weekday, month, day, year) {
+                years.push(parseInt(year, 10));
+                return _;
+            });
+            const sameYear = years.length > 0 && years.every(function (year) { return year === years[0]; });
+            let yearPrefixUsed = false;
+            text = text.replace(new RegExp(withYearSource, 'gi'), function (_, weekday, month, day, year) {
+                const yearNum = parseInt(year, 10);
+                let date = weekday + ', ' + month + ' ' + dayToOrdinalSpokenWords(parseInt(day, 10));
+                if (sameYear) {
+                    if (!yearPrefixUsed) {
+                        yearPrefixUsed = true;
+                        date = 'in ' + yearToSpokenWords(yearNum) + ', ' + date;
+                    }
+                } else {
+                    date += ', ' + yearToSpokenWords(yearNum);
+                }
+                return date + ',';
+            });
+            text = text.replace(
+                new RegExp('\\b(' + months + ')\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:[,]|\\s+of)?\\s+((?:19|20)\\d{2})\\b', 'gi'),
+                function (_, month, day, year) {
+                    return month + ' ' + dayToOrdinalSpokenWords(parseInt(day, 10)) + ', ' + yearToSpokenWords(parseInt(year, 10)) + ',';
+                }
+            );
+            text = text.replace(
+                new RegExp('\\b(' + weekdays + ')[,]?\\s+(' + months + ')\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b', 'gi'),
+                function (_, weekday, month, day) {
+                    return weekday + ', ' + month + ' ' + dayToOrdinalSpokenWords(parseInt(day, 10)) + ',';
+                }
+            );
+            return text;
+        }
+
+        function expandClockTimesForSpeech(text) {
+            return String(text).replace(/\b(\d{1,2})(?::(\d{2}))?\s*(A\.?\s*M\.?|P\.?\s*M\.?)\b/gi, function (_, hour, minute, mer) {
+                const hourNum = parseInt(hour, 10);
+                const minuteNum = minute ? parseInt(minute, 10) : 0;
+                const side = /p/i.test(mer) ? 'P M' : 'A M';
+                let spoken = smallNumberToSpokenWords(hourNum === 0 ? 12 : hourNum);
+                if (minuteNum > 0) {
+                    spoken += ' ' + (minuteNum < 10 ? 'oh ' + smallNumberToSpokenWords(minuteNum) : smallNumberToSpokenWords(minuteNum));
+                }
+                return spoken + ' ' + side;
+            });
+        }
+
+        function expandYearsForSpeech(text) {
+            return String(text).replace(/\b((?:19|20)\d{2})\b/g, function (_, year) {
+                return yearToSpokenWords(parseInt(year, 10));
+            });
+        }
+
+        function integerToSpokenWords(number) {
+            if (number < 100) return smallNumberToSpokenWords(number);
+            if (number < 1000) {
+                const rest = number % 100;
+                const spoken = smallNumberToSpokenWords(Math.floor(number / 100)) + ' hundred';
+                return rest > 0 ? spoken + ' ' + smallNumberToSpokenWords(rest) : spoken;
+            }
+            const rest = number % 1000;
+            const spoken = integerToSpokenWords(Math.floor(number / 1000)) + ' thousand';
+            return rest > 0 ? spoken + ' ' + integerToSpokenWords(rest) : spoken;
+        }
+
+        function expandMoneyForSpeech(text) {
+            return String(text).replace(/\b(\d+)(?:\.\d{1,2})?\s*pesos?\b/gi, function (_, amount) {
+                return integerToSpokenWords(parseInt(amount, 10)) + ' pesos';
+            });
+        }
+
+        function expandRemainingDigitsForSpeech(text) {
+            return String(text).replace(/\d+/g, function (digits) {
+                return digits.split('').map(function (digit) {
+                    return smallNumberToSpokenWords(parseInt(digit, 10));
+                }).join(' ');
+            });
+        }
+
+        function expandAddressDotsForSpeech(text) {
+            function speakDotsInAddress(token) {
+                token = String(token).replace(/https?:\/\//gi, '');
+                token = token.replace(/@/g, ' at ');
+                token = token.replace(/[\/?&=#_]/g, ' ');
+                token = token.replace(/\./g, ' dot ');
+                return token.replace(/\s+/g, ' ').trim();
+            }
+            text = String(text).replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, function (match) {
+                return speakDotsInAddress(match);
+            });
+            text = text.replace(/(?:https?:\/\/|www\.)[^\s,;<>]+/gi, function (match) {
+                return speakDotsInAddress(match.replace(/^https?:\/\//i, ''));
+            });
+            text = text.replace(/\b(?:[a-z0-9-]+\.)+(?:com|org|net|edu|gov|ph|io|co|info|xyz|online|site|html)\b/gi, function (match) {
+                return speakDotsInAddress(match);
+            });
+            return text;
+        }
+
+        function softenSpeechPunctuation(text) {
+            text = String(text).replace(/[•·●▪◦]/g, ' ');
+            text = text.replace(/\.{2,}|…/g, ',');
+            text = text.replace(/[.!?;:]+/g, ',');
+            text = text.replace(/[()\[\]{}"“”'‘’]/g, ' ');
+            text = text.replace(/\s*,(?:\s*,)+/g, ',');
+            return text.replace(/\s+/g, ' ').replace(/^[\s,]+|[\s,]+$/g, '');
+        }
+
+        function plainTextFromHtml(html) {
+            const box = document.createElement('div');
+            box.innerHTML = html;
+            box.querySelectorAll('br, p, div, li').forEach(function (node) {
+                node.after(document.createTextNode(', '));
+            });
+            return String(box.textContent || box.innerText || '');
+        }
+
+        function stripSpeechText(html) {
+            let text = plainTextFromHtml(html);
+            const language = detectSpeechLanguage(text);
+            text = text.replace(/[*_#`~]+/g, '');
+            text = text.replace(/[₱P?]\s*(\d+)(?:\.00)?\b/g, '$1 pesos');
+            text = text.replace(/\bPHP\s*(\d+)(?:\.00)?\b/gi, '$1 pesos');
+            text = text.replace(/\b(\d+)(?:\.00)?\s*pesos?\b/gi, '$1 pesos');
+            text = text.replace(/^\s*[-•–—]\s+/gm, '');
+            text = text.replace(/\s+[-–—:]+\s+/g, ', ');
+            text = text.replace(/[|/\\•→←]/g, ' ');
+            text = applyBisLetterSpelling(text);
+            if (language !== 'tagalog') {
+                text = applySpeechPronunciation(text);
+                text = expandMoneyForSpeech(text);
+                text = expandDatesForSpeech(text);
+                text = expandClockTimesForSpeech(text);
+                text = expandYearsForSpeech(text);
+                text = expandRemainingDigitsForSpeech(text);
+            }
+            text = expandAddressDotsForSpeech(text);
+            text = softenSpeechPunctuation(text);
+            return text.replace(/\s+/g, ' ').trim();
+        }
+
+        function stopSpeech() {
+            speechQueue = [];
+            if (speechPauseTimer) {
+                clearTimeout(speechPauseTimer);
+                speechPauseTimer = null;
+            }
+            if (voiceAudio) {
+                voiceAudio.pause();
+                voiceAudio.removeAttribute('src');
+                voiceAudio.load();
+                voiceAudio = null;
+            }
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+        }
+
+        function voiceLangMatches(voice, prefix) {
+            const lang = String(voice && voice.lang || '').toLowerCase();
+            const aliases = (prefix === 'fil' || prefix === 'tl') ? ['fil', 'tl'] : [prefix];
+            return aliases.some(function (alias) {
+                return lang === alias || lang.indexOf(alias + '-') === 0;
+            });
+        }
+
+        function pickFemaleVoice(preferredLang) {
+            if (!window.speechSynthesis) return null;
+            const allVoices = window.speechSynthesis.getVoices() || [];
+            if (!allVoices.length) return null;
+            const prefix = String(preferredLang || 'en').toLowerCase().split('-')[0];
+            const matched = allVoices.filter(function (voice) {
+                return voiceLangMatches(voice, prefix);
+            });
+            const voices = matched.length ? matched : ((prefix === 'fil' || prefix === 'tl') ? [] : allVoices);
+            if (!voices.length) return null;
+            const neuralHints = ['natural', 'neural', 'online', 'premium', 'google', 'aria', 'jenny', 'samantha'];
+            const femaleHints = [
+                'female', 'zira', 'samantha', 'susan', 'hazel', 'karen', 'moira',
+                'tessa', 'fiona', 'victoria', 'jenny', 'aria', 'linda', 'heera',
+                'eva', 'sara', 'sarah', 'michelle', 'catherine', 'anna', 'emma',
+                'sonia', 'hannah', 'autumn', 'diana', 'hapita', 'dalisay',
+                'filipino', 'philippines', 'woman', 'girl'
+            ];
+            const maleHints = [
+                'male', 'david', 'mark', 'james', 'george', 'daniel', 'thomas',
+                'richard', 'ravi', 'sean', 'troy', 'austin', 'man', 'boy'
+            ];
+            let best = null;
+            let bestScore = -100;
+            voices.forEach(function (voice) {
+                const name = String(voice.name || '').toLowerCase();
+                let score = 4;
+                neuralHints.forEach(function (hint) {
+                    if (name.indexOf(hint) !== -1) score += 28;
+                });
+                femaleHints.forEach(function (hint) {
+                    if (name.indexOf(hint) !== -1) score += 12;
+                });
+                maleHints.forEach(function (hint) {
+                    if (name.indexOf(hint) !== -1) score -= 24;
+                });
+                if (name.indexOf('zira') !== -1) score -= 8;
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = voice;
+                }
+            });
+            return best;
+        }
+
+        if (window.speechSynthesis) {
+            window.speechSynthesis.addEventListener('voiceschanged', function () {
+                pickFemaleVoice('fil-PH');
+                pickFemaleVoice('en');
+            });
+        }
+
+        function whenVoicesReady(done) {
+            if (!window.speechSynthesis) {
+                done();
+                return;
+            }
+            if ((window.speechSynthesis.getVoices() || []).length) {
+                done();
+                return;
+            }
+            let finished = false;
+            const finish = function () {
+                if (finished) return;
+                finished = true;
+                window.speechSynthesis.removeEventListener('voiceschanged', finish);
+                done();
+            };
+            window.speechSynthesis.addEventListener('voiceschanged', finish);
+            setTimeout(finish, 600);
+        }
+
+        function speakWithBrowser(text, language) {
+            if (!window.speechSynthesis || !text) return;
+            whenVoicesReady(function () {
+                startBrowserSpeech(text, language);
+            });
+        }
+
+        function startBrowserSpeech(text, language) {
+            stopSpeech();
+            const tagalog = language === 'tagalog' || detectSpeechLanguage(text) === 'tagalog';
+            const lang = tagalog ? 'fil-PH' : 'en-US';
+            const matchingVoice = pickFemaleVoice(lang);
+            let spoken = text;
+            let voice = matchingVoice;
+            if (tagalog && !matchingVoice) {
+                spoken = applySpeechPronunciation(text);
+                voice = pickFemaleVoice('en');
+            }
+            const pieces = tagalog
+                ? String(spoken).split(/\s*,\s*/).map(function (part) { return part.trim(); }).filter(Boolean)
+                : (String(spoken).length > 420
+                    ? String(spoken).split(/(?<=[.!?])\s+/).map(function (part) { return part.trim(); }).filter(Boolean)
+                    : [spoken]);
+
+            pieces.forEach(function (piece) {
+                const utterance = new SpeechSynthesisUtterance(piece);
+                utterance.lang = lang;
+                utterance.rate = tagalog ? 0.9 : 1;
+                utterance.pitch = tagalog ? 1 : 1.02;
+                if (voice) utterance.voice = voice;
+                window.speechSynthesis.speak(utterance);
+            });
+        }
+
+        async function speakReply(html) {
+            const language = detectSpeechLanguage(plainTextFromHtml(html));
+            const text = stripSpeechText(html);
+            if (!text) return;
+            if (language === 'tagalog') {
+                speakWithBrowser(text, 'tagalog');
+                return;
+            }
+            try {
+                const response = await fetch(speakEndpoint, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'audio/wav, application/json',
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ text: text })
+                });
+                const type = (response.headers.get('content-type') || '').toLowerCase();
+                if (!response.ok || type.indexOf('audio') === -1) {
+                    speakWithBrowser(text, language);
+                    return;
+                }
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                stopSpeech();
+                voiceAudio = new Audio(url);
+                voiceAudio.playbackRate = 0.96;
+                voiceAudio.onended = function () {
+                    URL.revokeObjectURL(url);
+                    voiceAudio = null;
+                };
+                voiceAudio.onerror = function () {
+                    URL.revokeObjectURL(url);
+                    voiceAudio = null;
+                    speakWithBrowser(text, language);
+                };
+                await voiceAudio.play();
+            } catch (error) {
+                speakWithBrowser(text, language);
+            }
+        }
+
+        function setMicIdle() {
+            if (!micBtn) return;
+            micBtn.classList.remove('is-recording', 'is-busy');
+            micBtn.disabled = sending;
+            micBtn.setAttribute('aria-label', 'Start voice message');
+            micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+            input.disabled = false;
+            if (!liveConversationId) {
+                input.placeholder = defaultPlaceholder;
+            }
+            resizeInput();
+        }
+
+        function setMicRecording() {
+            micBtn.classList.add('is-recording');
+            micBtn.classList.remove('is-busy');
+            micBtn.disabled = false;
+            micBtn.setAttribute('aria-label', 'Stop recording');
+            micBtn.innerHTML = '<i class="fas fa-stop"></i>';
+            input.placeholder = 'Listening… tap the mic to stop';
+        }
+
+        function setMicPreparing() {
+            if (!micBtn) return;
+            micBtn.classList.remove('is-recording', 'is-busy');
+            micBtn.disabled = true;
+            micBtn.setAttribute('aria-label', 'Preparing…');
+            micBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+            input.placeholder = 'Get ready to speak…';
+        }
+
+        function setMicBusy() {
+            micBtn.classList.remove('is-recording');
+            micBtn.classList.add('is-busy');
+            micBtn.disabled = true;
+            micBtn.setAttribute('aria-label', 'Transcribing');
+            micBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
+            input.placeholder = 'Hearing your question…';
+        }
+
+        function stopMediaTracks() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(function (track) {
+                    track.stop();
+                });
+                mediaStream = null;
+            }
+        }
+
+        function pickRecorderType() {
+            const types = [
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/mp4',
+                'audio/ogg;codecs=opus'
+            ];
+            for (let i = 0; i < types.length; i += 1) {
+                if (window.MediaRecorder && MediaRecorder.isTypeSupported(types[i])) {
+                    return types[i];
+                }
+            }
+            return '';
+        }
+
+        function startVoiceActivityDetection(stream) {
+            try {
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                if (!Ctx) return;
+                vadAudioCtx = new Ctx();
+                // High-pass filter cuts the low-frequency rumble that fans,
+                // aircon, and PC noise sit in (<80 Hz). The analyser then sees
+                // mostly the voice band, so background hum does not inflate
+                // the measured RMS. This is cheap and very effective.
+                const highpass = vadAudioCtx.createBiquadFilter();
+                highpass.type = 'highpass';
+                highpass.frequency.value = 90;
+                vadAnalyser = vadAudioCtx.createAnalyser();
+                vadAnalyser.fftSize = 1024;
+                vadAnalyser.smoothingTimeConstant = 0.5;
+                vadSource = vadAudioCtx.createMediaStreamSource(stream);
+                vadSource.connect(highpass);
+                highpass.connect(vadAnalyser);
+                vadBuffer = new Float32Array(vadAnalyser.fftSize);
+                vadStartedAt = performance.now();
+                vadLastSpeechAt = vadStartedAt;
+                vadPeakLevel = 0;
+                vadNoiseFloor = 0;
+                vadDynThreshold = VAD_MIN_THRESHOLD;
+                vadHeardSpeech = false;
+                vadAutoStopped = false;
+
+                // Running estimate of ambient noise during the warmup.
+                let noiseSamples = 0;
+                let noiseSum = 0;
+
+                const tick = function () {
+                    if (!vadAnalyser) return;
+                    vadAnalyser.getFloatTimeDomainData(vadBuffer);
+                    // Root mean square gives a stable loudness estimate per frame.
+                    let sumSquares = 0;
+                    for (let i = 0; i < vadBuffer.length; i++) {
+                        const v = vadBuffer[i];
+                        sumSquares += v * v;
+                    }
+                    const rms = Math.sqrt(sumSquares / vadBuffer.length);
+                    if (rms > vadPeakLevel) vadPeakLevel = rms;
+
+                    const now = performance.now();
+                    const elapsed = now - vadStartedAt;
+
+                    if (elapsed <= VAD_WARMUP_MS) {
+                        // Learn the room's noise floor.
+                        noiseSum += rms;
+                        noiseSamples++;
+                    } else {
+                        // Lock in the dynamic threshold once (at warmup end).
+                        if (vadDynThreshold === VAD_MIN_THRESHOLD && noiseSamples > 0) {
+                            vadNoiseFloor = noiseSum / noiseSamples;
+                            const adaptive = vadNoiseFloor * VAD_NOISE_MULTIPLIER;
+                            vadDynThreshold = Math.max(VAD_MIN_THRESHOLD, adaptive);
+                        }
+                        // Slow adaptive drift of the noise floor during
+                        // silence so continuous background noise does not
+                        // eventually be mistaken for speech.
+                        if (rms < vadDynThreshold) {
+                            vadNoiseFloor = vadNoiseFloor * 0.995 + rms * 0.005;
+                            const adaptive = vadNoiseFloor * VAD_NOISE_MULTIPLIER;
+                            vadDynThreshold = Math.max(VAD_MIN_THRESHOLD, adaptive);
+                        }
+                        if (rms > vadDynThreshold) {
+                            vadLastSpeechAt = now;
+                            if (!vadHeardSpeech) vadHeardSpeech = true;
+                        }
+                    }
+
+                    // Auto-stop once we have heard real speech followed by a
+                    // short tail of silence. This is what makes the clip clean
+                    // for Whisper and prevents trailing-silence hallucinations.
+                    if (
+                        vadHeardSpeech
+                        && (now - vadLastSpeechAt) > VAD_SILENCE_MS
+                        && (vadLastSpeechAt - vadStartedAt) > VAD_MIN_UTTERANCE_MS
+                        && mediaRecorder
+                        && mediaRecorder.state === 'recording'
+                    ) {
+                        vadAutoStopped = true;
+                        try { mediaRecorder.stop(); } catch (e) { /* ignore */ }
+                        return;
+                    }
+
+                    vadRafId = requestAnimationFrame(tick);
+                };
+                vadRafId = requestAnimationFrame(tick);
+            } catch (e) {
+                // VAD is best-effort; the hard cap + manual stop still work.
+                vadAnalyser = null;
+            }
+        }
+
+        function stopVoiceActivityDetection() {
+            if (vadRafId) {
+                cancelAnimationFrame(vadRafId);
+                vadRafId = null;
+            }
+            if (vadSource) {
+                try { vadSource.disconnect(); } catch (e) {}
+                vadSource = null;
+            }
+            vadAnalyser = null;
+            vadBuffer = null;
+            if (vadAudioCtx) {
+                const ctx = vadAudioCtx;
+                vadAudioCtx = null;
+                // close() returns a Promise; ignore it. This fully frees the
+                // audio graph so the next recording starts from a clean slate
+                // instead of inheriting stale AGC/filter state (the main
+                // reason the second attempt previously went silent).
+                try { ctx.close(); } catch (e) {}
+            }
+        }
+
+        // Collect the last few chat turns as plain text so the backend can
+        // forward them to Whisper's `prompt` field, biasing recognition toward
+        // on-topic vocabulary (names, document types, Taglish phrases).
+        function collectRecentContext() {
+            if (!thread) return '';
+            const bubbles = thread.querySelectorAll('.gpt-bubble');
+            if (!bubbles || bubbles.length === 0) return '';
+            const take = Math.min(bubbles.length, 6);
+            const parts = [];
+            for (let i = bubbles.length - take; i < bubbles.length; i++) {
+                const txt = (bubbles[i].innerText || bubbles[i].textContent || '').trim();
+                if (txt) parts.push(txt.replace(/\s+/g, ' '));
+            }
+            // Keep the payload modest; backend also clamps.
+            let joined = parts.join(' | ');
+            if (joined.length > 600) joined = joined.slice(-600);
+            return joined;
+        }
+
+        async function startVoiceRecording() {
+            if (sending || micArming || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    addMessage('Voice chat needs a microphone in this browser.', false);
+                }
+                return;
+            }
+            micArming = true;
+            stopSpeech();
+            // Hard-reset any leftover state from the previous recording.
+            // This is what fixes the "first attempt works, second attempt
+            // returns 'I could not hear a clear question'" bug: Chrome's AGC
+            // and the MediaRecorder's encoder keep internal state that leaks
+            // between recordings if the stream is not fully released.
+            recordedChunks = [];
+            stopVoiceActivityDetection();
+            stopMediaTracks();
+            if (mediaRecorder) {
+                try { mediaRecorder.ondataavailable = null; } catch (e) {}
+                try { mediaRecorder.onstop = null; } catch (e) {}
+                mediaRecorder = null;
+            }
+            setMicPreparing();
+            sendBtn.disabled = true;
+            await playMicChime();
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        channelCount: 1,
+                        sampleRate: 48000,
+                        sampleSize: 16,
+                        // Chrome-only legacy constraints. They are ignored on
+                        // other browsers but Chrome still honours them and
+                        // they turn on the strongest voice-focused filters.
+                        googEchoCancellation: true,
+                        googAutoGainControl: true,
+                        googNoiseSuppression: true,
+                        googHighpassFilter: true,
+                        googTypingNoiseDetection: true,
+                        googAudioMirroring: false
+                    }
+                });
+            } catch (error) {
+                micArming = false;
+                setMicIdle();
+                addMessage('Please allow microphone access to talk to BIS Assistant.', false);
+                return;
+            }
+            const mimeType = pickRecorderType();
+            // Opus @ 64 kbps mono gives Whisper plenty of fidelity while
+            // keeping the upload small. 48 kbps was borderline-too-low and
+            // sometimes produced empty frames on the first chunk after a
+            // repeat recording.
+            const recorderOpts = { audioBitsPerSecond: 64000 };
+            if (mimeType) recorderOpts.mimeType = mimeType;
+            try {
+                mediaRecorder = new MediaRecorder(mediaStream, recorderOpts);
+            } catch (e) {
+                // Fall back to browser defaults if the chosen options are rejected.
+                mediaRecorder = new MediaRecorder(mediaStream);
+            }
+            mediaRecorder.ondataavailable = function (event) {
+                if (event.data && event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+            mediaRecorder.onstop = function () {
+                const type = mediaRecorder && mediaRecorder.mimeType ? mediaRecorder.mimeType : 'audio/webm';
+                const heardSpeech = vadHeardSpeech;
+                const peak = vadPeakLevel;
+                const noiseFloor = vadNoiseFloor;
+                const dynThreshold = vadDynThreshold;
+                mediaRecorder = null;
+                stopVoiceActivityDetection();
+                stopMediaTracks();
+                if (recordingTimer) {
+                    clearTimeout(recordingTimer);
+                    recordingTimer = null;
+                }
+                const blob = new Blob(recordedChunks, { type: type });
+                // Diagnostic for the browser DevTools console. If the next
+                // attempt fails, these numbers tell us WHY (empty blob, peak
+                // too low, threshold too high, etc).
+                try {
+                    console.log('[BIS voice] stop',
+                        'blobBytes=' + blob.size,
+                        'chunks=' + recordedChunks.length,
+                        'heardSpeech=' + heardSpeech,
+                        'peakRMS=' + peak.toFixed(4),
+                        'noiseFloor=' + noiseFloor.toFixed(4),
+                        'threshold=' + dynThreshold.toFixed(4));
+                } catch (e) {}
+                // Short-circuit only truly dead audio (user tapped the mic
+                // but did not actually speak). We require BOTH no detected
+                // speech frames AND a very low peak level - this way a soft
+                // speaker still gets a chance at Whisper instead of being
+                // bounced here.
+                if (!heardSpeech && peak < 0.004) {
+                    setMicIdle();
+                    addMessage('I did not hear anything. Please tap the mic and speak clearly.', false);
+                    return;
+                }
+                playMicChime().then(function () {
+                    transcribeRecording(blob);
+                });
+            };
+            // Request a data chunk every 250 ms so if the user stops talking
+            // mid-utterance there is already buffered audio to send.
+            try { mediaRecorder.start(250); } catch (e) { mediaRecorder.start(); }
+            micArming = false;
+            setMicRecording();
+            startVoiceActivityDetection(mediaStream);
+            // Hard cap in case the browser never fires the VAD auto-stop.
+            recordingTimer = setTimeout(function () {
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                }
+            }, VAD_MAX_RECORD_MS);
+        }
+
+        function stopVoiceRecording() {
+            if (recordingTimer) {
+                clearTimeout(recordingTimer);
+                recordingTimer = null;
+            }
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                return;
+            }
+            stopVoiceActivityDetection();
+            stopMediaTracks();
+            setMicIdle();
+        }
+
+        async function transcribeRecording(blob) {
+            if (!blob || blob.size < 800) {
+                setMicIdle();
+                addMessage('I did not catch that. Please tap the mic and try again.', false);
+                return;
+            }
+            setMicBusy();
+            try {
+                const body = new FormData();
+                const extension = blob.type.indexOf('mp4') !== -1 ? 'mp4' : (blob.type.indexOf('ogg') !== -1 ? 'ogg' : 'webm');
+                body.append('audio', blob, 'voice.' + extension);
+                // Give Whisper the recent conversation as a biasing prompt.
+                const context = collectRecentContext();
+                if (context) body.append('context', context);
+                const response = await fetch(transcribeEndpoint, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: body
+                });
+                const data = await response.json();
+                setMicIdle();
+                if (!data || data.success !== true || !data.text) {
+                    addMessage((data && data.response) ? data.response : 'I could not hear a clear question. Please try again.', false);
+                    return;
+                }
+                await sendMessage(data.text, { speak: true });
+            } catch (error) {
+                setMicIdle();
+                addMessage('Voice chat could not reach the BIS service. Please try again.', false);
+            }
+        }
+
+        if (micBtn) {
+            micBtn.addEventListener('click', function () {
+                if (micBtn.classList.contains('is-recording')) {
+                    stopVoiceRecording();
+                    return;
+                }
+                if (sending || micArming || micBtn.classList.contains('is-busy')) return;
+                startVoiceRecording();
+            });
+        }
 
         loadHistory(true).then(function () {
             checkLiveDesk();

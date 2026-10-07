@@ -2449,7 +2449,7 @@
                 },
 
                 /*
-                 * True when the chat should not call OpenRouter.
+                 * True when the chat should not call Groq.
                  */
 
                 isHumanSupport: function() {

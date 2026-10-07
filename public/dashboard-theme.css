@@ -133,20 +133,26 @@
     background: #dce3ee !important;
 }
 
+:is(.db-body, .bis-dash) .db-main {
+    padding-top: 72px;
+}
+
 :is(.db-body, .bis-dash) .db-topbar {
     position: fixed !important;
     top: 0;
     left: 240px;
     right: 0;
-    height: 64px;
+    height: auto;
+    min-height: 64px;
     z-index: 150;
-    padding: 0 20px;
+    padding: 10px 20px;
     background: #fff !important;
     border: 0 !important;
     border-top: 3px solid #e0b32a !important;
     border-bottom: 1px solid #e2e6ee !important;
     border-radius: 0 !important;
     box-shadow: none !important;
+    overflow: visible !important;
 }
 
 :is(.db-body, .bis-dash).db-sidebar-collapsed .db-topbar {
@@ -225,14 +231,15 @@
 }
 
 :is(.db-body, .bis-dash) .db-topbar-title {
-    flex: 0 1 220px !important;
-    min-width: 0;
+    flex: 0 1 auto !important;
+    min-width: 160px;
+    max-width: 280px;
 }
 
 :is(.db-body, .bis-dash) .db-topbar-title h1,
 :is(.db-body, .bis-dash) .db-topbar-title span {
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible;
+    text-overflow: unset;
     white-space: nowrap;
 }
 
@@ -498,12 +505,20 @@
 }
 
 :is(.db-body, .bis-dash) .db-content {
-    padding: 84px 20px 24px !important;
+    padding: 16px 20px 24px !important;
+}
+
+:is(.db-body, .bis-dash) .db-content.resident-chat-page {
+    padding: 0 !important;
 }
 
 @media (max-width: 900px) {
+    :is(.db-body, .bis-dash) .db-main {
+        padding-top: 118px;
+    }
+
     :is(.db-body, .bis-dash) .db-content {
-        padding: 136px 14px 20px !important;
+        padding: 14px 14px 20px !important;
     }
 }
 
@@ -596,7 +611,7 @@
     background: #fff !important;
     border: 1px solid #e2e6ee !important;
     border-top: 3px solid #e0b32a !important;
-    overflow: hidden;
+    overflow: visible;
 }
 
 :is(.db-body, .bis-dash) .dash-welcome:has(.gov-mast) {

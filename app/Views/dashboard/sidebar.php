@@ -193,7 +193,7 @@ $roleIcons = ['admin' => 'fas fa-user-shield', 'captain' => 'fas fa-user-tie', '
 $roleIcon = $roleIcons[strtolower($role)] ?? 'fas fa-user';
 ?>
 
-<link rel="stylesheet" href="/dashboard-theme.css?v=20261004b">
+<link rel="stylesheet" href="/dashboard-theme.css?v=20261006a">
 <script src="/pii-protect.js?v=20260927b" defer></script>
 
 <aside class="db-sidebar" id="sidebar">
