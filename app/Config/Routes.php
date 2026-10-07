@@ -79,6 +79,7 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
     $routes->post('clearance/approve/(:num)',     'ClearanceController::approve/$1');
     $routes->post('clearance/release/(:num)',     'ClearanceController::release/$1');
     $routes->post('clearance/reject/(:num)',      'ClearanceController::reject/$1');
+    $routes->post('clearance/content/(:num)',    'ClearanceController::saveDocumentContent/$1');
     $routes->post('clearance/store',             'ClearanceController::store');
     $routes->post('clearance/cancel/(:num)',     'ClearanceController::cancel/$1');
     $routes->get('reports',                      'UIController::captain_reports');
@@ -107,6 +108,7 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
     $routes->post('blotter/reschedule/(:num)',    'BlotterController::reschedule/$1');
     $routes->get('blotter/evidence/(:num)/(:num)', 'BlotterController::evidence/$1/$2');
     $routes->get('blotter/letter/(:num)',         'BlotterController::viewLetter/$1');
+    $routes->get('blotter/certificate/(:num)/download', 'BlotterController::downloadCertificate/$1');
     $routes->get('blotter/certificate/(:num)',    'BlotterController::viewCertificate/$1');
     $routes->get('settings',                     'UIController::captain_settings');
 
@@ -145,6 +147,10 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
 
     $routes->get('census-updates',        'CensusUpdateDriveController::index');
     $routes->post('census-updates/store', 'CensusUpdateDriveController::store');
+    $routes->post('resident/approve-census-update/(:num)', 'CensusController::approveResidentUpdate/$1');
+    $routes->post('resident/reject-census-update/(:num)', 'CensusController::rejectResidentUpdate/$1');
+    $routes->post('member-request/approve/(:num)', 'CensusController::approveMemberRequest/$1');
+    $routes->post('member-request/reject/(:num)', 'CensusController::rejectMemberRequest/$1');
 
     // Captain can approve/reject pending accounts
     $routes->get('pending-accounts',        'AuthController::pendingAccounts');
@@ -219,6 +225,7 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
     $routes->post('clearance/approve/(:num)',     'ClearanceController::approve/$1');
     $routes->post('clearance/release/(:num)',     'ClearanceController::release/$1');
     $routes->post('clearance/reject/(:num)',      'ClearanceController::reject/$1');
+    $routes->post('clearance/content/(:num)',    'ClearanceController::saveDocumentContent/$1');
     $routes->post('clearance/store-secretary',     'ClearanceController::storeSecretary');
     // Document templates are edited directly from the Clearance cards.
     $routes->get('clearance/templates/edit/(:segment)',    'DocumentTemplateController::edit/$1');
@@ -267,6 +274,7 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
     $routes->post('blotter/reschedule/(:num)', 'BlotterController::reschedule/$1');
     $routes->get('blotter/evidence/(:num)/(:num)', 'BlotterController::evidence/$1/$2');
     $routes->get('blotter/letter/(:num)',   'BlotterController::viewLetter/$1');
+    $routes->get('blotter/certificate/(:num)/download', 'BlotterController::downloadCertificate/$1');
     $routes->get('blotter/certificate/(:num)', 'BlotterController::viewCertificate/$1');
     $routes->get('settings',           'UIController::secretary_settings');
 
@@ -296,6 +304,8 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
     $routes->get('moves/new',                  'HouseholdMoveController::create');
     $routes->get('moves/search',               'HouseholdMoveController::search');
     $routes->post('moves/store',               'HouseholdMoveController::store');
+    $routes->post('moves/approve/(:num)',      'HouseholdMoveController::approve/$1');
+    $routes->post('moves/reject/(:num)',       'HouseholdMoveController::reject/$1');
 
     $routes->get('deceased-accounts',                 'DeceasedAccountController::index');
     $routes->post('deceased-accounts/policy',         'DeceasedAccountController::savePolicy');
@@ -362,6 +372,8 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
     $routes->post('resident/send-census-update', 'CensusController::sendResidentUpdateAuthorization');
     $routes->post('resident/approve-census-update/(:num)', 'CensusController::approveResidentUpdate/$1');
     $routes->post('resident/reject-census-update/(:num)', 'CensusController::rejectResidentUpdate/$1');
+    $routes->post('member-request/approve/(:num)', 'CensusController::approveMemberRequest/$1');
+    $routes->post('member-request/reject/(:num)', 'CensusController::rejectMemberRequest/$1');
 
     // Settings
     $routes->post('settings/profile',          'SettingsController::updateProfile');
@@ -419,6 +431,7 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('clearance/approve/(:num)',     'ClearanceController::approve/$1');
     $routes->post('clearance/release/(:num)',     'ClearanceController::release/$1');
     $routes->post('clearance/reject/(:num)',      'ClearanceController::reject/$1');
+    $routes->post('clearance/content/(:num)',    'ClearanceController::saveDocumentContent/$1');
     $routes->post('clearance/store-secretary',     'ClearanceController::storeSecretary');
     $routes->get('clearance/templates/edit/(:segment)',    'DocumentTemplateController::edit/$1');
     $routes->post('clearance/templates/update/(:segment)', 'DocumentTemplateController::update/$1');
@@ -462,6 +475,7 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('blotter/reschedule/(:num)', 'BlotterController::reschedule/$1');
     $routes->get('blotter/evidence/(:num)/(:num)', 'BlotterController::evidence/$1/$2');
     $routes->get('blotter/letter/(:num)',   'BlotterController::viewLetter/$1');
+    $routes->get('blotter/certificate/(:num)/download', 'BlotterController::downloadCertificate/$1');
     $routes->get('blotter/certificate/(:num)', 'BlotterController::viewCertificate/$1');
     $routes->get('settings',           'UIController::secretary_settings');
     $routes->get('calendar',                'ScheduleController::index');
@@ -526,6 +540,8 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('resident/send-census-update', 'CensusController::sendResidentUpdateAuthorization');
     $routes->post('resident/approve-census-update/(:num)', 'CensusController::approveResidentUpdate/$1');
     $routes->post('resident/reject-census-update/(:num)', 'CensusController::rejectResidentUpdate/$1');
+    $routes->post('member-request/approve/(:num)', 'CensusController::approveMemberRequest/$1');
+    $routes->post('member-request/reject/(:num)', 'CensusController::rejectMemberRequest/$1');
     $routes->post('settings/profile',          'SettingsController::updateProfile');
     $routes->post('settings/request-otp',      'SettingsController::requestPasswordOtp');
     $routes->post('settings/verify-otp',       'SettingsController::verifyPasswordOtp');
@@ -572,6 +588,8 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->get('programs/registrations/(:num)', 'SkController::viewRegistrations/$1');
     $routes->post('programs/registrations/update/(:num)', 'SkController::updateRegistration/$1');
     $routes->get('sk-reports',            'UIController::sk_reports');
+    $routes->get('sk-reports/export',     'ReportsExportController::skExport');
+    $routes->get('sk-reports/download',   'ReportsExportController::skDownload');
     $routes->get('sk-activities',         'SkController::residentActivities');
 });
 
@@ -653,6 +671,8 @@ $routes->group('/resident', ['filter' => ['auth', 'role:resident']], function ($
     $routes->post('chatbot/api/request-human',  'ChatbotController::requestHumanSupport');
     $routes->get('chatbot/api/support-status',  'ChatbotController::getSupportStatus');
     $routes->post('chatbot/api/heartbeat',      'ChatbotController::heartbeat');
+    $routes->get('census-update', 'CensusController::residentCensusUpdateForm');
+    $routes->post('census-update', 'CensusController::saveResidentCensusUpdate');
     $routes->get('notifications', 'UIController::resident_notifications');
     $routes->get('notifications/poll',        'NotificationController::poll');
     $routes->post('notifications/read/(:num)', 'NotificationController::markRead/$1');
@@ -730,6 +750,8 @@ $routes->group('/sk', ['filter' => ['auth', 'role:sk']], function ($routes) use 
     $routes->post('chatbot/api/save-log',       'ChatbotController::saveLog');
     $routes->get('chatbot/api/logs',            'ChatbotController::getLogs');
     $routes->get('reports',               'UIController::sk_reports');
+    $routes->get('reports/export',        'ReportsExportController::skExport');
+    $routes->get('reports/download',      'ReportsExportController::skDownload');
     $routes->get('settings',              'UIController::sk_settings');
 
     // Document requests (clearance) — same as resident flow

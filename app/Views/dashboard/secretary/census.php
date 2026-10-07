@@ -14,6 +14,7 @@
     <?php $role = $role ?? 'secretary';
     $active = 'census';
     $pageTitle = 'Census Records';
+    $hideGlobalSearch = true;
     include(APPPATH . 'Views/dashboard/sidebar.php'); ?>
     <div class="db-main">
         <?php include(APPPATH . 'Views/dashboard/topbar.php'); ?>

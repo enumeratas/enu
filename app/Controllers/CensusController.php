@@ -4,13 +4,18 @@ namespace App\Controllers;
 
 use App\Controllers\BaseController;
 use App\Models\CensusUpdateAuthorizationModel;
+use App\Models\CensusUpdateDriveModel;
+use App\Models\HouseholdMemberRequestModel;
 use App\Models\HouseholdModel;
 use App\Models\HouseholdMemberModel;
+use App\Models\NotificationModel;
 use App\Models\UserModel;
 use App\Libraries\HouseholdUploadStorage;
 
 class CensusController extends BaseController
 {
+    private const CENSUS_STASH_KEY = 'census_upload_stash';
+
     protected HouseholdModel       $householdModel;
     protected HouseholdMemberModel $memberModel;
 
@@ -28,6 +33,9 @@ class CensusController extends BaseController
 
         $userFirst = $normalize($user['first_name'] ?? '');
         $userLast  = $normalize($user['last_name'] ?? '');
+        $sameHousehold = ! empty($household)
+            && trim((string) ($user['household_no'] ?? '')) !== ''
+            && (string) ($user['household_no'] ?? '') === (string) ($household['household_no'] ?? '');
 
         $headNameMatches = false;
         if (! empty($household)) {
@@ -36,22 +44,25 @@ class CensusController extends BaseController
             $headNameMatches = $userFirst !== '' && $userLast !== '' && $headFirst === $userFirst && $headLast === $userLast;
         }
 
-        $memberMatches = false;
+        $matchedMember = null;
         foreach ($members as $member) {
             $memberFirst = $normalize($member['first_name'] ?? '');
             $memberLast  = $normalize($member['last_name'] ?? '');
-
             if ($userFirst !== '' && $userLast !== '' && $memberFirst === $userFirst && $memberLast === $userLast) {
-                $memberMatches = true;
+                $matchedMember = $member;
                 break;
             }
         }
 
+        $isHead = $headNameMatches;
+        $isMember = ! $isHead && ($matchedMember !== null || $sameHousehold);
+
         return [
-            'is_household_head' => $headNameMatches,
-            'is_member' => ! $headNameMatches && $memberMatches,
-            'can_edit_household' => $headNameMatches,
-            'can_edit_personal' => $headNameMatches || $memberMatches,
+            'is_household_head' => $isHead,
+            'is_member' => $isMember,
+            'can_edit_household' => $isHead,
+            'can_edit_personal' => $isHead || $isMember,
+            'member' => $matchedMember,
         ];
     }
 
@@ -445,41 +456,28 @@ class CensusController extends BaseController
     private function _handleIdUpload(string $fieldName, string $prefix, string $householdNo, ?string $oldPath = null): ?string
     {
         $file = $this->request->getFile($fieldName);
-        if (! $file || ! $file->isValid() || $file->hasMoved()) {
-            return $oldPath;
-        }
-
-        $allowed = ['pdf', 'jpg', 'jpeg', 'png'];
-        $ext = strtolower($file->getExtension());
-        if (! in_array($ext, $allowed, true)) {
-            return $oldPath;
-        }
-
-        $uploadDir = WRITEPATH . 'uploads/ids/';
-        if (! is_dir($uploadDir)) {
-            @mkdir($uploadDir, 0755, true);
-        }
-
-        $fileName = $prefix . '_' . $householdNo . '_' . time() . '.' . $ext;
-        if (! $file->move($uploadDir, $fileName)) {
-            return $oldPath;
-        }
-
-        if (! (new HouseholdUploadStorage())->store($uploadDir . $fileName, 'uploads/ids/' . $fileName)) {
-            @unlink($uploadDir . $fileName);
-            log_message('error', 'Household ID upload was not stored: ' . $fileName);
-            return $oldPath;
-        }
-
-        if ($oldPath !== null && trim($oldPath) !== '') {
-            foreach ([FCPATH . $oldPath, WRITEPATH . $oldPath] as $oldFile) {
-                if (is_file($oldFile)) {
-                    @unlink($oldFile);
-                }
+        if ($file && $file->isValid() && ! $file->hasMoved()) {
+            $ext = $this->uploadExtension($file);
+            if ($ext === null) {
+                return $oldPath;
             }
+
+            $uploadDir = WRITEPATH . 'uploads/ids/';
+            if (! is_dir($uploadDir)) {
+                @mkdir($uploadDir, 0755, true);
+            }
+
+            $fileName = $prefix . '_' . $householdNo . '_' . time() . '_' . bin2hex(random_bytes(2)) . '.' . $ext;
+            if (! $file->move($uploadDir, $fileName)) {
+                return $this->promoteStashedPath($fieldName, $prefix, $householdNo, $oldPath);
+            }
+
+            (new HouseholdUploadStorage())->store($uploadDir . $fileName, 'uploads/ids/' . $fileName);
+
+            return 'uploads/ids/' . $fileName;
         }
 
-        return 'uploads/ids/' . $fileName;
+        return $this->promoteStashedPath($fieldName, $prefix, $householdNo, $oldPath);
     }
 
     private function personAlreadyRecorded(string $lastName, string $firstName, ?string $dateOfBirth, ?string $excludeHousehold = null): bool
@@ -512,12 +510,7 @@ class CensusController extends BaseController
 
     private function ageFromDate(?string $dateOfBirth): ?int
     {
-        if (! $dateOfBirth) return null;
-        try {
-            return (int) (new \DateTimeImmutable($dateOfBirth))->diff(new \DateTimeImmutable('today'))->y;
-        } catch (\Throwable) {
-            return null;
-        }
+        return person_age_from_dob($dateOfBirth);
     }
 
     private function validateFamilyAges(?string $headDob, ?string $spouseDob, array $childDobs): ?string
@@ -556,6 +549,40 @@ class CensusController extends BaseController
         return null;
     }
 
+    private function validateMinorCivilStatusesFromPost(array $post): ?string
+    {
+        $childIndex = 0;
+        foreach ((array) ($post['child_last_name'] ?? []) as $i => $lastName) {
+            if (trim((string) $lastName) === '') {
+                continue;
+            }
+            $childIndex++;
+            $age = $this->ageFromDate($post['child_dob'][$i] ?? null);
+            $status = trim((string) ($post['child_marital_status'][$i] ?? 'Single'));
+            if ($age !== null && $age < 18 && $status !== 'Single') {
+                return 'A child under 18 must have Civil Status set to Single. Please correct child #' . $childIndex . '.';
+            }
+        }
+
+        return null;
+    }
+
+    private function nextAvailableHouseholdNo(): string
+    {
+        for ($attempt = 0; $attempt < 16; $attempt++) {
+            $householdNo = str_pad((string) random_int(10000, 99999), 5, '0', STR_PAD_LEFT);
+            if ($this->householdModel->find($householdNo) === null) {
+                return $householdNo;
+            }
+        }
+
+        do {
+            $householdNo = str_pad((string) random_int(10000, 99999), 5, '0', STR_PAD_LEFT);
+        } while ($this->householdModel->where('household_no', $householdNo)->countAllResults() > 0);
+
+        return $householdNo;
+    }
+
     /**
      * Store an ownership-change audit row only when the audit table is available.
      * Some existing deployments may not have run the migration that creates this table yet,
@@ -580,46 +607,51 @@ class CensusController extends BaseController
     private function _handleMemberIdUpload(string $fieldName, string $prefix, int $memberId, ?string $oldPath = null): ?string
     {
         $file = $this->request->getFile($fieldName);
-        return $this->_handleUploadedMemberIdFile($file, $prefix, $memberId, $oldPath);
+        return $this->_handleUploadedMemberIdFile($file, $prefix, $memberId, $oldPath, $fieldName);
     }
 
-    private function _handleUploadedMemberIdFile($file, string $prefix, int $memberId, ?string $oldPath = null): ?string
+    private function _handleUploadedMemberIdFile($file, string $prefix, int $memberId, ?string $oldPath = null, ?string $stashField = null, ?int $stashIndex = null): ?string
     {
-        if (! $file || ! $file->isValid() || $file->hasMoved()) {
-            return $oldPath;
-        }
+        if ($file && $file->isValid() && ! $file->hasMoved()) {
+            $ext = $this->uploadExtension($file);
+            if ($ext === null) {
+                return $oldPath;
+            }
 
-        $allowed = ['pdf', 'jpg', 'jpeg', 'png'];
-        $ext = strtolower($file->getExtension());
-        if (! in_array($ext, $allowed, true)) {
-            return $oldPath;
-        }
+            $uploadDir = WRITEPATH . 'uploads/ids/';
+            if (! is_dir($uploadDir)) {
+                @mkdir($uploadDir, 0755, true);
+            }
 
-        $uploadDir = WRITEPATH . 'uploads/ids/';
-        if (! is_dir($uploadDir)) {
-            @mkdir($uploadDir, 0755, true);
-        }
+            $fileName = $prefix . '_member_' . $memberId . '_' . time() . '_' . bin2hex(random_bytes(2)) . '.' . $ext;
+            if ($file->move($uploadDir, $fileName)) {
+                (new HouseholdUploadStorage())->store($uploadDir . $fileName, 'uploads/ids/' . $fileName);
 
-        $fileName = $prefix . '_member_' . $memberId . '_' . time() . '.' . $ext;
-        if (! $file->move($uploadDir, $fileName)) {
-            return $oldPath;
-        }
-
-        if (! (new HouseholdUploadStorage())->store($uploadDir . $fileName, 'uploads/ids/' . $fileName)) {
-            @unlink($uploadDir . $fileName);
-            log_message('error', 'Household member ID upload was not stored: ' . $fileName);
-            return $oldPath;
-        }
-
-        if ($oldPath !== null && trim($oldPath) !== '') {
-            foreach ([FCPATH . $oldPath, WRITEPATH . $oldPath] as $oldFile) {
-                if (is_file($oldFile)) {
-                    @unlink($oldFile);
-                }
+                return 'uploads/ids/' . $fileName;
             }
         }
 
-        return 'uploads/ids/' . $fileName;
+        if ($stashField !== null) {
+            return $this->promoteStashedPath($stashField, $prefix, 'member_' . $memberId, $oldPath, $stashIndex);
+        }
+
+        return $oldPath;
+    }
+
+    private function uploadExtension($file): ?string
+    {
+        $ext = strtolower((string) $file->getExtension());
+        if ($ext === '') {
+            $ext = strtolower((string) $file->guessExtension());
+        }
+        if ($ext === '') {
+            $ext = strtolower((string) pathinfo((string) $file->getClientName(), PATHINFO_EXTENSION));
+        }
+        if ($ext === 'jpeg') {
+            $ext = 'jpg';
+        }
+
+        return in_array($ext, ['pdf', 'jpg', 'png', 'webp'], true) ? $ext : null;
     }
 
     private function uploadIsPresent(string $field, ?int $index = null): bool
@@ -628,7 +660,139 @@ class CensusController extends BaseController
             ? $this->request->getFile($field)
             : (($this->request->getFileMultiple($field) ?? [])[$index] ?? null);
 
-        return $file && $file->isValid() && ! $file->hasMoved();
+        if ($file && $file->isValid() && ! $file->hasMoved()) {
+            return true;
+        }
+
+        return $this->stashedUpload($field, $index) !== null;
+    }
+
+    private function censusFormError(string $message)
+    {
+        $this->stashCensusUploads();
+
+        return redirect()->back()->with('error', $message)->withInput();
+    }
+
+    private function stashCensusUploads(): void
+    {
+        $existing = session()->get(self::CENSUS_STASH_KEY);
+        $stash = is_array($existing) ? $existing : [];
+        $dir = WRITEPATH . 'uploads/census_tmp/' . preg_replace('/[^a-zA-Z0-9_-]/', '', (string) session_id()) . '/';
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+
+        foreach ([
+            'head_supporting_doc', 'id_4ps', 'id_4ps_back', 'id_senior',
+            'id_solo_parent', 'id_pwd', 'spouse_supporting_doc', 'spouse_id_pwd', 'spouse_id_senior',
+        ] as $field) {
+            $saved = $this->stashOneFile($this->request->getFile($field), $dir, $field);
+            if ($saved !== null) {
+                $stash[$field] = $saved;
+            }
+        }
+
+        foreach (['child_supporting_doc', 'child_id_pwd', 'child_id_senior', 'other_supporting_doc', 'other_id_senior'] as $field) {
+            if (! isset($stash[$field]) || ! is_array($stash[$field])) {
+                $stash[$field] = [];
+            }
+            foreach ($this->request->getFileMultiple($field) ?? [] as $i => $file) {
+                $saved = $this->stashOneFile($file, $dir, $field . '_' . $i);
+                if ($saved !== null) {
+                    $stash[$field][$i] = $saved;
+                }
+            }
+        }
+
+        session()->set(self::CENSUS_STASH_KEY, $stash);
+    }
+
+    private function stashOneFile($file, string $dir, string $key): ?array
+    {
+        if (! $file || ! $file->isValid() || $file->hasMoved()) {
+            return null;
+        }
+        $ext = $this->uploadExtension($file);
+        if ($ext === null) {
+            return null;
+        }
+
+        $clientName = $file->getClientName() ?: ($key . '.' . $ext);
+        $name = $key . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+        if (! $file->move($dir, $name)) {
+            return null;
+        }
+
+        return [
+            'path' => $dir . $name,
+            'name' => $clientName,
+        ];
+    }
+
+    private function stashedUpload(string $field, ?int $index = null): ?array
+    {
+        $stash = session()->get(self::CENSUS_STASH_KEY);
+        if (! is_array($stash) || ! isset($stash[$field])) {
+            return null;
+        }
+
+        $entry = $index === null ? $stash[$field] : ($stash[$field][$index] ?? null);
+        if (! is_array($entry) || empty($entry['path']) || ! is_file((string) $entry['path'])) {
+            return null;
+        }
+
+        return $entry;
+    }
+
+    private function promoteStashedPath(string $field, string $prefix, string $idPart, ?string $oldPath, ?int $index = null): ?string
+    {
+        $entry = $this->stashedUpload($field, $index);
+        if ($entry === null) {
+            return $oldPath;
+        }
+
+        $ext = strtolower((string) pathinfo((string) $entry['path'], PATHINFO_EXTENSION));
+        if ($ext === 'jpeg') {
+            $ext = 'jpg';
+        }
+        if (! in_array($ext, ['pdf', 'jpg', 'png', 'webp'], true)) {
+            return $oldPath;
+        }
+
+        $uploadDir = WRITEPATH . 'uploads/ids/';
+        if (! is_dir($uploadDir)) {
+            @mkdir($uploadDir, 0755, true);
+        }
+
+        $fileName = $prefix . '_' . $idPart . '_' . time() . '_' . bin2hex(random_bytes(2)) . '.' . $ext;
+        if (! @copy((string) $entry['path'], $uploadDir . $fileName)) {
+            return $oldPath;
+        }
+
+        (new HouseholdUploadStorage())->store($uploadDir . $fileName, 'uploads/ids/' . $fileName);
+
+        return 'uploads/ids/' . $fileName;
+    }
+
+    private function clearCensusUploadStash(): void
+    {
+        $stash = session()->get(self::CENSUS_STASH_KEY);
+        if (is_array($stash)) {
+            $walk = static function ($item) use (&$walk): void {
+                if (is_array($item) && isset($item['path']) && is_file((string) $item['path'])) {
+                    @unlink((string) $item['path']);
+                    return;
+                }
+                if (is_array($item)) {
+                    foreach ($item as $child) {
+                        $walk($child);
+                    }
+                }
+            };
+            $walk($stash);
+        }
+        session()->remove(self::CENSUS_STASH_KEY);
     }
 
     /**
@@ -739,6 +903,69 @@ class CensusController extends BaseController
         return null;
     }
 
+    private function postFlagIsVerified(array $post, string $key, ?int $index = null): bool
+    {
+        if ($index === null) {
+            return (string) ($post[$key] ?? '0') === '1';
+        }
+
+        $flags = $post[$key] ?? [];
+        if (! is_array($flags)) {
+            return false;
+        }
+
+        return (string) ($flags[$index] ?? '0') === '1';
+    }
+
+    private function unverifiedDocumentMessage(array $post): ?string
+    {
+        $fail = static function (string $label): string {
+            return 'The uploaded ' . $label . ' does not match the name and birthdate on the form. Please upload the correct document and verify it with OCR before saving.';
+        };
+
+        if ($this->uploadIsPresent('head_supporting_doc') && ! $this->postFlagIsVerified($post, 'head_supporting_verified')) {
+            return $fail('household head ID or birth certificate');
+        }
+        if (isset($post['is_4ps']) && $this->uploadIsPresent('id_4ps') && ! $this->postFlagIsVerified($post, 'id_4ps_verified')) {
+            return $fail('4Ps Beneficiary ID');
+        }
+        if (isset($post['is_senior_citizen']) && $this->uploadIsPresent('id_senior') && ! $this->postFlagIsVerified($post, 'id_senior_verified')) {
+            return $fail('Senior Citizen ID');
+        }
+        if (isset($post['is_solo_parent']) && $this->uploadIsPresent('id_solo_parent') && ! $this->postFlagIsVerified($post, 'id_solo_parent_verified')) {
+            return $fail('Solo Parent ID');
+        }
+        if (isset($post['is_pwd']) && $this->uploadIsPresent('id_pwd') && ! $this->postFlagIsVerified($post, 'id_pwd_verified')) {
+            return $fail('PWD ID');
+        }
+        if (trim((string) ($post['spouse_last_name'] ?? '')) !== ''
+            && $this->uploadIsPresent('spouse_supporting_doc')
+            && ! $this->postFlagIsVerified($post, 'spouse_supporting_verified')
+        ) {
+            return $fail('spouse ID or birth certificate');
+        }
+
+        foreach ((array) ($post['child_last_name'] ?? []) as $i => $lastName) {
+            if (trim((string) $lastName) === '') {
+                continue;
+            }
+            if ($this->uploadIsPresent('child_supporting_doc', (int) $i) && ! $this->postFlagIsVerified($post, 'child_supporting_verified', (int) $i)) {
+                return $fail('ID or birth certificate for child #' . ((int) $i + 1));
+            }
+        }
+
+        foreach ((array) ($post['other_last_name'] ?? []) as $i => $lastName) {
+            if (trim((string) $lastName) === '') {
+                continue;
+            }
+            if ($this->uploadIsPresent('other_supporting_doc', (int) $i) && ! $this->postFlagIsVerified($post, 'other_supporting_verified', (int) $i)) {
+                return $fail('ID or birth certificate for ' . trim((string) $lastName));
+            }
+        }
+
+        return null;
+    }
+
     private function missingWorkingStudentWork(array $post): ?string
     {
         foreach ((array) ($post['child_occupation'] ?? []) as $i => $occupation) {
@@ -807,18 +1034,18 @@ class CensusController extends BaseController
         }
 
         if ($head) {
-            $support = $this->_handleUploadedMemberIdFile($this->request->getFile('head_supporting_doc'), 'support', $head['id']);
+            $support = $this->_handleUploadedMemberIdFile($this->request->getFile('head_supporting_doc'), 'support', $head['id'], null, 'head_supporting_doc');
             if ($support) {
                 $this->memberModel->update($head['id'], ['supporting_doc_path' => $support]);
             }
             if ($this->request->getPost('is_pwd') !== null) {
-                $path = $this->_handleUploadedMemberIdFile($this->request->getFile('id_pwd'), 'pwd', $head['id']);
+                $path = $this->_handleUploadedMemberIdFile($this->request->getFile('id_pwd'), 'pwd', $head['id'], null, 'id_pwd');
                 if ($path) {
                     $this->memberModel->update($head['id'], ['id_pwd_path' => $path]);
                 }
             }
             if ($this->request->getPost('is_senior_citizen') !== null) {
-                $path = $this->_handleUploadedMemberIdFile($this->request->getFile('id_senior'), 'senior', $head['id']);
+                $path = $this->_handleUploadedMemberIdFile($this->request->getFile('id_senior'), 'senior', $head['id'], null, 'id_senior');
                 if ($path) {
                     $this->memberModel->update($head['id'], ['id_senior_path' => $path]);
                 }
@@ -855,14 +1082,14 @@ class CensusController extends BaseController
                 continue;
             }
             if (($childPwdPosted[$i] ?? '0') === '1') {
-                $path = $this->_handleUploadedMemberIdFile($childPwdFiles[$i] ?? null, 'pwd', $child['id']);
+                $path = $this->_handleUploadedMemberIdFile($childPwdFiles[$i] ?? null, 'pwd', $child['id'], null, 'child_id_pwd', (int) $i);
                 $this->memberModel->update($child['id'], ['id_pwd_path' => $path]);
             }
             if (isset($childSeniorPosted[$i])) {
-                $path = $this->_handleUploadedMemberIdFile($childSeniorFiles[$i] ?? null, 'senior', $child['id']);
+                $path = $this->_handleUploadedMemberIdFile($childSeniorFiles[$i] ?? null, 'senior', $child['id'], null, 'child_id_senior', (int) $i);
                 $this->memberModel->update($child['id'], ['id_senior_path' => $path]);
             }
-            $path = $this->_handleUploadedMemberIdFile($childSupportFiles[$i] ?? null, 'support', $child['id']);
+            $path = $this->_handleUploadedMemberIdFile($childSupportFiles[$i] ?? null, 'support', $child['id'], null, 'child_supporting_doc', (int) $i);
             if ($path) {
                 $this->memberModel->update($child['id'], ['supporting_doc_path' => $path]);
             }
@@ -881,10 +1108,10 @@ class CensusController extends BaseController
                 continue;
             }
             if (isset($otherSeniorPosted[$i])) {
-                $path = $this->_handleUploadedMemberIdFile($otherSeniorFiles[$i] ?? null, 'senior', $other['id']);
+                $path = $this->_handleUploadedMemberIdFile($otherSeniorFiles[$i] ?? null, 'senior', $other['id'], null, 'other_id_senior', (int) $i);
                 $this->memberModel->update($other['id'], ['id_senior_path' => $path]);
             }
-            $path = $this->_handleUploadedMemberIdFile($otherSupportFiles[$i] ?? null, 'support', $other['id']);
+            $path = $this->_handleUploadedMemberIdFile($otherSupportFiles[$i] ?? null, 'support', $other['id'], null, 'other_supporting_doc', (int) $i);
             if ($path) {
                 $this->memberModel->update($other['id'], ['supporting_doc_path' => $path]);
             }
@@ -906,22 +1133,20 @@ class CensusController extends BaseController
             (array) ($post['child_dob'] ?? [])
         );
         if ($ageError !== null) {
-            return redirect()->back()->with('error', $ageError)->withInput();
+            return $this->censusFormError($ageError);
         }
 
         $sharedPlan = null;
         if (($post['house_ownership'] ?? 'Owned') === 'Shared') {
             $sharedPlan = $this->planSharedHousehold(trim((string) ($post['linked_household_no'] ?? '')));
             if (is_string($sharedPlan)) {
-                return redirect()->back()->with('error', $sharedPlan)->withInput();
+                return $this->censusFormError($sharedPlan);
             }
         }
 
         $rawContactNumber = $post['contact_number'] ?? '';
         if ($rawContactNumber !== '' && $this->cleanContactNumber($rawContactNumber) === null) {
-            return redirect()->back()
-                ->with('error', 'Contact number must contain exactly 11 digits.')
-                ->withInput();
+            return $this->censusFormError('Contact number must contain exactly 11 digits.');
         }
 
         // ── Solo Parent validation: must have at least one child ──────────────
@@ -931,9 +1156,7 @@ class CensusController extends BaseController
                 fn($v) => $v !== ''
             );
             if (empty($childNames)) {
-                return redirect()->back()
-                    ->with('error', 'A Solo Parent record requires at least one child. Please add the child\'s information in the Family Information section.')
-                    ->withInput();
+                return $this->censusFormError('A Solo Parent record requires at least one child. Please add the child\'s information in the Family Information section.');
             }
         }
 
@@ -962,18 +1185,20 @@ class CensusController extends BaseController
             }
         }
         if (! $saveAsDraft && ! empty($idErrors)) {
-            return redirect()->back()
-                ->with('error', implode(' ', $idErrors))
-                ->withInput();
+            return $this->censusFormError(implode(' ', $idErrors));
         }
         if (! $saveAsDraft) {
             $documentError = $this->missingSupportingDocumentMessage($post);
             if ($documentError !== null) {
-                return redirect()->back()->with('error', $documentError)->withInput();
+                return $this->censusFormError($documentError);
+            }
+            $verifyError = $this->unverifiedDocumentMessage($post);
+            if ($verifyError !== null) {
+                return $this->censusFormError($verifyError);
             }
             $workError = $this->missingWorkingStudentWork($post);
             if ($workError !== null) {
-                return redirect()->back()->with('error', $workError)->withInput();
+                return $this->censusFormError($workError);
             }
         }
 
@@ -985,23 +1210,17 @@ class CensusController extends BaseController
 
         if ($householdNoMode === 'manual') {
             if ($householdNo === '' || ! preg_match('/^\d{1,5}$/', $householdNo)) {
-                return redirect()->back()
-                    ->with('error', 'Enter a household number, or turn Auto on to generate one.')
-                    ->withInput();
+                return $this->censusFormError('Enter a household number, or turn Auto on to generate one.');
             }
             $existingHousehold = $this->householdModel->find($householdNo);
             $linkedNo = preg_replace('/\D/', '', trim((string) ($post['linked_household_no'] ?? ''))) ?? '';
             if ($existingHousehold && ($post['house_ownership'] ?? '') === 'Shared' && $linkedNo === $householdNo) {
                 $appendToExisting = true;
             } elseif ($existingHousehold) {
-                return redirect()->back()
-                    ->with('error', 'Household number ' . $householdNo . ' is already in use. Enter a different number, or turn Auto on to generate one.')
-                    ->withInput();
+                return $this->censusFormError('Household number ' . $householdNo . ' is already in use. Enter a different number, or turn Auto on to generate one.');
             }
         } elseif ($householdNo === '' || $this->householdModel->where('household_no', $householdNo)->countAllResults() > 0) {
-            do {
-                $householdNo = str_pad((string) random_int(10000, 99999), 5, '0', STR_PAD_LEFT);
-            } while ($this->householdModel->where('household_no', $householdNo)->countAllResults() > 0);
+            $householdNo = $this->nextAvailableHouseholdNo();
         }
 
         $transactionDate = $post['recorded_date'] ?? date('Y-m-d');
@@ -1071,9 +1290,12 @@ class CensusController extends BaseController
             (string) $householdData['first_name'],
             $householdData['date_of_birth']
         )) {
-            return redirect()->back()
-                ->with('error', 'This person is already recorded in the census. Please use the existing household record.')
-                ->withInput();
+            return $this->censusFormError('This person is already recorded in the census. Please use the existing household record.');
+        }
+
+        $earlyMinorError = $this->validateMinorCivilStatusesFromPost($post);
+        if ($earlyMinorError !== null) {
+            return $this->censusFormError($earlyMinorError);
         }
 
         if (! $appendToExisting) {
@@ -1083,29 +1305,24 @@ class CensusController extends BaseController
             } catch (\CodeIgniter\Database\Exceptions\DatabaseException $e) {
                 $msg = $e->getMessage();
                 if (str_contains($msg, 'uq_households_philhealth') || str_contains($msg, 'philhealth_no')) {
-                    return redirect()->back()->with('error', 'That PhilHealth number is already registered to another household head.')->withInput();
+                    return $this->censusFormError('That PhilHealth number is already registered to another household head.');
                 }
                 if (str_contains($msg, 'uq_households_contact') || str_contains($msg, 'contact_number')) {
-                    return redirect()->back()->with('error', 'That contact number is already registered to another household head.')->withInput();
+                    return $this->censusFormError('That contact number is already registered to another household head.');
                 }
                 if (str_contains($msg, 'uq_households_person')) {
-                    return redirect()->back()->with('error', 'A household head with the same name and date of birth already exists in the census.')->withInput();
+                    return $this->censusFormError('A household head with the same name and date of birth already exists in the census.');
                 }
+                $this->stashCensusUploads();
                 throw $e;
             }
 
             if ($inserted === false) {
                 $errors = implode(' ', $this->householdModel->errors());
-                return redirect()->back()->with('error', 'Failed to save household: ' . $errors)->withInput();
+                return $this->censusFormError('Failed to save household: ' . $errors);
             }
         } else {
             $this->householdModel->update($householdNo, ['house_ownership' => 'Shared']);
-        }
-
-        // Verify the household actually exists before inserting members
-        $exists = $this->householdModel->find($householdNo);
-        if (! $exists) {
-            return redirect()->back()->with('error', 'Household was not saved correctly. Please try again.')->withInput();
         }
 
         // household_no is the PK — use it directly
@@ -1299,34 +1516,31 @@ class CensusController extends BaseController
             unset($appendedMember);
         }
 
-        $minorCivilStatusError = $this->validateMinorCivilStatuses($members);
-        if ($minorCivilStatusError !== null) {
-            return redirect()->back()->with('error', $minorCivilStatusError)->withInput();
-        }
         if ($appendToExisting) {
             $appendError = $this->storeAppendedFamilyFiles($householdKey, $members);
             if ($appendError !== null) {
-                return redirect()->back()->with('error', $appendError)->withInput();
+                return $this->censusFormError($appendError);
             }
         } elseif (! empty($members)) {
             $this->memberModel->replaceMembers($householdKey, $members);
 
             $savedSpouse = $this->memberModel->where('household_no', $householdKey)
                 ->where('relationship', 'spouse')->first();
+            $spouseUpdate = [];
             if ($savedSpouse && ($post['spouse_pwd'] ?? '0') === '1') {
-                $path = $this->_handleMemberIdUpload('spouse_id_pwd', 'pwd', (int) $savedSpouse['id']);
-                $this->memberModel->update($savedSpouse['id'], ['id_pwd_path' => $path]);
+                $spouseUpdate['id_pwd_path'] = $this->_handleMemberIdUpload('spouse_id_pwd', 'pwd', (int) $savedSpouse['id']);
             }
-
             if ($savedSpouse && ($post['spouse_senior'] ?? '0') === '1') {
-                $path = $this->_handleMemberIdUpload('spouse_id_senior', 'senior', (int) $savedSpouse['id']);
-                $this->memberModel->update($savedSpouse['id'], ['id_senior_path' => $path]);
+                $spouseUpdate['id_senior_path'] = $this->_handleMemberIdUpload('spouse_id_senior', 'senior', (int) $savedSpouse['id']);
             }
             if ($savedSpouse) {
                 $spouseSupport = $this->_handleMemberIdUpload('spouse_supporting_doc', 'support', (int) $savedSpouse['id']);
                 if ($spouseSupport) {
-                    $this->memberModel->update($savedSpouse['id'], ['supporting_doc_path' => $spouseSupport]);
+                    $spouseUpdate['supporting_doc_path'] = $spouseSupport;
                 }
+            }
+            if ($savedSpouse && $spouseUpdate !== []) {
+                $this->memberModel->update($savedSpouse['id'], $spouseUpdate);
             }
 
             $savedChildren = $this->memberModel->where('household_no', $householdKey)
@@ -1338,19 +1552,28 @@ class CensusController extends BaseController
             foreach ((array) ($post['child_last_name'] ?? []) as $i => $lastName) {
                 if (empty($lastName)) continue;
                 $child = $savedChildren[$childFileIndex++] ?? null;
-                if ($child && (($post['child_pwd'][$i] ?? '0') === '1')) {
-                    $path = $this->_handleUploadedMemberIdFile($childPwdFiles[$i] ?? null, 'pwd', (int) $child['id']);
-                    $this->memberModel->update($child['id'], ['id_pwd_path' => $path]);
+                if (! $child) {
+                    continue;
                 }
-                if ($child && (($post['child_senior'][$i] ?? '0') === '1')) {
-                    $path = $this->_handleUploadedMemberIdFile($childSeniorFiles[$i] ?? null, 'senior', (int) $child['id']);
-                    $this->memberModel->update($child['id'], ['id_senior_path' => $path]);
+                $childUpdate = [];
+                if (($post['child_pwd'][$i] ?? '0') === '1') {
+                    $childUpdate['id_pwd_path'] = $this->_handleUploadedMemberIdFile(
+                        $childPwdFiles[$i] ?? null, 'pwd', (int) $child['id'], null, 'child_id_pwd', (int) $i
+                    );
                 }
-                if ($child) {
-                    $path = $this->_handleUploadedMemberIdFile($childSupportFiles[$i] ?? null, 'support', (int) $child['id']);
-                    if ($path) {
-                        $this->memberModel->update($child['id'], ['supporting_doc_path' => $path]);
-                    }
+                if (($post['child_senior'][$i] ?? '0') === '1') {
+                    $childUpdate['id_senior_path'] = $this->_handleUploadedMemberIdFile(
+                        $childSeniorFiles[$i] ?? null, 'senior', (int) $child['id'], null, 'child_id_senior', (int) $i
+                    );
+                }
+                $path = $this->_handleUploadedMemberIdFile(
+                    $childSupportFiles[$i] ?? null, 'support', (int) $child['id'], null, 'child_supporting_doc', (int) $i
+                );
+                if ($path) {
+                    $childUpdate['supporting_doc_path'] = $path;
+                }
+                if ($childUpdate !== []) {
+                    $this->memberModel->update($child['id'], $childUpdate);
                 }
             }
 
@@ -1363,15 +1586,23 @@ class CensusController extends BaseController
             foreach ((array) ($post['other_last_name'] ?? []) as $i => $lastName) {
                 if (empty($lastName)) continue;
                 $other = $savedOthers[$otherFileIndex++] ?? null;
-                if ($other && (($post['other_senior'][$i] ?? '0') === '1')) {
-                    $path = $this->_handleUploadedMemberIdFile($otherSeniorFiles[$i] ?? null, 'senior', (int) $other['id']);
-                    $this->memberModel->update($other['id'], ['id_senior_path' => $path]);
+                if (! $other) {
+                    continue;
                 }
-                if ($other) {
-                    $path = $this->_handleUploadedMemberIdFile($otherSupportFiles[$i] ?? null, 'support', (int) $other['id']);
-                    if ($path) {
-                        $this->memberModel->update($other['id'], ['supporting_doc_path' => $path]);
-                    }
+                $otherUpdate = [];
+                if (($post['other_senior'][$i] ?? '0') === '1') {
+                    $otherUpdate['id_senior_path'] = $this->_handleUploadedMemberIdFile(
+                        $otherSeniorFiles[$i] ?? null, 'senior', (int) $other['id'], null, 'other_id_senior', (int) $i
+                    );
+                }
+                $path = $this->_handleUploadedMemberIdFile(
+                    $otherSupportFiles[$i] ?? null, 'support', (int) $other['id'], null, 'other_supporting_doc', (int) $i
+                );
+                if ($path) {
+                    $otherUpdate['supporting_doc_path'] = $path;
+                }
+                if ($otherUpdate !== []) {
+                    $this->memberModel->update($other['id'], $otherUpdate);
                 }
             }
         }
@@ -1386,13 +1617,14 @@ class CensusController extends BaseController
         } else {
             $message = 'Household record saved successfully.';
         }
+        $this->clearCensusUploadStash();
         return redirect()->to('/' . $role . '/census')->with('success', $message);
     }
 
     public function sendResidentUpdateAuthorization()
     {
-        if (! can_role('secretary')) {
-            return redirect()->to('/secretary/dashboard')->with('error', 'Only the secretary can send census update authorizations.');
+        if (! can_role('secretary', 'admin')) {
+            return redirect()->back()->with('error', 'Only the secretary can send census update authorizations.');
         }
 
         $selected = $this->request->getPost('user_ids');
@@ -1480,44 +1712,40 @@ class CensusController extends BaseController
             return redirect()->to('/login')->with('error', 'Please log in to update your census information.');
         }
 
-        $token = session()->get('pending_census_update_token');
-        if (! $token) {
-            $openAuth = (new CensusUpdateAuthorizationModel())->getPendingByUser((int) $userId);
-            $token = $openAuth['token'] ?? '';
-            if ($token !== '') {
-                session()->set('pending_census_update_token', $token);
-            }
-        }
-        if (! $token) {
-            return redirect()->to($this->censusPortal('dashboard'))->with('error', 'No census update authorization was found for this session.');
-        }
-
-        $auth = (new CensusUpdateAuthorizationModel())->findValidByToken($token);
-        if (! $auth || (int) $auth['user_id'] !== (int) $userId) {
-            return redirect()->to($this->censusPortal('dashboard'))->with('error', 'This authorization token is no longer valid for your account.');
-        }
-
-        $householdNo = $auth['household_no'] ?? session()->get('household_no');
-        $household = $this->householdModel->find($householdNo);
-        if (! $household) {
-            $household = $this->householdModel->where('household_no', session()->get('household_no') ?? '')->first();
-        }
-
-        $userModel = new UserModel();
-        $user = $userModel->find($userId);
-        $members = $household ? $this->memberModel->where('household_no', $household['household_no'])->findAll() : [];
+        $user = (new UserModel())->find($userId);
+        $householdNo = $user['household_no'] ?? session()->get('household_no');
+        $household = $householdNo ? $this->householdModel->find($householdNo) : null;
+        $members = $household ? $this->memberModel->getByHousehold($household['household_no']) : [];
         $access = self::resolveResidentHouseholdAccess($user ?? [], $household, $members);
 
-        if (! $access['can_edit_personal']) {
+        if (! $access['can_edit_personal'] || ! $household) {
             return redirect()->to($this->censusPortal('dashboard'))->with('error', 'You are not linked to a valid household record for census updates.');
+        }
+
+        $auth = $this->ensureResidentCensusAuth((int) $userId, (string) $household['household_no']);
+        if (! $auth) {
+            return redirect()->to($this->censusPortal('dashboard'))->with('error', 'Unable to open the census update form right now.');
+        }
+
+        $pendingRequests = [];
+        if ($this->memberRequestTableExists() && $access['can_edit_household']) {
+            $householdNoKey = (string) $household['household_no'];
+            $pendingRequests = array_values(array_filter(
+                (new HouseholdMemberRequestModel())->listPending(),
+                static fn(array $row): bool => (string) ($row['household_no'] ?? '') === $householdNoKey
+            ));
         }
 
         return view('dashboard/resident/census_update', [
             'role' => session()->get('role') === 'council' ? 'council' : 'resident',
+            'user' => $user,
             'household' => $household,
-            'token' => $token,
-            'pageTitle' => 'Census Update Authorization',
+            'members' => $members,
+            'token' => $auth['token'],
+            'auth' => $auth,
+            'pageTitle' => $access['can_edit_household'] ? 'Census Update Form' : 'My Census Information',
             'householdAccess' => $access,
+            'pendingMemberRequests' => $pendingRequests,
         ]);
     }
 
@@ -1528,138 +1756,70 @@ class CensusController extends BaseController
             return redirect()->to('/login')->with('error', 'Please log in to continue.');
         }
 
-        $token = $this->request->getPost('token') ?: session()->get('pending_census_update_token');
-        if (! $token) {
-            return redirect()->to($this->censusPortal('dashboard'))->with('error', 'No authorization token was found for this submission.');
-        }
-
-        $authModel = new CensusUpdateAuthorizationModel();
-        $auth = $authModel->findValidByToken($token);
-        if (! $auth || (int) $auth['user_id'] !== (int) $userId) {
-            return redirect()->to($this->censusPortal('dashboard'))->with('error', 'Your census update authorization is invalid or expired.');
-        }
-
-        $householdNo = $auth['household_no'] ?? session()->get('household_no');
-        if (! $householdNo) {
-            return redirect()->to($this->censusPortal('dashboard'))->with('error', 'No household could be linked to your account.');
-        }
-
-        $household = $this->householdModel->find($householdNo);
         $user = (new UserModel())->find($userId);
-        $members = $household ? $this->memberModel->where('household_no', $householdNo)->findAll() : [];
+        $householdNo = $user['household_no'] ?? session()->get('household_no');
+        $household = $householdNo ? $this->householdModel->find($householdNo) : null;
+        $members = $household ? $this->memberModel->getByHousehold((string) $householdNo) : [];
         $access = self::resolveResidentHouseholdAccess($user ?? [], $household, $members);
 
-        if (! $access['can_edit_personal']) {
+        if (! $access['can_edit_personal'] || ! $household) {
             return redirect()->to($this->censusPortal('dashboard'))->with('error', 'You are not authorized to submit a census update for this household.');
         }
 
-        // The resident update form now mirrors the full secretary census
-        // step-1 fields. We collect every text/select/radio field, keep only
-        // the ones that are allowed for this user's household role, and
-        // store the sanitized payload for the secretary to apply on approve.
-        $post = $this->request->getPost();
-
-        $trim = static fn ($v) => trim((string) ($v ?? ''));
-        $trimOrNull = static function ($v) use ($trim) {
-            $s = $trim($v);
-            return $s === '' ? null : $s;
-        };
-        $boolOrNull = static function ($v) {
-            if ($v === null || $v === '') return null;
-            return in_array((string) $v, ['1', 'yes', 'true', 'on'], true) ? 1 : 0;
-        };
-        $allowedEnum = static function ($v, array $options) {
-            $v = (string) $v;
-            return in_array($v, $options, true) ? $v : null;
-        };
-
-        // Fields the submitter is always allowed to edit (their own personal
-        // details on the household head row). If the submitter is NOT the
-        // head these are stripped below.
-        $payload = [
-            'household_no' => $householdNo,
-
-            // Head personal info
-            'last_name'              => $trimOrNull($post['last_name']            ?? null),
-            'first_name'             => $trimOrNull($post['first_name']           ?? null),
-            'middle_name'            => $trimOrNull($post['middle_name']          ?? null),
-            'suffix'                 => $trimOrNull($post['suffix']               ?? null),
-            'date_of_birth'          => $trimOrNull($post['date_of_birth']        ?? null),
-            'place_of_birth'         => $trimOrNull($post['place_of_birth']       ?? null),
-            'gender'                 => $allowedEnum($post['gender']       ?? '', ['Male', 'Female']),
-            'civil_status'           => $allowedEnum($post['civil_status'] ?? '', ['Single', 'Married', 'Widowed', 'Separated', 'Annulled']),
-            'nationality'            => $trimOrNull($post['nationality']          ?? null),
-            'religion'               => $trimOrNull($post['religion']             ?? null),
-            'occupation'             => $trimOrNull($post['occupation']           ?? null),
-            'monthly_income'         => isset($post['monthly_income']) ? (float) $post['monthly_income'] : null,
-            'contact_number'         => $trimOrNull($post['contact_number']       ?? null),
-            'educational_attainment' => $trimOrNull($post['educational_attainment'] ?? null),
-            'philhealth_no'          => $trimOrNull($post['philhealth_no']        ?? null),
-            'registered_voter'       => $boolOrNull($post['registered_voter']     ?? null),
-
-            // Household info
-            'address'                => $trimOrNull($post['address']              ?? null),
-            'zone'                   => $trimOrNull($post['zone']                 ?? null),
-            'years_of_residency'     => isset($post['years_of_residency']) ? max(0, (int) $post['years_of_residency']) : null,
-            'house_ownership'        => $allowedEnum($post['house_ownership'] ?? '', ['Owned', 'Rented', 'Shared', 'Informal Settler']),
-            'num_families'           => isset($post['num_families']) ? max(1, (int) $post['num_families']) : null,
-
-            // Household classification
-            'is_4ps'                 => $boolOrNull($post['is_4ps']               ?? null),
-            'is_senior_citizen'      => $boolOrNull($post['is_senior_citizen']    ?? null),
-            'is_solo_parent'         => $boolOrNull($post['is_solo_parent']       ?? null),
-            'is_indigenous'          => $boolOrNull($post['is_indigenous']        ?? null),
-            'is_pwd'                 => $boolOrNull($post['is_pwd']               ?? null),
-            'pwd_type'               => $trimOrNull($post['pwd_type']             ?? null),
-
-            // Water & sanitation
-            'water_source_level'     => $allowedEnum($post['water_source_level']   ?? '', ['I', 'II', 'III', 'none']),
-            'water_safety_managed'   => $boolOrNull($post['water_safety_managed'] ?? null),
-            'sanitation_basic'       => $allowedEnum($post['sanitation_basic']     ?? '', ['with', 'without']),
-            'sanitation_managed'     => $allowedEnum($post['sanitation_managed']   ?? '', ['with', 'without']),
-        ];
-
-        // Household-level fields can only be modified by the household head.
-        // Members get their changes stripped so a non-head cannot alter the
-        // address, zone, water/sanitation, or classification flags.
-        if (! $access['can_edit_household']) {
-            $householdOnly = [
-                'address', 'zone', 'years_of_residency', 'house_ownership', 'num_families',
-                'is_4ps', 'is_senior_citizen', 'is_solo_parent', 'is_indigenous', 'is_pwd', 'pwd_type',
-                'water_source_level', 'water_safety_managed', 'sanitation_basic', 'sanitation_managed',
-                // Head identity / personal profile also stays with the head.
-                'last_name', 'first_name', 'middle_name', 'suffix', 'date_of_birth', 'place_of_birth',
-                'gender', 'civil_status', 'nationality', 'religion', 'occupation', 'monthly_income',
-                'contact_number', 'educational_attainment', 'philhealth_no', 'registered_voter',
-            ];
-            foreach ($householdOnly as $field) {
-                unset($payload[$field]);
-            }
-            $payload['household_no'] = $householdNo;
+        $auth = $this->ensureResidentCensusAuth((int) $userId, (string) $household['household_no']);
+        if (! $auth) {
+            return redirect()->to($this->censusPortal('census-update'))->with('error', 'Unable to save this census update.');
         }
 
-        // Drop keys that came back null so the diff on approval is clean.
-        $payload = array_filter(
-            $payload,
-            static fn ($v) => ! ($v === null || $v === '')
-        );
-        $payload['household_no'] = $householdNo; // always keep the FK
+        $post = $this->request->getPost();
+        $confirmOnly = ($post['submit_action'] ?? '') === 'confirm';
+        $payload = [
+            'household_no' => $household['household_no'],
+            'scope' => $access['can_edit_household'] ? 'head' : 'member',
+            'confirm_only' => $confirmOnly,
+        ];
 
-        $authModel->update($auth['id'], [
+        if ($access['can_edit_household']) {
+            $moveError = $this->invalidMemberMoveDestination($post);
+            if ($moveError !== null) {
+                return redirect()->to($this->censusPortal('census-update'))->with('error', $moveError);
+            }
+            $payload['household'] = $this->collectResidentHouseholdPayload($post);
+            $payload['members'] = $this->collectResidentMemberUpdates($post, $members);
+            $memberRequestCount = $this->queueHeadMemberRequests((string) $household['household_no'], (int) $userId, $post, $members);
+        } else {
+            $payload['member'] = $this->collectOwnMemberPayload($post, $access['member'] ?? null, $user ?? []);
+        }
+
+        (new CensusUpdateAuthorizationModel())->update($auth['id'], [
             'status' => 'submitted',
             'submitted_at' => date('Y-m-d H:i:s'),
-            'notes' => json_encode($payload, JSON_THROW_ON_ERROR),
+            'notes' => json_encode($payload, JSON_UNESCAPED_UNICODE),
         ]);
 
-        session()->remove('pending_census_update_token');
+        $this->notifyCensusReviewers(
+            $confirmOnly ? 'Census information confirmed' : 'Census update submitted',
+            trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) . (
+                $confirmOnly
+                    ? ' confirmed that their census information is correct.'
+                    : ' submitted a census update for household #' . $household['household_no'] . '.'
+            )
+        );
 
-        return redirect()->to($this->censusPortal('dashboard'))->with('success', 'Your census update request has been submitted for secretary review.');
+        $message = $confirmOnly
+            ? 'Thank you. You confirmed that your information is correct. The barangay will review it.'
+            : 'Your census update has been submitted for Captain or Secretary review.';
+        if (($memberRequestCount ?? 0) > 0) {
+            $message .= ' Member add, move, or remove requests also need Captain or Secretary approval.';
+        }
+
+        return redirect()->to($this->censusPortal('census-update'))->with('success', $message);
     }
 
     public function approveResidentUpdate(int $id)
     {
-        if (! can_role('secretary')) {
-            return redirect()->to('/secretary/dashboard')->with('error', 'Only the secretary can approve census updates.');
+        if (! can_role('secretary', 'captain', 'admin')) {
+            return redirect()->back()->with('error', 'Only the Captain or Secretary can approve census updates.');
         }
 
         $authModel = new CensusUpdateAuthorizationModel();
@@ -1669,49 +1829,38 @@ class CensusController extends BaseController
         }
 
         $payload = json_decode((string) $auth['notes'], true);
-        if (is_array($payload) && ! empty($payload['household_no'])) {
-            // Whitelist of columns the households table has. Anything else
-            // in the payload is ignored so a stray JSON key cannot write to
-            // an unexpected column.
-            $allowedColumns = [
-                'last_name', 'first_name', 'middle_name', 'suffix',
-                'date_of_birth', 'place_of_birth', 'gender', 'civil_status',
-                'nationality', 'religion', 'occupation', 'monthly_income',
-                'contact_number', 'educational_attainment', 'philhealth_no',
-                'registered_voter', 'address', 'zone', 'years_of_residency',
-                'house_ownership', 'num_families',
-                'is_4ps', 'is_senior_citizen', 'is_solo_parent',
-                'is_indigenous', 'is_pwd', 'pwd_type',
-                'water_source_level', 'water_safety_managed',
-                'sanitation_basic', 'sanitation_managed',
-            ];
-
-            $updates = [];
-            foreach ($allowedColumns as $col) {
-                if (array_key_exists($col, $payload) && $payload[$col] !== null && $payload[$col] !== '') {
-                    $updates[$col] = $payload[$col];
-                }
-            }
-
-            if ($updates !== []) {
-                $this->householdModel->update($payload['household_no'], $updates);
-            }
+        if (is_array($payload)) {
+            $this->applyResidentCensusPayload($payload);
         }
 
         $authModel->update($id, [
             'status' => 'approved',
             'approved_at' => date('Y-m-d H:i:s'),
             'reviewed_by' => session()->get('user_id'),
-            'notes' => json_encode(['approved_by' => session()->get('user_id'), 'approved_at' => date('Y-m-d H:i:s'), 'changes' => $payload ?? []], JSON_THROW_ON_ERROR),
+            'notes' => json_encode([
+                'approved_by' => session()->get('user_id'),
+                'approved_at' => date('Y-m-d H:i:s'),
+                'changes' => $payload ?? [],
+            ], JSON_UNESCAPED_UNICODE),
         ]);
 
-        return redirect()->back()->with('success', 'Census update approved and applied to the resident record.');
+        if (! empty($auth['user_id'])) {
+            NotificationModel::push(
+                (int) $auth['user_id'],
+                'census_update',
+                'Census update approved',
+                'Your census information was reviewed and applied to the barangay record.',
+                $this->censusLinkForUser((int) $auth['user_id'])
+            );
+        }
+
+        return redirect()->back()->with('success', 'Census update approved and applied to the record.');
     }
 
     public function rejectResidentUpdate(int $id)
     {
-        if (! can_role('secretary')) {
-            return redirect()->to('/secretary/dashboard')->with('error', 'Only the secretary can reject census updates.');
+        if (! can_role('secretary', 'captain', 'admin')) {
+            return redirect()->back()->with('error', 'Only the Captain or Secretary can reject census updates.');
         }
 
         $authModel = new CensusUpdateAuthorizationModel();
@@ -1720,12 +1869,27 @@ class CensusController extends BaseController
             return redirect()->back()->with('error', 'No submitted census update request was found.');
         }
 
+        $reason = trim((string) $this->request->getPost('remarks'));
         $authModel->update($id, [
             'status' => 'rejected',
             'rejected_at' => date('Y-m-d H:i:s'),
             'reviewed_by' => session()->get('user_id'),
-            'notes' => json_encode(['rejected_by' => session()->get('user_id'), 'rejected_at' => date('Y-m-d H:i:s')], JSON_THROW_ON_ERROR),
+            'notes' => json_encode([
+                'rejected_by' => session()->get('user_id'),
+                'rejected_at' => date('Y-m-d H:i:s'),
+                'reason' => $reason,
+            ], JSON_UNESCAPED_UNICODE),
         ]);
+
+        if (! empty($auth['user_id'])) {
+            NotificationModel::push(
+                (int) $auth['user_id'],
+                'census_update',
+                'Census update not approved',
+                $reason !== '' ? $reason : 'Your census update was not approved. Please visit the barangay hall for help.',
+                $this->censusLinkForUser((int) $auth['user_id'])
+            );
+        }
 
         return redirect()->back()->with('success', 'Census update request rejected.');
     }
@@ -1783,6 +1947,7 @@ class CensusController extends BaseController
     public function updateHousehold(string $householdNo)
     {
         $post = $this->request->getPost();
+        $saveAsDraft = ($post['save_mode'] ?? 'complete') === 'draft';
         $role = session()->get('role');
         $db   = \Config\Database::connect();
 
@@ -1841,7 +2006,7 @@ class CensusController extends BaseController
         if ($checkPwd && ! $hasExistingPwd && ! $hasNewPwd) {
             $idErrors[] = 'PWD ID upload is required (no existing ID on file).';
         }
-        if (! empty($idErrors)) {
+        if (! $saveAsDraft && ! empty($idErrors)) {
             return redirect()->back()
                 ->with('error', implode(' ', $idErrors))
                 ->withInput();
@@ -1876,6 +2041,18 @@ class CensusController extends BaseController
             }
         }
 
+        if (! $saveAsDraft) {
+            $verifyError = $this->unverifiedDocumentMessage($post);
+            if ($verifyError !== null) {
+                return redirect()->back()->with('error', $verifyError)->withInput();
+            }
+        }
+
+        $hasNew4psUpload = $this->uploadIsPresent('id_4ps');
+        $hasNewSeniorUpload = $this->uploadIsPresent('id_senior');
+        $hasNewSoloUpload = $this->uploadIsPresent('id_solo_parent');
+        $hasNewPwdUpload = $this->uploadIsPresent('id_pwd');
+
         // ── Process head ID uploads ───────────────────────────────────────────
         $id4psPath   = $this->_handleIdUpload('id_4ps', '4ps', $householdNo, $current['id_4ps_path'] ?? null);
         $idSeniorPath = $this->_handleIdUpload('id_senior', 'senior', $householdNo, $current['id_senior_path'] ?? null);
@@ -1898,6 +2075,26 @@ class CensusController extends BaseController
         if (! $checkPwd && ! empty($current['id_pwd_path']) && is_file(FCPATH . $current['id_pwd_path'])) {
             @unlink(FCPATH . $current['id_pwd_path']);
             $idPwdPath = null;
+        }
+
+        $headSupportPath = $this->_handleIdUpload(
+            'head_supporting_doc',
+            'support',
+            $householdNo,
+            $current['supporting_doc_path'] ?? null
+        );
+
+        if (! $saveAsDraft) {
+            $headHasDoc = ! empty($headSupportPath)
+                || ($check4ps && ! empty($id4psPath))
+                || ($checkSenior && ! empty($idSeniorPath))
+                || ($checkSolo && ! empty($idSoloPath))
+                || ($checkPwd && ! empty($idPwdPath));
+            if (! $headHasDoc) {
+                return redirect()->back()
+                    ->with('error', 'The household head needs one ID or birth certificate. Use Save as Draft if the document is not available yet.')
+                    ->withInput();
+            }
         }
 
         $newOwnership    = $post['house_ownership']  ?? 'Owned';
@@ -1959,13 +2156,27 @@ class CensusController extends BaseController
                 : null,
             'is_4ps'                  => $check4ps ? 1 : 0,
             'id_4ps_path'             => $check4ps ? $id4psPath : null,
+            'id_4ps_verified'         => $check4ps
+                ? ($hasNew4psUpload ? 1 : (int) ($current['id_4ps_verified'] ?? 0))
+                : 0,
             'is_pwd'                  => $checkPwd ? 1 : 0,
             'pwd_type'                => ($checkPwd && ! empty($post['pwd_type'])) ? $post['pwd_type'] : null,
             'id_pwd_path'             => $checkPwd ? $idPwdPath : null,
+            'id_pwd_verified'         => $checkPwd
+                ? ($hasNewPwdUpload ? 1 : (int) ($current['id_pwd_verified'] ?? 0))
+                : 0,
             'is_senior_citizen'       => $checkSenior ? 1 : 0,
             'id_senior_path'          => $checkSenior ? $idSeniorPath : null,
+            'id_senior_verified'      => $checkSenior
+                ? ($hasNewSeniorUpload ? 1 : (int) ($current['id_senior_verified'] ?? 0))
+                : 0,
             'is_solo_parent'          => $checkSolo ? 1 : 0,
             'id_solo_parent_path'     => $checkSolo ? $idSoloPath : null,
+            'id_solo_parent_verified' => $checkSolo
+                ? ($hasNewSoloUpload ? 1 : (int) ($current['id_solo_parent_verified'] ?? 0))
+                : 0,
+            'supporting_doc_path'     => $headSupportPath,
+            'record_status'           => $saveAsDraft ? 'draft' : 'complete',
             'is_indigenous'           => isset($post['is_indigenous'])   ? 1 : 0,
             'registered_voter'        => ($post['registered_voter'] ?? '0') === '1' ? 1 : 0,
             'water_source_level'      => array_key_exists('water_source', $post) ? ($post['water_source'] !== '' ? $post['water_source'] : null) : ($current['water_source_level'] ?? null),
@@ -2542,6 +2753,21 @@ class CensusController extends BaseController
             'updated_at'       => date('Y-m-d H:i:s'),
         ]);
 
+        $memberName = trim(($member['first_name'] ?? '') . ' ' . ($member['last_name'] ?? ''));
+        $isTransfer = $separationType === 'Transfer Member';
+        \App\Models\NotificationModel::pushToRole(
+            'captain',
+            'household_move',
+            $isTransfer ? 'Household transfer submitted' : 'Household separation submitted',
+            ($memberName !== '' ? $memberName : 'A household member')
+                . ' from household #' . $householdNo
+                . ($isTransfer
+                    ? ' was requested to transfer to household #' . $destinationHouseholdNo . '.'
+                    : ' was requested to form a new household.'),
+            '/captain/household/' . $householdNo,
+            (int) session()->get('user_id') ?: null
+        );
+
         return redirect()->to('/' . $role . '/household/' . $householdNo)
             ->with('success', 'Separation request filed for <strong>'
                 . esc($member['first_name'] . ' ' . $member['last_name'])
@@ -2613,6 +2839,15 @@ class CensusController extends BaseController
                 'updated_at'   => date('Y-m-d H:i:s'),
             ]);
 
+            \App\Models\NotificationModel::pushToRole(
+                'captain',
+                'household_move',
+                'Household transfer recorded',
+                $auditNote,
+                '/captain/household/' . $destinationHouseholdNo,
+                (int) session()->get('user_id') ?: null
+            );
+
             return redirect()->to('/secretary/census')
                 ->with('success', 'Transfer approved. ' . esc($memberName)
                     . ' is now linked to Household #' . $destinationHouseholdNo . '. '
@@ -2677,6 +2912,15 @@ class CensusController extends BaseController
             'processed_at' => date('Y-m-d H:i:s'),
             'updated_at'   => date('Y-m-d H:i:s'),
         ]);
+
+        \App\Models\NotificationModel::pushToRole(
+            'captain',
+            'household_move',
+            'Household move recorded',
+            $auditNote,
+            '/captain/household/' . $newHouseholdNo,
+            (int) session()->get('user_id') ?: null
+        );
 
         return redirect()->to('/secretary/census')
             ->with('success', 'Separation approved. '
@@ -2995,5 +3239,451 @@ class CensusController extends BaseController
         return redirect()->to('/' . $role . '/household/' . $householdNo)
             ->with('success', 'Household head deceased status has been cleared.'
                 . ($accountNote ? ' ' . $accountNote : ''));
+    }
+
+    public function approveMemberRequest(int $id)
+    {
+        if (! can_role('secretary', 'captain', 'admin')) {
+            return redirect()->back()->with('error', 'Only the Captain or Secretary can approve this request.');
+        }
+
+        $result = $this->applyHouseholdMemberRequest($id, true);
+        return redirect()->back()->with($result['ok'] ? 'success' : 'error', $result['message']);
+    }
+
+    public function rejectMemberRequest(int $id)
+    {
+        if (! can_role('secretary', 'captain', 'admin')) {
+            return redirect()->back()->with('error', 'Only the Captain or Secretary can reject this request.');
+        }
+
+        $result = $this->applyHouseholdMemberRequest($id, false, trim((string) $this->request->getPost('remarks')));
+        return redirect()->back()->with($result['ok'] ? 'success' : 'error', $result['message']);
+    }
+
+    private function ensureResidentCensusAuth(int $userId, string $householdNo): ?array
+    {
+        $authModel = new CensusUpdateAuthorizationModel();
+        $open = $authModel->getPendingByUser($userId);
+        if ($open) {
+            session()->set('pending_census_update_token', $open['token']);
+            return $open;
+        }
+
+        $drive = (new CensusUpdateDriveModel())->currentOpen();
+        $expiresAt = $drive
+            ? $drive['deadline'] . ' 23:59:59'
+            : date('Y-m-d H:i:s', strtotime('+30 days'));
+
+        $auth = $authModel->createForUser($userId, $householdNo, 30, $expiresAt);
+        if (! $auth) {
+            return null;
+        }
+
+        $authModel->update($auth['id'], [
+            'status' => 'sent',
+            'sent_at' => date('Y-m-d H:i:s'),
+        ]);
+        $auth['status'] = 'sent';
+        session()->set('pending_census_update_token', $auth['token']);
+
+        return $auth;
+    }
+
+    private function collectResidentHouseholdPayload(array $post): array
+    {
+        $trim = static fn ($v) => trim((string) ($v ?? ''));
+        $trimOrNull = static function ($v) use ($trim) {
+            $s = $trim($v);
+            return $s === '' ? null : $s;
+        };
+        $boolOrNull = static function ($v) {
+            if ($v === null || $v === '') {
+                return null;
+            }
+            return in_array((string) $v, ['1', 'yes', 'true', 'on'], true) ? 1 : 0;
+        };
+        $allowedEnum = static function ($v, array $options) {
+            $v = (string) $v;
+            return in_array($v, $options, true) ? $v : null;
+        };
+
+        $payload = [
+            'last_name'              => $trimOrNull($post['last_name'] ?? null),
+            'first_name'             => $trimOrNull($post['first_name'] ?? null),
+            'middle_name'            => $trimOrNull($post['middle_name'] ?? null),
+            'suffix'                 => $trimOrNull($post['suffix'] ?? null),
+            'date_of_birth'          => $trimOrNull($post['date_of_birth'] ?? null),
+            'place_of_birth'         => $trimOrNull($post['place_of_birth'] ?? null),
+            'gender'                 => $allowedEnum($post['gender'] ?? '', ['Male', 'Female']),
+            'civil_status'           => $allowedEnum($post['civil_status'] ?? '', ['Single', 'Married', 'Widowed', 'Separated', 'Annulled']),
+            'nationality'            => $trimOrNull($post['nationality'] ?? null),
+            'religion'               => $trimOrNull($post['religion'] ?? null),
+            'occupation'             => $trimOrNull($post['occupation'] ?? null),
+            'monthly_income'         => isset($post['monthly_income']) ? (float) $post['monthly_income'] : null,
+            'contact_number'         => $trimOrNull($post['contact_number'] ?? null),
+            'educational_attainment' => $trimOrNull($post['educational_attainment'] ?? null),
+            'philhealth_no'          => $trimOrNull($post['philhealth_no'] ?? null),
+            'registered_voter'       => $boolOrNull($post['registered_voter'] ?? null),
+            'address'                => $trimOrNull($post['address'] ?? null),
+            'zone'                   => $trimOrNull($post['zone'] ?? null),
+            'years_of_residency'     => isset($post['years_of_residency']) ? max(0, (int) $post['years_of_residency']) : null,
+            'house_ownership'        => $allowedEnum($post['house_ownership'] ?? '', ['Owned', 'Rented', 'Shared', 'Informal Settler']),
+            'num_families'           => isset($post['num_families']) ? max(1, (int) $post['num_families']) : null,
+            'is_4ps'                 => $boolOrNull($post['is_4ps'] ?? null),
+            'is_senior_citizen'      => $boolOrNull($post['is_senior_citizen'] ?? null),
+            'is_solo_parent'         => $boolOrNull($post['is_solo_parent'] ?? null),
+            'is_indigenous'          => $boolOrNull($post['is_indigenous'] ?? null),
+            'is_pwd'                 => $boolOrNull($post['is_pwd'] ?? null),
+            'pwd_type'               => $trimOrNull($post['pwd_type'] ?? null),
+            'water_source_level'     => $allowedEnum($post['water_source_level'] ?? '', ['I', 'II', 'III', 'none']),
+            'water_safety_managed'   => $boolOrNull($post['water_safety_managed'] ?? null),
+            'sanitation_basic'       => $allowedEnum($post['sanitation_basic'] ?? '', ['with', 'without']),
+            'sanitation_managed'     => $allowedEnum($post['sanitation_managed'] ?? '', ['with', 'without']),
+        ];
+
+        return array_filter($payload, static fn ($v) => ! ($v === null || $v === ''));
+    }
+
+    private function collectOwnMemberPayload(array $post, ?array $member, array $user): array
+    {
+        $trim = static fn ($v) => trim((string) ($v ?? ''));
+        $payload = [
+            'member_id'              => $member['id'] ?? null,
+            'last_name'              => strtoupper($trim($post['member_last_name'] ?? ($member['last_name'] ?? $user['last_name'] ?? ''))),
+            'first_name'             => strtoupper($trim($post['member_first_name'] ?? ($member['first_name'] ?? $user['first_name'] ?? ''))),
+            'middle_name'            => strtoupper($trim($post['member_middle_name'] ?? ($member['middle_name'] ?? ''))),
+            'suffix'                 => $trim($post['member_suffix'] ?? ($member['suffix'] ?? '')),
+            'date_of_birth'          => $trim($post['member_date_of_birth'] ?? ($member['date_of_birth'] ?? '')),
+            'gender'                 => $trim($post['member_gender'] ?? ($member['gender'] ?? '')),
+            'marital_status'         => $trim($post['member_civil_status'] ?? ($member['marital_status'] ?? '')),
+            'occupation'             => strtoupper($trim($post['member_occupation'] ?? ($member['occupation'] ?? ''))),
+            'monthly_income'         => isset($post['member_monthly_income']) ? (float) $post['member_monthly_income'] : ($member['monthly_income'] ?? null),
+            'educational_attainment' => $trim($post['member_educational_attainment'] ?? ($member['educational_attainment'] ?? '')),
+            'philhealth_no'          => $trim($post['member_philhealth_no'] ?? ($member['philhealth_no'] ?? '')),
+        ];
+
+        return array_filter($payload, static fn ($v) => ! ($v === null || $v === ''));
+    }
+
+    /** @param list<array<string, mixed>> $members */
+    private function collectResidentMemberUpdates(array $post, array $members): array
+    {
+        $posted = $post['existing_members'] ?? [];
+        if (! is_array($posted)) {
+            return [];
+        }
+
+        $allowedIds = array_map(static fn ($row) => (int) ($row['id'] ?? 0), $members);
+        $updates = [];
+        foreach ($posted as $id => $row) {
+            $memberId = (int) $id;
+            if ($memberId < 1 || ! in_array($memberId, $allowedIds, true) || ! is_array($row)) {
+                continue;
+            }
+            $updates[] = array_filter([
+                'id'                     => $memberId,
+                'relationship'           => trim((string) ($row['relationship'] ?? '')),
+                'last_name'              => strtoupper(trim((string) ($row['last_name'] ?? ''))),
+                'first_name'             => strtoupper(trim((string) ($row['first_name'] ?? ''))),
+                'middle_name'            => strtoupper(trim((string) ($row['middle_name'] ?? ''))),
+                'suffix'                 => trim((string) ($row['suffix'] ?? '')),
+                'date_of_birth'          => trim((string) ($row['date_of_birth'] ?? '')),
+                'gender'                 => trim((string) ($row['gender'] ?? '')),
+                'occupation'             => strtoupper(trim((string) ($row['occupation'] ?? ''))),
+                'monthly_income'         => isset($row['monthly_income']) ? (float) $row['monthly_income'] : null,
+                'educational_attainment' => trim((string) ($row['educational_attainment'] ?? '')),
+            ], static fn ($v) => ! ($v === null || $v === ''));
+        }
+
+        return $updates;
+    }
+
+    /** @param list<array<string, mixed>> $members */
+    private function queueHeadMemberRequests(string $householdNo, int $userId, array $post, array $members): int
+    {
+        if (! $this->memberRequestTableExists()) {
+            return 0;
+        }
+
+        $model = new HouseholdMemberRequestModel();
+        $memberIds = array_map(static fn ($row) => (int) ($row['id'] ?? 0), $members);
+        $count = 0;
+
+        $add = $post['new_member'] ?? [];
+        if (is_array($add) && trim((string) ($add['first_name'] ?? '')) !== '' && trim((string) ($add['last_name'] ?? '')) !== '') {
+            $model->insert([
+                'request_type' => 'add',
+                'household_no' => $householdNo,
+                'member_id' => null,
+                'payload' => json_encode([
+                    'relationship' => trim((string) ($add['relationship'] ?? 'other_relative')) ?: 'other_relative',
+                    'last_name' => strtoupper(trim((string) $add['last_name'])),
+                    'first_name' => strtoupper(trim((string) $add['first_name'])),
+                    'middle_name' => strtoupper(trim((string) ($add['middle_name'] ?? ''))),
+                    'suffix' => trim((string) ($add['suffix'] ?? '')),
+                    'date_of_birth' => trim((string) ($add['date_of_birth'] ?? '')),
+                    'gender' => trim((string) ($add['gender'] ?? '')),
+                    'occupation' => strtoupper(trim((string) ($add['occupation'] ?? ''))),
+                ], JSON_UNESCAPED_UNICODE),
+                'reason' => trim((string) ($add['reason'] ?? '')) ?: 'Add household member',
+                'status' => 'pending',
+                'requested_by' => $userId,
+            ]);
+            $count++;
+        }
+
+        $moves = $post['move_member'] ?? [];
+        if (is_array($moves)) {
+            foreach ($moves as $memberId => $destination) {
+                $memberId = (int) $memberId;
+                $destination = strtoupper(trim((string) $destination));
+                if ($memberId < 1 || $destination === '' || ! in_array($memberId, $memberIds, true)) {
+                    continue;
+                }
+                $model->insert([
+                    'request_type' => 'move',
+                    'household_no' => $householdNo,
+                    'member_id' => $memberId,
+                    'destination_household_no' => $destination,
+                    'reason' => 'Move member to another household',
+                    'status' => 'pending',
+                    'requested_by' => $userId,
+                ]);
+                $count++;
+            }
+        }
+
+        $removals = $post['remove_member'] ?? [];
+        if (is_array($removals)) {
+            foreach ($removals as $memberId => $reason) {
+                $memberId = (int) $memberId;
+                $reason = trim((string) $reason);
+                if ($memberId < 1 || $reason === '' || ! in_array($memberId, $memberIds, true)) {
+                    continue;
+                }
+                $model->insert([
+                    'request_type' => 'remove',
+                    'household_no' => $householdNo,
+                    'member_id' => $memberId,
+                    'reason' => $reason,
+                    'status' => 'pending',
+                    'requested_by' => $userId,
+                ]);
+                $count++;
+            }
+        }
+
+        if ($count > 0) {
+            $this->notifyCensusReviewers(
+                'Household member change requested',
+                'The household head of #' . $householdNo . ' requested to add, move, or remove a member.'
+            );
+        }
+
+        return $count;
+    }
+
+    private function applyResidentCensusPayload(array $payload): void
+    {
+        $householdNo = (string) ($payload['household_no'] ?? '');
+        if ($householdNo === '') {
+            return;
+        }
+
+        $householdFields = is_array($payload['household'] ?? null) ? $payload['household'] : $payload;
+        $allowedColumns = [
+            'last_name', 'first_name', 'middle_name', 'suffix',
+            'date_of_birth', 'place_of_birth', 'gender', 'civil_status',
+            'nationality', 'religion', 'occupation', 'monthly_income',
+            'contact_number', 'educational_attainment', 'philhealth_no',
+            'registered_voter', 'address', 'zone', 'years_of_residency',
+            'house_ownership', 'num_families',
+            'is_4ps', 'is_senior_citizen', 'is_solo_parent',
+            'is_indigenous', 'is_pwd', 'pwd_type',
+            'water_source_level', 'water_safety_managed',
+            'sanitation_basic', 'sanitation_managed',
+        ];
+        $updates = [];
+        foreach ($allowedColumns as $col) {
+            if (isset($householdFields[$col]) && $householdFields[$col] !== '' && $householdFields[$col] !== null) {
+                $updates[$col] = $householdFields[$col];
+            }
+        }
+        if ($updates !== [] && ($payload['scope'] ?? '') !== 'member') {
+            $this->householdModel->update($householdNo, $updates);
+        }
+
+        $memberAllowed = [
+            'last_name', 'first_name', 'middle_name', 'suffix', 'date_of_birth',
+            'gender', 'marital_status', 'occupation', 'monthly_income',
+            'educational_attainment', 'philhealth_no', 'relationship',
+        ];
+
+        if (is_array($payload['member'] ?? null)) {
+            $memberId = (int) ($payload['member']['member_id'] ?? 0);
+            if ($memberId < 1) {
+                $first = strtolower(trim((string) ($payload['member']['first_name'] ?? '')));
+                $last = strtolower(trim((string) ($payload['member']['last_name'] ?? '')));
+                foreach ($this->memberModel->getByHousehold($householdNo) as $row) {
+                    if (strtolower(trim((string) ($row['first_name'] ?? ''))) === $first
+                        && strtolower(trim((string) ($row['last_name'] ?? ''))) === $last) {
+                        $memberId = (int) $row['id'];
+                        break;
+                    }
+                }
+            }
+            $memberUpdates = [];
+            foreach ($memberAllowed as $col) {
+                if (isset($payload['member'][$col]) && $payload['member'][$col] !== '') {
+                    $memberUpdates[$col] = $payload['member'][$col];
+                }
+            }
+            if ($memberId > 0 && $memberUpdates !== []) {
+                $this->memberModel->update($memberId, $memberUpdates);
+            }
+        }
+
+        if (is_array($payload['members'] ?? null)) {
+            foreach ($payload['members'] as $row) {
+                if (! is_array($row) || empty($row['id'])) {
+                    continue;
+                }
+                $memberUpdates = [];
+                foreach ($memberAllowed as $col) {
+                    if (isset($row[$col]) && $row[$col] !== '') {
+                        $memberUpdates[$col] = $row[$col];
+                    }
+                }
+                if ($memberUpdates !== []) {
+                    $this->memberModel->update((int) $row['id'], $memberUpdates);
+                }
+            }
+        }
+    }
+
+    /** @return array{ok:bool,message:string} */
+    private function applyHouseholdMemberRequest(int $id, bool $approve, string $reason = ''): array
+    {
+        if (! $this->memberRequestTableExists()) {
+            return ['ok' => false, 'message' => 'Member request records are not available yet.'];
+        }
+
+        $model = new HouseholdMemberRequestModel();
+        $request = $model->find($id);
+        if (! $request || ($request['status'] ?? '') !== 'pending') {
+            return ['ok' => false, 'message' => 'No pending member request was found.'];
+        }
+
+        if (! $approve) {
+            $model->update($id, [
+                'status' => 'rejected',
+                'reviewed_by' => session()->get('user_id'),
+                'reviewed_at' => date('Y-m-d H:i:s'),
+                'rejection_reason' => $reason !== '' ? $reason : null,
+            ]);
+            if (! empty($request['requested_by'])) {
+                NotificationModel::push(
+                    (int) $request['requested_by'],
+                    'census_update',
+                    'Member change not approved',
+                    $reason !== '' ? $reason : 'Your request to change a household member was not approved.',
+                    $this->censusLinkForUser((int) $request['requested_by'])
+                );
+            }
+
+            return ['ok' => true, 'message' => 'Member request rejected.'];
+        }
+
+        $type = $request['request_type'] ?? '';
+        try {
+            if ($type === 'add') {
+                $data = json_decode((string) $request['payload'], true) ?: [];
+                $this->memberModel->insert([
+                    'household_no' => $request['household_no'],
+                    'relationship' => $data['relationship'] ?? 'other_relative',
+                    'last_name' => $data['last_name'] ?? '',
+                    'first_name' => $data['first_name'] ?? '',
+                    'middle_name' => $data['middle_name'] ?? null,
+                    'suffix' => $data['suffix'] ?? null,
+                    'date_of_birth' => $data['date_of_birth'] ?: null,
+                    'gender' => $data['gender'] ?? null,
+                    'occupation' => $data['occupation'] ?? null,
+                ]);
+            } elseif ($type === 'remove' && ! empty($request['member_id'])) {
+                $this->memberModel->delete((int) $request['member_id']);
+            } elseif ($type === 'move' && ! empty($request['member_id'])) {
+                $destination = strtoupper(trim((string) ($request['destination_household_no'] ?? '')));
+                if ($destination === '' || ! $this->householdModel->find($destination)) {
+                    return ['ok' => false, 'message' => 'The destination household does not exist.'];
+                }
+                $this->memberModel->update((int) $request['member_id'], ['household_no' => $destination]);
+            } else {
+                return ['ok' => false, 'message' => 'This member request could not be applied.'];
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'Member request apply failed: ' . $e->getMessage());
+            return ['ok' => false, 'message' => 'The member change could not be applied.'];
+        }
+
+        $model->update($id, [
+            'status' => 'approved',
+            'reviewed_by' => session()->get('user_id'),
+            'reviewed_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        if (! empty($request['requested_by'])) {
+            NotificationModel::push(
+                (int) $request['requested_by'],
+                'census_update',
+                'Member change approved',
+                'Your request to ' . $type . ' a household member has been approved.',
+                $this->censusLinkForUser((int) $request['requested_by'])
+            );
+        }
+
+        return ['ok' => true, 'message' => 'Member request approved and applied.'];
+    }
+
+    private function notifyCensusReviewers(string $title, string $body): void
+    {
+        foreach (['secretary', 'captain', 'admin'] as $role) {
+            NotificationModel::pushToRole($role, 'census_update', $title, $body, '/' . $role . '/census-updates');
+        }
+    }
+
+    private function memberRequestTableExists(): bool
+    {
+        return \Config\Database::connect()->tableExists('household_member_requests');
+    }
+
+    private function censusLinkForUser(int $userId): string
+    {
+        $user = (new UserModel())->find($userId);
+        if (($user['role'] ?? '') === 'council') {
+            return '/council/census-update';
+        }
+
+        return '/resident/census-update';
+    }
+
+    private function invalidMemberMoveDestination(array $post): ?string
+    {
+        $moves = $post['move_member'] ?? [];
+        if (! is_array($moves)) {
+            return null;
+        }
+
+        foreach ($moves as $destination) {
+            $destination = strtoupper(trim((string) $destination));
+            if ($destination === '') {
+                continue;
+            }
+            if (! $this->householdModel->find($destination)) {
+                return 'Destination household #' . $destination . ' was not found.';
+            }
+        }
+
+        return null;
     }
 }

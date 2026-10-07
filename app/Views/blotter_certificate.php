@@ -4,11 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Certificate to File Action — BL-<?= str_pad($report['id'], 4, '0', STR_PAD_LEFT) ?></title>
+    <title>Certificate to File Action — BL-<?= str_pad((string) $report['id'], 4, '0', STR_PAD_LEFT) ?></title>
     <style>
         @page {
             size: A4 portrait;
-            margin: 20mm 18mm 20mm 18mm;
+            margin: 16mm 16mm 16mm 16mm;
         }
 
         * {
@@ -20,11 +20,10 @@
         body {
             font-family: 'Times New Roman', Times, serif;
             font-size: 12pt;
-            color: #000;
-            background: #fff;
+            color: #111;
+            background: <?= ($mode ?? 'screen') === 'pdf' ? '#fff' : '#e8ecf4' ?>;
         }
 
-        /* ── Screen toolbar ── */
         .toolbar {
             position: fixed;
             top: 0;
@@ -39,373 +38,362 @@
         }
 
         .toolbar span {
-            color: rgba(255, 255, 255, .7);
-            font-family: Arial, sans-serif;
+            color: rgba(255, 255, 255, .75);
+            font-family: Arial, Helvetica, sans-serif;
             font-size: 13px;
             flex: 1;
         }
 
         .tb-btn {
-            padding: 8px 18px;
-            font-size: 13px;
+            display: inline-block;
+            padding: 8px 16px;
+            font-size: 12.5px;
             font-weight: 700;
             border: none;
             border-radius: 6px;
             cursor: pointer;
-            font-family: Arial, sans-serif;
-        }
-
-        .tb-btn--primary {
-            background: #e67e22;
+            font-family: Arial, Helvetica, sans-serif;
+            text-decoration: none;
             color: #fff;
         }
 
-        .tb-btn--back {
-            background: rgba(255, 255, 255, .15);
-            color: #fff;
+        .tb-btn--print { background: #e67e22; }
+        .tb-btn--download { background: #16c79a; }
+        .tb-btn--back { background: rgba(255, 255, 255, .16); }
+
+        .sheet {
+            width: 210mm;
+            min-height: 297mm;
+            margin: <?= ($mode ?? 'screen') === 'pdf' ? '0 auto' : '78px auto 32px' ?>;
+            background: #fff;
+            padding: 16mm 16mm 14mm;
+            box-shadow: <?= ($mode ?? 'screen') === 'pdf' ? 'none' : '0 8px 28px rgba(20,28,56,.12)' ?>;
+            position: relative;
         }
 
-        .tb-tip {
-            position: fixed;
-            top: 52px;
-            left: 0;
-            right: 0;
-            background: #1d2448;
-            border-bottom: 3px solid #e67e22;
-            padding: 10px 20px;
-            display: none;
-            align-items: center;
-            gap: 12px;
-            font-family: Arial, sans-serif;
-            font-size: 13px;
-            color: #fff;
-            z-index: 998;
-        }
-
-        .tb-tip strong {
-            color: #e67e22;
-        }
-
-        @media print {
-
-            .toolbar,
-            .tb-tip {
-                display: none !important;
-            }
-
-            body {
-                margin: 0;
-            }
-        }
-
-        /* ── Certificate wrapper ── */
-        .cert {
-            max-width: 170mm;
-            margin: 110px auto 40px;
-        }
-
-        @media print {
-            .cert {
-                margin: 0;
-                max-width: 100%;
-            }
-        }
-
-        /* ── Header ── */
-        .cert-header {
-            text-align: center;
-            margin-bottom: 18pt;
-            border-bottom: 3px double #000;
-            padding-bottom: 10pt;
-        }
-
-        .cert-header .republic {
-            font-size: 10pt;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 3pt;
-        }
-
-        .cert-header .brgy-name {
-            font-size: 16pt;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-
-        .cert-header .brgy-address {
-            font-size: 10pt;
-            margin-top: 2pt;
-        }
-
-        .cert-header .office-line {
-            font-size: 10pt;
-            font-style: italic;
-            margin-top: 3pt;
-            color: #333;
-        }
-
-        /* ── Doc number + date ── */
-        .cert-meta {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 18pt;
-            font-size: 11pt;
-        }
-
-        .cert-meta .case-no {
-            font-weight: bold;
-        }
-
-        /* ── Title ── */
-        .cert-title {
-            text-align: center;
-            font-size: 14pt;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            margin-bottom: 6pt;
-            text-decoration: underline;
-        }
-
-        .cert-subtitle {
-            text-align: center;
-            font-size: 10pt;
-            font-style: italic;
-            color: #444;
-            margin-bottom: 20pt;
-        }
-
-        /* ── Body ── */
-        .cert-body {
-            font-size: 12pt;
-            line-height: 2;
-            text-align: justify;
-            margin-bottom: 14pt;
-        }
-
-        .cert-body p {
-            margin-bottom: 12pt;
-        }
-
-        .cert-indent {
-            text-indent: 3em;
-        }
-
-        /* ── Detail box ── */
-        .cert-detail-box {
-            border: 1.5px solid #000;
-            padding: 10pt 14pt;
-            margin: 16pt 0;
-            background: #f9f9f9;
-        }
-
-        .cert-detail-box table {
+        .header-table,
+        .meta-table,
+        .facts-table,
+        .sig-table {
             width: 100%;
             border-collapse: collapse;
         }
 
-        .cert-detail-box td {
-            padding: 3pt 6pt;
+        .seal {
+            width: 78px;
+            height: 78px;
+            object-fit: contain;
+        }
+
+        .header-center {
+            text-align: center;
+            vertical-align: middle;
+            padding: 0 10px;
+        }
+
+        .republic {
             font-size: 11pt;
+            letter-spacing: .8px;
+            text-transform: uppercase;
+        }
+
+        .place-line {
+            font-size: 11pt;
+        }
+
+        .brgy-name {
+            font-size: 16pt;
+            font-weight: bold;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin: 2pt 0;
+        }
+
+        .office-bar {
+            display: inline-block;
+            margin-top: 6pt;
+            padding: 3pt 14pt;
+            border-top: 1.5px solid #111;
+            border-bottom: 1.5px solid #111;
+            font-size: 10.5pt;
+            font-weight: bold;
+            letter-spacing: .6px;
+        }
+
+        .rule {
+            border: none;
+            border-top: 3px double #111;
+            margin: 10pt 0 12pt;
+        }
+
+        .doc-title {
+            text-align: center;
+            font-size: 15pt;
+            font-weight: bold;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            text-decoration: underline;
+        }
+
+        .doc-form {
+            text-align: center;
+            font-size: 10pt;
+            font-style: italic;
+            margin: 4pt 0 14pt;
+        }
+
+        .meta-table td {
+            font-size: 11pt;
+            padding: 2pt 0;
+        }
+
+        .body {
+            font-size: 12pt;
+            line-height: 1.85;
+            text-align: justify;
+        }
+
+        .body p {
+            margin-bottom: 10pt;
+        }
+
+        .indent {
+            text-indent: 36pt;
+        }
+
+        .facts-wrap {
+            border: 1.4px solid #111;
+            padding: 8pt 10pt;
+            margin: 12pt 0 14pt;
+        }
+
+        .facts-table td {
+            font-size: 11pt;
+            padding: 3pt 4pt;
             vertical-align: top;
         }
 
-        .cert-detail-box td:first-child {
+        .facts-table td:first-child {
+            width: 130pt;
             font-weight: bold;
-            width: 120pt;
-            color: #333;
         }
 
-        /* ── Warning box ── */
-        .cert-warning {
-            font-size: 11pt;
+        .note {
+            font-size: 10.5pt;
             font-style: italic;
-            margin: 14pt 0;
-            padding: 8pt 12pt;
-            border-left: 4px solid #000;
-            background: #f5f5f5;
-            line-height: 1.6;
+            border: 1px solid #444;
+            padding: 8pt 10pt;
+            margin: 8pt 0 16pt;
+            line-height: 1.55;
         }
 
-        /* ── Signature block ── */
-        .cert-sig {
-            margin-top: 36pt;
-            display: flex;
-            justify-content: space-between;
-            gap: 30pt;
+        .sig-table {
+            margin-top: 28pt;
         }
 
-        .sig-col {
-            flex: 1;
+        .sig-table td {
+            width: 50%;
             text-align: center;
-        }
-
-        .sig-line {
-            border-bottom: 1px solid #000;
-            margin-bottom: 4pt;
+            vertical-align: top;
+            padding: 0 12pt;
         }
 
         .sig-name {
-            font-size: 11pt;
             font-weight: bold;
             text-transform: uppercase;
+            font-size: 11.5pt;
+            min-height: 16pt;
+        }
+
+        .sig-line {
+            border-top: 1px solid #111;
+            margin: 28pt 18pt 4pt;
         }
 
         .sig-title {
             font-size: 10pt;
             font-style: italic;
+        }
+
+        .footer {
+            margin-top: 18pt;
+            border-top: 1px solid #bbb;
+            padding-top: 6pt;
+            font-size: 9pt;
+            text-align: center;
             color: #444;
         }
 
-        /* ── Footer ── */
-        .cert-footer {
-            margin-top: 20pt;
-            border-top: 1px solid #ccc;
-            padding-top: 6pt;
-            font-size: 9pt;
-            color: #666;
-            text-align: center;
+        @media print {
+            body {
+                background: #fff;
+            }
+
+            .toolbar {
+                display: none !important;
+            }
+
+            .sheet {
+                margin: 0;
+                width: auto;
+                min-height: 0;
+                padding: 0;
+                box-shadow: none;
+            }
         }
     </style>
 </head>
 
 <body>
+<?php
+$r = $report;
+$mode = $mode ?? 'screen';
+$isPdf = $mode === 'pdf';
+$caseNo = 'BL-' . str_pad((string) $r['id'], 4, '0', STR_PAD_LEFT);
+$today = date('F d, Y');
+$day = date('j');
+$monthYear = date('F, Y');
+$incDate = ! empty($r['incident_date']) ? date('F d, Y', strtotime($r['incident_date'])) : 'an unspecified date';
+$filedDate = ! empty($r['created_at']) ? date('F d, Y', strtotime($r['created_at'])) : '—';
+$hearingDate = ! empty($r['hearing_date']) ? date('F d, Y', strtotime($r['hearing_date'])) : 'No hearing scheduled';
+$complainant = esc($r['complainant_full_name'] ?? $r['complainant_name'] ?? '________________');
+$respondent = esc($r['respondent_name'] ?? $r['persons_involved'] ?? '________________');
+$incidentType = esc($r['incident_type'] ?? 'the stated dispute');
+$location = esc($r['location'] ?? 'Barangay Bacolod, Bato, Camarines Sur');
+$captainN = esc($captainName ?? 'PUNONG BARANGAY');
+$secretaryN = esc($secretaryName ?? 'BARANGAY SECRETARY');
+$barangaySeal = $barangaySeal ?? '/bacolod.png';
+$municipalitySeal = $municipalitySeal ?? '/Picture1.png';
+$downloadUrl = $downloadUrl ?? '#';
+$viewUrl = $viewUrl ?? '#';
+$role = $role ?? 'captain';
+?>
 
-    <!-- Screen toolbar -->
+<?php if (! $isPdf): ?>
     <div class="toolbar">
-        <button class="tb-btn tb-btn--back" onclick="history.back()">&#8592; Back</button>
-        <button class="tb-btn tb-btn--primary" onclick="printCert()">&#128438; Save as PDF / Print</button>
+        <a class="tb-btn tb-btn--back" href="/<?= esc($role) ?>/blotter/<?= (int) $r['id'] ?>">&#8592; Back</a>
+        <span>Certificate to File Action · <?= esc($caseNo) ?></span>
+        <button class="tb-btn tb-btn--print" type="button" onclick="window.print()">PRINT</button>
+        <a class="tb-btn tb-btn--download" href="<?= esc($downloadUrl) ?>">DOWNLOAD</a>
     </div>
-    <div class="tb-tip" id="tbTip">
-        <span>&#128161;</span>
-        <span>Click <strong>Save as PDF / Print</strong> → set <strong>Destination</strong> to <strong>"Save as PDF"</strong> → click <strong>Save</strong>.</span>
-    </div>
+<?php endif; ?>
 
-    <?php
-    $r          = $report;
-    $caseNo     = str_pad($r['id'], 2, '0', STR_PAD_LEFT);
-    $today      = date('F d, Y');
-    $incDate    = ! empty($r['incident_date']) ? date('F d, Y', strtotime($r['incident_date'])) : 'an unspecified date';
-    $complainant = esc($r['complainant_full_name'] ?? $r['complainant_name'] ?? '—');
-    $respondent  = esc($r['respondent_name'] ?? $r['persons_involved'] ?? '___________________________');
-    $incidentType = esc($r['incident_type'] ?? '—');
-    $location    = esc($r['location'] ?? 'Barangay Bacolod');
-    $captainN    = esc($captainName   ?? 'PUNONG BARANGAY');
-    $secretaryN  = esc($secretaryName ?? 'BARANGAY SECRETARY');
-    ?>
+    <div class="sheet">
+        <table class="header-table">
+            <tr>
+                <td style="width:90px;text-align:center;vertical-align:middle;">
+                    <?php if ($barangaySeal !== ''): ?>
+                        <img class="seal" src="<?= esc($barangaySeal) ?>" alt="Barangay seal">
+                    <?php endif; ?>
+                </td>
+                <td class="header-center">
+                    <div class="republic">Republic of the Philippines</div>
+                    <div class="place-line">Province of Camarines Sur</div>
+                    <div class="place-line">Municipality of Bato</div>
+                    <div class="brgy-name">Barangay Bacolod</div>
+                    <div class="office-bar">Office of the Lupong Tagapamayapa</div>
+                </td>
+                <td style="width:90px;text-align:center;vertical-align:middle;">
+                    <?php if ($municipalitySeal !== ''): ?>
+                        <img class="seal" src="<?= esc($municipalitySeal) ?>" alt="Municipal seal">
+                    <?php endif; ?>
+                </td>
+            </tr>
+        </table>
+        <hr class="rule">
 
-    <div class="cert">
+        <div class="doc-title">Certification to File Action</div>
+        <div class="doc-form">KP Form No. 20 &nbsp;·&nbsp; Pursuant to R.A. 7160, Katarungang Pambarangay</div>
 
-        <!-- Header -->
-        <div class="cert-header">
-            <div class="republic">Republic of the Philippines</div>
-            <div class="brgy-name">Barangay Bacolod</div>
-            <div class="brgy-address">Bato, Camarines Sur, Philippines</div>
-            <div class="office-line">Office of the Punong Barangay</div>
-        </div>
+        <table class="meta-table">
+            <tr>
+                <td><strong>Case No.:</strong> <?= esc($caseNo) ?></td>
+                <td style="text-align:right;"><strong>Date Issued:</strong> <?= esc($today) ?></td>
+            </tr>
+        </table>
 
-        <!-- Meta row -->
-        <div class="cert-meta">
-            <div class="case-no">Case No.: BL-<?= $caseNo ?></div>
-            <div><?= $today ?></div>
-        </div>
-
-        <!-- Title -->
-        <div class="cert-title">Certification to File Action</div>
-        <div class="cert-subtitle">(Pursuant to Republic Act No. 7160 — Katarungang Pambarangay Law)</div>
-
-        <!-- Body -->
-        <div class="cert-body">
+        <div class="body">
             <p><strong>TO WHOM IT MAY CONCERN:</strong></p>
-
-            <p class="cert-indent">
+            <p class="indent">
                 This is to certify that the complaint filed by <strong><?= $complainant ?></strong>
-                against <strong><?= $respondent ?></strong> involving a case of
-                <strong><?= $incidentType ?></strong>
-                that allegedly occurred on <strong><?= $incDate ?></strong> at <strong><?= $location ?></strong>
-                has been the subject of barangay conciliation proceedings before the
-                <strong>Lupong Tagapamayapa</strong> of Barangay Bacolod, Bato, Camarines Sur.
+                against <strong><?= $respondent ?></strong>, involving a case of
+                <strong><?= $incidentType ?></strong> that allegedly occurred on
+                <strong><?= esc($incDate) ?></strong> at <strong><?= $location ?></strong>,
+                has been brought before the <strong>Lupong Tagapamayapa</strong> of
+                Barangay Bacolod, Bato, Camarines Sur, for conciliation under the Katarungang Pambarangay.
             </p>
         </div>
 
-        <!-- Detail box -->
-        <div class="cert-detail-box">
-            <table>
+        <div class="facts-wrap">
+            <table class="facts-table">
                 <tr>
-                    <td>Case No.:</td>
-                    <td><strong><?= $caseNo ?></strong></td>
+                    <td>Case No.</td>
+                    <td><?= esc($caseNo) ?></td>
                 </tr>
                 <tr>
-                    <td>Complainant:</td>
+                    <td>Complainant</td>
                     <td><?= $complainant ?></td>
                 </tr>
                 <tr>
-                    <td>Respondent:</td>
+                    <td>Respondent</td>
                     <td><?= $respondent ?></td>
                 </tr>
                 <tr>
-                    <td>Incident Type:</td>
+                    <td>Nature of Dispute</td>
                     <td><?= $incidentType ?></td>
                 </tr>
                 <tr>
-                    <td>Date Filed:</td>
-                    <td><?= ! empty($r['created_at']) ? date('F d, Y', strtotime($r['created_at'])) : '—' ?></td>
+                    <td>Date Filed</td>
+                    <td><?= esc($filedDate) ?></td>
                 </tr>
                 <tr>
-                    <td>Hearing Date:</td>
-                    <td><?= ! empty($r['hearing_date']) ? date('F d, Y', strtotime($r['hearing_date'])) : 'No hearing scheduled' ?></td>
+                    <td>Hearing / Confrontation</td>
+                    <td><?= esc($hearingDate) ?></td>
                 </tr>
             </table>
         </div>
 
-        <div class="cert-body">
-            <p class="cert-indent">
-                Despite efforts at amicable settlement, the dispute between the parties has
-                <strong>not been resolved</strong> at the barangay level. In accordance with
-                Section 412 of the Local Government Code (R.A. 7160), this Certification is
-                issued to certify that the barangay has <strong>exhausted all means of conciliation</strong>
-                and that the parties are now free to bring the matter before the appropriate government office
-                or court of law, including referral to the <strong>Police Station</strong> of Bato, Camarines Sur.
+        <div class="body">
+            <p class="indent">
+                Despite earnest efforts at mediation and conciliation, no amicable settlement was reached
+                by the parties. In accordance with <strong>Section 412 of the Local Government Code
+                (Republic Act No. 7160)</strong>, this Certification is issued to attest that the barangay
+                has exhausted the Katarungang Pambarangay proceedings and that the corresponding complaint
+                may now be filed with the proper court, prosecutor’s office, or law-enforcement authority,
+                including the Police Station of Bato, Camarines Sur.
             </p>
-
-            <p class="cert-indent">
-                This Certification is issued upon request of the complainant and for whatever legal
+            <p class="indent">
+                Issued this <?= esc($day) ?> day of <?= esc($monthYear) ?>, at Barangay Bacolod,
+                Bato, Camarines Sur, Philippines, upon request of the complainant and for whatever legal
                 purpose it may serve.
             </p>
         </div>
 
-        <!-- Warning -->
-        <div class="cert-warning">
-            <strong>Note:</strong> This certificate shall have a validity period of sixty (60) days from the
-            date of issuance. Failure to file the appropriate action within the validity period shall
-            require a new certification from the Barangay.
+        <div class="note">
+            <strong>Note:</strong> This certification is valid for sixty (60) days from the date of issuance.
+            Failure to file the appropriate action within that period shall require a new certification from
+            this Barangay.
         </div>
 
-        <!-- Signature block -->
-        <div class="cert-sig">
-            <div class="sig-col">
-                <div class="sig-name"><?= $captainN ?></div>
-                <div class="sig-line"></div>
-                <div class="sig-title">Punong Barangay<br>Barangay Bacolod, Bato, Camarines Sur</div>
-            </div>
-            <div class="sig-col">
-                <div class="sig-name"><?= $secretaryN ?></div>
-                <div class="sig-line"></div>
-                <div class="sig-title">Barangay Secretary<br>Barangay Bacolod, Bato, Camarines Sur</div>
-            </div>
-        </div>
+        <table class="sig-table">
+            <tr>
+                <td>
+                    <div class="sig-name"><?= $secretaryN ?></div>
+                    <div class="sig-line"></div>
+                    <div class="sig-title">Barangay Secretary<br>Lupon Secretary</div>
+                </td>
+                <td>
+                    <div class="sig-name"><?= $captainN ?></div>
+                    <div class="sig-line"></div>
+                    <div class="sig-title">Punong Barangay<br>Lupon Chairman</div>
+                </td>
+            </tr>
+        </table>
 
+        <div class="footer">
+            Barangay Bacolod, Bato, Camarines Sur &nbsp;·&nbsp; <?= esc($caseNo) ?> &nbsp;·&nbsp; Official Certificate to File Action
+        </div>
     </div>
-
-    <script>
-        function printCert() {
-            document.getElementById('tbTip').style.display = 'flex';
-            setTimeout(() => window.print(), 300);
-        }
-
-        window.addEventListener('load', () => setTimeout(printCert, 700));
-    </script>
 </body>
 
 </html>

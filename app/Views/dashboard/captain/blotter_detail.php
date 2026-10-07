@@ -486,16 +486,22 @@
 
                             <!-- Issue button -->
                             <a href="/<?= esc($role) ?>/blotter/certificate/<?= (int)$r['id'] ?>"
+                                target="_blank" rel="noopener"
                                 style="display:flex;align-items:center;justify-content:center;gap:9px;width:100%;padding:12px 16px;background:linear-gradient(135deg,#e67e22,#ca6f1e);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;text-decoration:none;transition:opacity .18s;"
                                 onmouseover="this.style.opacity='.88'"
                                 onmouseout="this.style.opacity='1'">
                                 <i class="fas fa-file-alt"></i>
                                 View / Print Certificate to File Action
                             </a>
+                            <a href="/<?= esc($role) ?>/blotter/certificate/<?= (int)$r['id'] ?>/download"
+                                style="display:flex;align-items:center;justify-content:center;gap:9px;width:100%;margin-top:8px;padding:11px 16px;background:#16325c;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;text-decoration:none;">
+                                <i class="fas fa-download"></i>
+                                Download Certificate (PDF)
+                            </a>
 
                             <p style="font-size:11.5px;color:#b0b6cc;margin:10px 0 0;text-align:center;">
                                 <i class="fas fa-info-circle" style="margin-right:4px;"></i>
-                                The certificate will open in a new tab ready for printing or saving as PDF.
+                                Opens a formatted certificate with separate PRINT and DOWNLOAD buttons.
                             </p>
                         <?php endif; ?>
                     </div>

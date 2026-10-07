@@ -121,8 +121,9 @@ class OcrController extends BaseController
             $nameMatch = $fullName !== '' ? $this->matchesName($combinedText, $fullName, $firstName, $middleName, $lastName) : null;
             $dobMatch  = $dob !== '' ? $this->matchesDob($combinedText, $dob) : null;
 
-            // Birth certificates often print the date under labels; require DOB
-            // when one was typed so the check stays meaningful for that document.
+            // Name is required. DOB is required when the clerk typed one, but
+            // PSA certificates often split DATE / MONTH / YEAR into boxes —
+            // accept a year+month (or extracted date) match as well.
             $verified = ($nameMatch === true) && ($dobMatch !== false);
             if ($isBirthOrId && $dob !== '') {
                 $verified = ($nameMatch === true) && ($dobMatch === true);
@@ -698,7 +699,14 @@ class OcrController extends BaseController
             || $this->partialDateMatch($aggressiveCorrected, $month, $day, $year)) {
             return true;
         }
-        
+
+        $expected = sprintf('%04d-%02d-%02d', $year, $month, $day);
+        foreach ([$text, $flat, $correctedFlat, $aggressiveCorrected] as $source) {
+            if (in_array($expected, $this->extractComparableDates((string) $source), true)) {
+                return true;
+            }
+        }
+
         return false;
     }
     
@@ -717,16 +725,69 @@ class OcrController extends BaseController
         $mm = sprintf('%02d', $month);
         $dd = sprintf('%02d', $day);
         
-        // Check if month is found
+        // Check if month is found (digits or English/Filipino month name)
+        $monthNames = [
+            1  => 'january|enero|jan|ene',
+            2  => 'february|pebrero|feb|peb',
+            3  => 'march|marso|mar',
+            4  => 'april|abril|apr|abr',
+            5  => 'mayo|may',
+            6  => 'hunyo|june|jun',
+            7  => 'hulyo|july|jul',
+            8  => 'agosto|august|aug',
+            9  => 'setyembre|september|sept|sep|set',
+            10 => 'oktubre|october|oct|okt',
+            11 => 'nobyembre|november|nov|nob',
+            12 => 'disyembre|december|dec|dis',
+        ];
         $monthFound = preg_match('/(?<!\d)0?' . $month . '(?!\d)/', $text)
-            || preg_match('/(?<!\d)' . $mm . '(?!\d)/', $text);
+            || preg_match('/(?<!\d)' . $mm . '(?!\d)/', $text)
+            || preg_match('/(?<![a-z])(?:' . ($monthNames[$month] ?? '') . ')(?![a-z])/', $text);
             
         // Check if day is found
-        $dayFound = preg_match('/(?<!\d)0?' . $day . '(?!\d)/', $text)
+        $dayFound = preg_match('/(?<!\d)0?' . $day . '(?:st|nd|rd|th)?(?!\d)/', $text)
             || preg_match('/(?<!\d)' . $dd . '(?!\d)/', $text);
         
         // Year + Month or Year + Day = partial match
         return $monthFound || $dayFound;
+    }
+
+    /**
+     * Pull every date-like token out of OCR text and normalise to Y-m-d.
+     *
+     * @return list<string>
+     */
+    private function extractComparableDates(string $text): array
+    {
+        $dates = [];
+        $corrected = $this->correctOcrErrorsForDates($this->correctOcrErrors($text));
+
+        if (preg_match_all('/(?<!\d)(\d{1,2})[\/\-.\s]+(\d{1,2})[\/\-.\s]+(\d{2,4})(?!\d)/', $corrected, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $row) {
+                $dates[] = $this->ymdFromParts((int) $row[1], (int) $row[2], (int) $row[3]);
+                $dates[] = $this->ymdFromParts((int) $row[2], (int) $row[1], (int) $row[3]);
+            }
+        }
+
+        if (preg_match_all('/(?<!\d)(\d{4})[\/\-.\s]+(\d{1,2})[\/\-.\s]+(\d{1,2})(?!\d)/', $corrected, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $row) {
+                $dates[] = $this->ymdFromParts((int) $row[2], (int) $row[3], (int) $row[1]);
+            }
+        }
+
+        return array_values(array_unique(array_filter($dates)));
+    }
+
+    private function ymdFromParts(int $month, int $day, int $year): ?string
+    {
+        if ($year < 100) {
+            $year += $year >= 30 ? 1900 : 2000;
+        }
+        if ($year < 1900 || $year > (int) date('Y') || ! checkdate($month, $day, $year)) {
+            return null;
+        }
+
+        return sprintf('%04d-%02d-%02d', $year, $month, $day);
     }
 
     /**
@@ -756,6 +817,10 @@ class OcrController extends BaseController
         $text = preg_replace('/\b2O([0-9]{2})\b/', '20$1', $text) ?? $text;
         $text = preg_replace('/\b19O([0-9])\b/', '190$1', $text) ?? $text;
         $text = preg_replace('/\b20O([0-9])\b/', '200$1', $text) ?? $text;
+        $text = preg_replace('/(?<=\d)[Oo](?=\d)/', '0', $text) ?? $text;
+        $text = preg_replace('/(?<=\d)[Il](?=\d)/', '1', $text) ?? $text;
+        $text = preg_replace('/(?<!\d)[Il]([0-9]{3})(?!\d)/', '1$1', $text) ?? $text;
+        $text = preg_replace('/(?<!\d)[Oo]([0-9]{3})(?!\d)/', '0$1', $text) ?? $text;
 
         return $text;
     }
@@ -880,10 +945,14 @@ class OcrController extends BaseController
 
         foreach ([
             $monthPart . $gap . '(?:of\s+)?' . $dayPart . $gap . '(?:of\s+)?' . $yearPart,
-            $dayPart . $gap . '(?:of\s+)?' . $monthPart . $gap . '(?:of\s+)?' . $yearPart,
+            $dayPart . $gap . '(?:day\s+)?(?:of\s+)?' . $monthPart . $gap . '(?:of\s+)?' . $yearPart,
+            '(?:ika[- ]?)?' . $dayPart . $gap . '(?:ng\s+)?' . $monthPart . $gap . $yearPart,
             '(?<!\d)' . $year . '(?!\d)' . $gap . $monthPart . $gap . $dayPart,
             // Day without leading zero
             $monthPart . $gap . $day . $gap . $yearPart,
+            // PSA box layout: "15 ... january ... 1976" (labels may sit on other lines)
+            $dayPart . '[\s\S]{0,40}' . $monthPart . '[\s\S]{0,40}' . '(?<!\d)' . $year . '(?!\d)',
+            $monthPart . '[\s\S]{0,40}' . $dayPart . '[\s\S]{0,40}' . '(?<!\d)' . $year . '(?!\d)',
         ] as $pattern) {
             if (preg_match('/' . $pattern . '/', $text)) {
                 return true;

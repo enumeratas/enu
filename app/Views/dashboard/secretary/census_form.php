@@ -8,867 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="/style.css">
-    <style>
-        /* ── Page wrapper ── */
-        .cf-page {
-            width: 100%;
-            max-width: none;
-        }
-
-        /* ── Header ── */
-        .pf-page-header {
-            background: linear-gradient(135deg, #1d2448, #2e3a6e);
-            border-radius: 12px;
-            padding: 16px 22px;
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            margin-bottom: 20px;
-        }
-
-        .pf-page-header-logo img {
-            width: 46px;
-            height: 46px;
-            object-fit: contain;
-            flex-shrink: 0;
-        }
-
-        .pf-page-header-text .republic {
-            font-size: 9.5px;
-            font-weight: 600;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            color: rgba(255, 255, 255, .55);
-            margin-bottom: 2px;
-        }
-
-        .pf-page-header-text .barangay {
-            font-size: 14px;
-            font-weight: 700;
-            color: #fff;
-            line-height: 1.3;
-        }
-
-        .pf-page-header-text .formtitle {
-            font-size: 10.5px;
-            font-weight: 500;
-            letter-spacing: .8px;
-            text-transform: uppercase;
-            color: rgba(255, 255, 255, .5);
-            margin-top: 2px;
-        }
-
-        /* ── Step tabs ── */
-        .pf-page-tabs {
-            display: flex;
-            background: #fff;
-            border-radius: 10px;
-            box-shadow: 0 1px 6px rgba(29, 36, 72, .07);
-            overflow: hidden;
-            margin-bottom: 20px;
-        }
-
-        .pf-page-tab {
-            flex: 1;
-            padding: 12px 16px;
-            border: none;
-            background: transparent;
-            font-size: 13px;
-            font-weight: 600;
-            font-family: 'Poppins', sans-serif;
-            color: #9aa0b4;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 9px;
-            transition: background .18s, color .18s;
-            border-bottom: 3px solid transparent;
-        }
-
-        .pf-page-tab:hover:not(.active) {
-            color: #1d2448;
-            background: #f8f9ff;
-        }
-
-        .pf-page-tab.active {
-            color: #1d2448;
-            background: #f0f2ff;
-            border-bottom-color: #1d2448;
-        }
-
-        .pf-page-tab-num {
-            width: 22px;
-            height: 22px;
-            border-radius: 50%;
-            background: #e8ecf4;
-            color: #9aa0b4;
-            font-size: 11px;
-            font-weight: 700;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            transition: background .18s, color .18s;
-            flex-shrink: 0;
-        }
-
-        .pf-page-tab.active .pf-page-tab-num {
-            background: #1d2448;
-            color: #fff;
-        }
-
-        /* ── Section cards ── */
-        .pf-page-section {
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 1px 6px rgba(29, 36, 72, .07);
-            overflow: hidden;
-            margin-bottom: 16px;
-            border: 1px solid #eef0f8;
-        }
-
-        .pf-page-section-bar {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 11px 18px;
-            background: #f8f9ff;
-            border-bottom: 1.5px solid #e8ecf4;
-            border-left: 4px solid #1d2448;
-            font-size: 11.5px;
-            font-weight: 700;
-            letter-spacing: .5px;
-            text-transform: uppercase;
-            color: #1d2448;
-        }
-
-        .pf-page-section-bar i {
-            color: #5b6fd6;
-            font-size: 13px;
-        }
-
-        .pf-page-section-body {
-            padding: 18px 20px;
-        }
-
-        /* ── Grid rows ── */
-        .pf-row {
-            display: grid;
-            gap: 14px;
-            margin-bottom: 14px;
-        }
-
-        .pf-row:last-child {
-            margin-bottom: 0;
-        }
-
-        .pf-row-4 {
-            grid-template-columns: repeat(4, 1fr);
-        }
-
-        .pf-row-3 {
-            grid-template-columns: repeat(3, 1fr);
-        }
-
-        .pf-row-2 {
-            grid-template-columns: repeat(2, 1fr);
-        }
-
-        @media (max-width: 860px) {
-            .pf-row-4 {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .pf-row-3 {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (max-width: 520px) {
-
-            .pf-row-4,
-            .pf-row-3,
-            .pf-row-2 {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* ── Field label ── */
-        .pf-label {
-            font-size: 11.5px;
-            font-weight: 600;
-            color: #4a5068;
-            margin-bottom: 5px;
-            display: block;
-        }
-
-        /* ── Input / select ── */
-        .pf-ctrl {
-            width: 100%;
-            padding: 9px 11px;
-            border: 1.5px solid #e2e5ef;
-            border-radius: 7px;
-            font-size: 13px;
-            font-family: 'Poppins', sans-serif;
-            color: #1a1d2e;
-            background: #fff;
-            outline: none;
-            box-sizing: border-box;
-            transition: border-color .15s, box-shadow .15s;
-        }
-
-        .pf-ctrl:focus {
-            border-color: #1d2448;
-            box-shadow: 0 0 0 3px rgba(29, 36, 72, .07);
-        }
-
-        .pf-ctrl::placeholder {
-            color: #c0c6d8;
-        }
-
-        .pf-ctrl[readonly] {
-            background: #f0f4ff;
-            color: #1d2448;
-            font-weight: 700;
-            letter-spacing: 1.5px;
-            cursor: default;
-        }
-
-        /* ── Date field ── */
-        .pf-date-wrap {
-            position: relative;
-        }
-
-        .pf-date-icon {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #b0b6cc;
-            pointer-events: none;
-            font-size: 12px;
-        }
-
-        /* ── Radios ── */
-        .pf-radio-row {
-            display: flex;
-            flex-direction: column;
-            gap: 7px;
-            padding: 4px 0;
-        }
-
-        .pf-radio-row.horizontal {
-            flex-direction: row;
-            gap: 18px;
-        }
-
-        .pf-radio {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            font-size: 12.5px;
-            color: #374151;
-            cursor: pointer;
-        }
-
-        .pf-radio input {
-            cursor: pointer;
-            accent-color: #1d2448;
-        }
-
-        /* ── Checkboxes ── */
-        .pf-check-row {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 16px;
-            padding: 6px 0 2px;
-        }
-
-        .pf-check-label {
-            font-size: 11.5px;
-            font-weight: 600;
-            color: #6b7280;
-        }
-
-        .pf-check {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12.5px;
-            color: #374151;
-            cursor: pointer;
-        }
-
-        .pf-check input {
-            cursor: pointer;
-            accent-color: #1d2448;
-        }
-
-        .pf-married-toggle {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 10px;
-            border: 1px solid #d0d5e0;
-            border-radius: 5px;
-            color: #4a5068;
-            font-size: 12px;
-            cursor: pointer;
-            background: #fff;
-        }
-
-        .pf-married-toggle:has(input:checked) {
-            background: #1d2448;
-            border-color: #1d2448;
-            color: #fff;
-        }
-
-        .pf-married-toggle input {
-            accent-color: #1d2448;
-        }
-
-        /* ── Sub-section heading ── */
-        .pf-sub-label {
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: .5px;
-            text-transform: uppercase;
-            color: #5b6fd6;
-            margin-bottom: 12px;
-            padding-top: 14px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .pf-sub-label:first-child {
-            padding-top: 0;
-        }
-
-        /* ── Member cards (family) ── */
-        .pf-member-card {
-            background: #f8f9fc;
-            border: 1.5px solid #e8ecf4;
-            border-radius: 10px;
-            padding: 14px 16px;
-            margin-bottom: 10px;
-            position: relative;
-        }
-
-        .pf-member-card:last-child {
-            margin-bottom: 0;
-        }
-
-        .pf-member-del {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            border: 1.5px solid #fad4d4;
-            background: #fff;
-            color: #c0392b;
-            font-size: 11px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background .15s;
-        }
-
-        .pf-member-del:hover {
-            background: #c0392b;
-            color: #fff;
-        }
-
-        .pf-member-fields {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-
-        .pf-member-fields .pf-field-wrap {
-            flex: 1;
-            min-width: 130px;
-        }
-
-        .pf-member-fields .pf-field-xs {
-            flex: 0 0 90px;
-        }
-
-        .pf-member-fields .pf-field-sm {
-            flex: 0 0 148px;
-        }
-
-        .pf-member-fields > .pf-member-doc {
-            flex: 1 1 100%;
-            width: 100%;
-        }
-
-        #childrenRows .pf-member-fields {
-            display: grid;
-            grid-template-columns: repeat(12, minmax(0, 1fr));
-            gap: 10px;
-            align-items: start;
-        }
-
-        #childrenRows .pf-member-fields>* {
-            min-width: 0;
-        }
-
-        #childrenRows .pf-member-fields> :nth-child(1),
-        #childrenRows .pf-member-fields> :nth-child(2),
-        #childrenRows .pf-member-fields> :nth-child(3) {
-            grid-column: span 3;
-        }
-
-        #childrenRows .pf-member-fields> :nth-child(4) {
-            grid-column: span 1;
-        }
-
-        #childrenRows .pf-member-fields> :nth-child(5),
-        #childrenRows .pf-member-fields> :nth-child(6),
-        #childrenRows .pf-member-fields> :nth-child(7) {
-            grid-column: span 2;
-        }
-
-        #childrenRows .pf-member-fields> :nth-child(8) {
-            grid-column: span 4;
-        }
-
-        #childrenRows .pf-member-fields> :nth-child(9),
-        #childrenRows .pf-member-fields> :nth-child(10),
-        #childrenRows .pf-member-fields> :nth-child(11),
-        #childrenRows .pf-member-fields> :nth-child(12) {
-            grid-column: span 2;
-        }
-
-        #childrenRows .pf-member-fields>.pf-child-pwd-field,
-        #childrenRows .pf-member-fields>.pf-member-doc {
-            grid-column: 1 / -1;
-        }
-
-        /* ── Add-row button ── */
-        .pf-add-row-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 5px 12px;
-            background: #fff;
-            border: 1.5px solid #1d2448;
-            border-radius: 7px;
-            font-size: 11.5px;
-            font-weight: 600;
-            font-family: 'Poppins', sans-serif;
-            color: #1d2448;
-            cursor: pointer;
-            transition: background .15s;
-        }
-
-        .pf-add-row-btn:hover {
-            background: #1d2448;
-            color: #fff;
-        }
-
-        /* ── Occupation pills ── */
-        .pf-occ-wrap {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .pf-occ-pills {
-            display: flex;
-            gap: 5px;
-            flex-wrap: wrap;
-        }
-
-        .pf-occ-pill {
-            padding: 3px 9px;
-            border-radius: 100px;
-            border: 1.5px solid #e2e5ef;
-            background: #fff;
-            font-size: 11px;
-            font-weight: 600;
-            font-family: 'Poppins', sans-serif;
-            color: #6b7280;
-            cursor: pointer;
-            transition: all .15s;
-        }
-
-        .pf-occ-pill.active,
-        .pf-occ-pill:hover {
-            background: #1d2448;
-            border-color: #1d2448;
-            color: #fff;
-        }
-
-        .pf-grade-wrap {
-            display: none;
-        }
-
-        .pf-grade-wrap.visible,
-        .pf-work-wrap.visible {
-            display: block;
-        }
-
-        .pf-work-wrap {
-            display: none;
-            margin-top: 8px;
-        }
-
-        .pf-grade-label {
-            font-size: 10.5px;
-            font-weight: 600;
-            color: #9aa0b4;
-            text-transform: uppercase;
-            letter-spacing: .4px;
-            margin-bottom: 4px;
-        }
-
-        /* ── Certification ── */
-        .pf-cert-box {
-            background: #f5f7ff;
-            border: 1px solid #dde2f5;
-            border-radius: 10px;
-            padding: 16px 18px;
-            font-size: 12.5px;
-            color: #4a5068;
-            line-height: 1.7;
-        }
-
-        .pf-cert-date-wrap {
-            margin-top: 12px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .pf-cert-date-label {
-            font-size: 11.5px;
-            font-weight: 600;
-            color: #6b7280;
-            white-space: nowrap;
-        }
-
-        /* ── Footer ── */
-        .pf-page-footer {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding-top: 6px;
-            margin-top: 4px;
-        }
-
-        .pf-page-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 7px;
-            padding: 10px 22px;
-            border-radius: 9px;
-            font-size: 13.5px;
-            font-weight: 600;
-            font-family: 'Poppins', sans-serif;
-            cursor: pointer;
-            border: none;
-            transition: opacity .18s, transform .13s;
-        }
-
-        .pf-page-btn:hover {
-            opacity: .88;
-            transform: translateY(-1px);
-        }
-
-        .pf-page-btn--primary {
-            background: linear-gradient(135deg, #1d2448, #2e3a6e);
-            color: #fff;
-        }
-
-        .pf-page-btn--outline {
-            background: #fff;
-            color: #4a5068;
-            border: 1.5px solid #e2e5ef;
-        }
-
-        .pf-page-btn--outline:hover {
-            border-color: #1d2448;
-            color: #1d2448;
-            opacity: 1;
-        }
-
-        /* ── Step panels ── */
-        .pf-step {
-            display: none;
-        }
-
-        .pf-step.active {
-            display: block;
-        }
-
-        /* ── Field error state ── */
-        .pf-ctrl.pf-error {
-            border-color: #e74c3c !important;
-            box-shadow: 0 0 0 3px rgba(231, 76, 60, .12) !important;
-        }
-
-        .pf-error-msg {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 11.5px;
-            color: #c0392b;
-            margin-top: 4px;
-            font-weight: 500;
-        }
-
-        .pf-error-msg i {
-            font-size: 10px;
-            flex-shrink: 0;
-        }
-
-        /* ── Step-level error banner ── */
-        .pf-step-error {
-            display: none;
-            align-items: flex-start;
-            gap: 10px;
-            background: #fff0f1;
-            border: 1.5px solid #fad4d4;
-            border-radius: 10px;
-            padding: 12px 16px;
-            font-size: 13px;
-            color: #c0392b;
-            margin-bottom: 16px;
-            line-height: 1.6;
-        }
-
-        /* ── Document upload cards ── */
-        .pf-id-upload {
-            margin-top: 12px;
-            padding: 14px;
-            border: 1px solid #e2e6f2;
-            border-radius: 12px;
-            background: linear-gradient(135deg, #fbfcff, #f5f7ff);
-        }
-
-        .pf-id-label {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            margin-bottom: 10px;
-            color: #26315d;
-            font-size: 12px;
-            font-weight: 700;
-        }
-
-        .pf-id-label i {
-            width: 28px;
-            height: 28px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-            background: #e9edff;
-            color: #5b6fd6;
-            font-size: 13px;
-        }
-
-        .pf-req {
-            margin-left: auto;
-            padding: 3px 7px;
-            border-radius: 5px;
-            background: #fff0f1;
-            color: #c0392b;
-            font-size: 9px;
-            letter-spacing: .35px;
-        }
-
-        .pf-file-drop {
-            position: relative;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            min-height: 58px;
-            padding: 10px 12px;
-            border: 1.5px dashed #bfc8e8;
-            border-radius: 9px;
-            background: #fff;
-            cursor: pointer;
-            transition: border-color .18s, background .18s, box-shadow .18s;
-        }
-
-        .pf-file-drop:hover,
-        .pf-file-drop:focus-within {
-            border-color: #5b6fd6;
-            background: #f8f9ff;
-            box-shadow: 0 0 0 3px rgba(91, 111, 214, .1);
-        }
-
-        .pf-file-drop-icon {
-            width: 36px;
-            height: 36px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            border-radius: 9px;
-            background: #eef0fb;
-            color: #5b6fd6;
-            font-size: 15px;
-        }
-
-        .pf-file-drop-copy {
-            min-width: 0;
-            line-height: 1.35;
-        }
-
-        .pf-file-drop-title {
-            display: block;
-            color: #1d2448;
-            font-size: 12px;
-            font-weight: 700;
-        }
-
-        .pf-file-name {
-            display: block;
-            max-width: 100%;
-            overflow: hidden;
-            color: #5b6fd6;
-            font-size: 11px;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .pf-file-input {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        .pf-file-hint {
-            margin-top: 7px;
-            color: #8b93aa;
-            font-size: 10.5px;
-        }
-
-        .pf-file-hint i {
-            margin-right: 4px;
-            color: #5b6fd6;
-        }
-
-        .pf-id-pair {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
-        }
-
-        .pf-ocr-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin-top: 10px;
-            flex-wrap: wrap;
-        }
-
-        .pf-ocr-status {
-            flex: 1 1 260px;
-            font-size: 12px;
-            font-weight: 600;
-            color: #6b7291;
-            padding: 8px 10px;
-            border: 1px dashed #d7dce6;
-            background: #f8f9ff;
-            min-height: 34px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .pf-ocr-status.is-pending {
-            color: #8657c9;
-            border-color: #c8b6ea;
-            background: #f6f0ff;
-        }
-
-        .pf-ocr-status.is-ok {
-            color: #197a3e;
-            border-color: #a6d9b9;
-            background: #ecf8f0;
-            border-style: solid;
-        }
-
-        .pf-ocr-status.is-fail {
-            color: #b5321a;
-            border-color: #e7b3a5;
-            background: #fdefeb;
-            border-style: solid;
-        }
-
-        .pf-ocr-btn {
-            border: 1px solid #5b6fd6;
-            background: #fff;
-            color: #5b6fd6;
-            padding: 8px 14px;
-            font-family: 'Poppins', sans-serif;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .pf-ocr-btn:hover:not(:disabled) {
-            background: #5b6fd6;
-            color: #fff;
-        }
-
-        .pf-ocr-btn:disabled {
-            opacity: .6;
-            cursor: not-allowed;
-        }
-
-        @media (max-width: 640px) {
-            .pf-id-pair {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 520px) {
-            #childrenRows .pf-member-fields {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-
-            #childrenRows .pf-member-fields>* {
-                grid-column: span 1 !important;
-            }
-
-            #childrenRows .pf-member-fields> :nth-child(1),
-            #childrenRows .pf-member-fields> :nth-child(2),
-            #childrenRows .pf-member-fields> :nth-child(3),
-            #childrenRows .pf-member-fields> :nth-child(8) {
-                grid-column: span 2 !important;
-            }
-
-            #childrenRows .pf-member-fields > .pf-member-doc {
-                grid-column: 1 / -1 !important;
-            }
-
-            .pf-id-label {
-                align-items: flex-start;
-                flex-wrap: wrap;
-            }
-
-            .pf-req {
-                margin-left: 35px;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/css/census-form.css">
+    <script src="/js/census-ocr.js"></script>
 </head>
 
 <body class="db-body">
@@ -881,9 +22,36 @@
         <?php include(APPPATH . 'Views/dashboard/topbar.php'); ?>
         <div class="db-content">
 
+            <?php
+            $censusOld = session()->get('_ci_old_input');
+            if (! is_array($censusOld)) {
+                $censusOld = [];
+            }
+            $censusStashNames = [];
+            $rawStash = session()->get('census_upload_stash');
+            if (is_array($rawStash)) {
+                foreach ($rawStash as $field => $entry) {
+                    if (isset($entry['name'])) {
+                        $censusStashNames[$field] = $entry['name'];
+                    } elseif (is_array($entry)) {
+                        foreach ($entry as $i => $item) {
+                            if (isset($item['name'])) {
+                                $censusStashNames[$field][(int) $i] = $item['name'];
+                            }
+                        }
+                    }
+                }
+            }
+            $keptCensus = $censusOld !== [] || $censusStashNames !== [];
+            ?>
             <?php if (session()->getFlashdata('error')): ?>
-                <div class="db-alert db-alert--error" style="margin-bottom:16p x;">
+                <div class="db-alert db-alert--error" style="margin-bottom:16px;">
                     <i class="fas fa-exclamation-circle"></i> <?= session()->getFlashdata('error') ?>
+                </div>
+            <?php endif; ?>
+            <?php if ($keptCensus): ?>
+                <div class="db-alert db-alert--success" style="margin-bottom:16px;">
+                    <i class="fas fa-save"></i> Your previously entered information was kept. Uploaded supporting documents are still attached.
                 </div>
             <?php endif; ?>
 
@@ -914,6 +82,7 @@
                 <!-- ── Form ── -->
                 <form action="/<?= esc(session()->get('role')) ?>/census/store" method="post" id="censusForm" enctype="multipart/form-data">
                     <?= csrf_field() ?>
+                    <input type="hidden" name="save_mode" id="saveModeField" value="complete">
 
                     <!-- ── Validation error banner (shown when required fields are missing) ── -->
                     <div class="pf-step-error" id="formErrorBanner">
@@ -936,15 +105,15 @@
                                 <div class="pf-row pf-row-4">
                                     <div>
                                         <div class="pf-label">Last Name</div>
-                                        <input type="text" class="pf-ctrl pf-upper pf-alpha" name="last_name" placeholder="DELA CRUZ" required>
+                                        <input type="text" class="pf-ctrl pf-upper pf-alpha" name="last_name" data-ocr-last placeholder="DELA CRUZ" required>
                                     </div>
                                     <div>
                                         <div class="pf-label">First Name</div>
-                                        <input type="text" class="pf-ctrl pf-upper pf-alpha" name="first_name" placeholder="JUAN" required>
+                                        <input type="text" class="pf-ctrl pf-upper pf-alpha" name="first_name" data-ocr-first placeholder="JUAN" required>
                                     </div>
                                     <div>
                                         <div class="pf-label">Middle Name</div>
-                                        <input type="text" class="pf-ctrl pf-upper pf-alpha" name="middle_name" placeholder="SANTOS">
+                                        <input type="text" class="pf-ctrl pf-upper pf-alpha" name="middle_name" data-ocr-middle placeholder="SANTOS">
                                     </div>
                                     <div>
                                         <div class="pf-label">Suffix</div>
@@ -963,7 +132,7 @@
                                     <div>
                                         <div class="pf-label">Date of Birth</div>
                                         <div class="pf-date-wrap">
-                                            <input type="date" class="pf-ctrl" name="date_of_birth" required>
+                                            <input type="date" class="pf-ctrl" name="date_of_birth" data-ocr-dob required>
                                             <i class="fas fa-calendar-alt pf-date-icon"></i>
                                         </div>
                                     </div>
@@ -1290,16 +459,16 @@
                             <div class="pf-page-section-bar">
                                 <i class="fas fa-ring"></i> Spouse
                             </div>
-                            <div class="pf-page-section-body">
+                            <div class="pf-page-section-body" data-ocr-person>
                                 <div class="pf-row pf-row-4">
                                     <div>
-                                        <div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="spouse_last_name" placeholder="LAST NAME">
+                                        <div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="spouse_last_name" data-ocr-last placeholder="LAST NAME">
                                     </div>
                                     <div>
-                                        <div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="spouse_first_name" placeholder="FIRST NAME">
+                                        <div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="spouse_first_name" data-ocr-first placeholder="FIRST NAME">
                                     </div>
                                     <div>
-                                        <div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="spouse_middle_name" placeholder="MIDDLE NAME">
+                                        <div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="spouse_middle_name" data-ocr-middle placeholder="MIDDLE NAME">
                                     </div>
                                     <div>
                                         <div class="pf-label">Suffix</div>
@@ -1316,7 +485,7 @@
                                     <div>
                                         <div class="pf-label">Date of Birth</div>
                                         <div class="pf-date-wrap">
-                                            <input type="date" class="pf-ctrl" name="spouse_dob">
+                                            <input type="date" class="pf-ctrl" name="spouse_dob" data-ocr-dob>
                                             <i class="fas fa-calendar-alt pf-date-icon"></i>
                                         </div>
                                     </div>
@@ -1389,14 +558,19 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="pf-id-upload" style="margin-top:12px;">
+                                <div class="pf-id-upload" style="margin-top:12px;" data-id-block data-id-key="spouse_support" data-ocr-mode="single">
                                     <label class="pf-id-label"><i class="fas fa-id-card"></i> Spouse ID or Birth Certificate</label>
                                     <label class="pf-file-drop">
                                         <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                         <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose one ID or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                                        <input type="file" name="spouse_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input">
+                                        <input type="file" name="spouse_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
                                     </label>
-                                    <div class="pf-file-hint">Required when a spouse is recorded. Save as Draft if the document is not available yet.</div>
+                                    <div class="pf-file-hint">Required when a spouse is recorded. OCR checks this file against the spouse name and birthdate. Save as Draft if the document is not available yet.</div>
+                                    <input type="hidden" name="spouse_supporting_verified" value="0" data-ocr-flag>
+                                    <div class="pf-ocr-row">
+                                        <div class="pf-ocr-status" data-ocr-status>Fill in the spouse name and birthdate, then upload the ID or birth certificate. OCR runs automatically.</div>
+                                        <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1456,11 +630,11 @@
                             <a href="/<?= esc(session()->get('role')) ?>/census" class="pf-page-btn pf-page-btn--outline">
                                 <i class="fas fa-times"></i> Cancel
                             </a>
+                            <button class="pf-page-btn pf-page-btn--primary" id="saveBtn" type="submit" style="display:none;">
+                                <i class="fas fa-save"></i> Save Record
+                            </button>
                             <button class="pf-page-btn pf-page-btn--outline" id="draftBtn" name="save_mode" value="draft" type="submit" style="display:none;">
                                 <i class="fas fa-file-alt"></i> Save as Draft
-                            </button>
-                            <button class="pf-page-btn pf-page-btn--primary" id="saveBtn" name="save_mode" value="complete" type="submit" style="display:none;">
-                                <i class="fas fa-save"></i> Save Record
                             </button>
                         </div>
 
@@ -1494,13 +668,13 @@
             <optgroup label="Senior High School"><option>Grade 11</option><option>Grade 12</option></optgroup>
             <optgroup label="College / University"><option>1st Year College</option><option>2nd Year College</option><option>3rd Year College</option><option>4th Year College</option><option>5th Year College</option></optgroup>
             <optgroup label="Vocational / Technical"><option>1st Year Tech-Voc</option><option>2nd Year Tech-Voc</option></optgroup>';
-        return '<div class="pf-member-card">
+        return '<div class="pf-member-card" data-ocr-person>
             <div class="pf-member-fields">
-                <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_last_name[]" placeholder="LAST NAME"></div>
-                <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_first_name[]" placeholder="FIRST NAME"></div>
-                <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_middle_name[]" placeholder="MIDDLE NAME"></div>
+                <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_last_name[]" data-ocr-last placeholder="LAST NAME"></div>
+                <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_first_name[]" data-ocr-first placeholder="FIRST NAME"></div>
+                <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_middle_name[]" data-ocr-middle placeholder="MIDDLE NAME"></div>
                 <div class="pf-field-xs"><div class="pf-label">Suffix</div><select class="pf-ctrl" name="child_suffix[]"><option value="">—NONE—</option><option>Jr</option><option>Sr</option><option>II</option><option>III</option></select></div>
-                <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="child_dob[]"><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
+                <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="child_dob[]" data-ocr-dob><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
                 <div class="pf-field-xs"><div class="pf-label">Gender</div><select class="pf-ctrl" name="child_gender[]"><option value="">—Select—</option><option>Male</option><option>Female</option></select></div>
                 <div class="pf-field-sm"><div class="pf-label">Civil Status</div><input type="hidden" name="child_marital_status[]" value="Single"><label class="pf-married-toggle"><input type="checkbox" onchange="toggleChildMarried(this)"><span>Married</span></label></div>
                 <div class="pf-field-wrap"><div class="pf-label">Occupation</div>
@@ -1546,14 +720,19 @@
                         </div>
             </div>
             <div class="pf-member-doc">
-                <div class="pf-id-upload">
+                <div class="pf-id-upload" data-id-block data-ocr-mode="single">
                     <label class="pf-id-label"><i class="fas fa-id-card"></i> This child&#39;s ID or Birth Certificate</label>
                     <label class="pf-file-drop">
                         <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                         <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this child&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                        <input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
+                        <input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
                     </label>
-                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> This file is saved for this child only. Use Save as Draft if it is not available yet.</div>
+                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> OCR checks this file against this child&#39;s name and birthdate. Use Save as Draft if it is not available yet.</div>
+                    <input type="hidden" name="child_supporting_verified[]" value="0" data-ocr-flag>
+                    <div class="pf-ocr-row">
+                        <div class="pf-ocr-status" data-ocr-status>Fill in this child&#39;s name and birthdate, then upload the document. OCR runs automatically.</div>
+                        <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
+                    </div>
                 </div>
             </div>
             </div>
@@ -1563,13 +742,13 @@
 
     function otherRowHTML(int $i): string
     {
-        return '<div class="pf-member-card">
+        return '<div class="pf-member-card" data-ocr-person>
             <div class="pf-member-fields">
-                <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_last_name[]" placeholder="LAST NAME"></div>
-                <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_first_name[]" placeholder="FIRST NAME"></div>
-                <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_middle_name[]" placeholder="MIDDLE NAME"></div>
+                <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_last_name[]" data-ocr-last placeholder="LAST NAME"></div>
+                <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_first_name[]" data-ocr-first placeholder="FIRST NAME"></div>
+                <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_middle_name[]" data-ocr-middle placeholder="MIDDLE NAME"></div>
                 <div class="pf-field-xs"><div class="pf-label">Suffix</div><select class="pf-ctrl" name="other_suffix[]"><option value="">—NONE—</option><option>Jr</option><option>Sr</option><option>II</option><option>III</option></select></div>
-                <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="other_dob[]"><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
+                <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="other_dob[]" data-ocr-dob><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
                 <div class="pf-field-xs"><div class="pf-label">Gender</div><select class="pf-ctrl" name="other_gender[]"><option value="">—Select—</option><option>Male</option><option>Female</option></select></div>
                 <div class="pf-field-sm"><div class="pf-label">Relationship</div>
                     <select class="pf-ctrl" name="other_relationship[]">
@@ -1609,14 +788,19 @@
                     </div>
                 </div>
             <div class="pf-member-doc">
-                <div class="pf-id-upload">
+                <div class="pf-id-upload" data-id-block data-ocr-mode="single">
                     <label class="pf-id-label"><i class="fas fa-id-card"></i> This member&#39;s ID or Birth Certificate</label>
                     <label class="pf-file-drop">
                         <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                         <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this member&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                        <input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
+                        <input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
                     </label>
-                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> This file is saved for this member only. Use Save as Draft if it is not available yet.</div>
+                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> OCR checks this file against this member&#39;s name and birthdate. Use Save as Draft if it is not available yet.</div>
+                    <input type="hidden" name="other_supporting_verified[]" value="0" data-ocr-flag>
+                    <div class="pf-ocr-row">
+                        <div class="pf-ocr-status" data-ocr-status>Fill in this member&#39;s name and birthdate, then upload the document. OCR runs automatically.</div>
+                        <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
+                    </div>
                 </div>
             </div>
             </div>
@@ -2089,227 +1273,7 @@
             }
         }
 
-        // Show the selected document name inside its upload card.
-        document.addEventListener('change', function(e) {
-            if (!e.target.matches('.pf-file')) return;
-            const name = e.target.files && e.target.files[0] ? e.target.files[0].name : 'No file selected';
-            const nameEl = e.target.closest('.pf-file-drop')?.querySelector('.pf-file-name');
-            if (nameEl) nameEl.textContent = name;
-
-            // Any change to an ID upload invalidates the previous OCR result,
-            // BUT only if the file actually changed. Some browser/extension
-            // combinations re-dispatch `change` events on file inputs even
-            // when the user did not pick a different file; skipping in that
-            // case keeps a verified status from flipping back to "not match".
-            const block = e.target.closest('[data-id-block]');
-            if (block && hasOcrInputsChanged(block)) {
-                resetOcrStatus(block);
-                maybeRunOcr(block);
-            }
-        });
-
-        // ── OCR-backed ID verification ────────────────────────────────────────
-        function ocrHeadName() {
-            const first = (document.querySelector('input[name="first_name"]')?.value || '').trim();
-            const middle = (document.querySelector('input[name="middle_name"]')?.value || '').trim();
-            const last = (document.querySelector('input[name="last_name"]')?.value || '').trim();
-            return [first, middle, last].filter(Boolean).join(' ');
-        }
-
-        function ocrHeadDob() {
-            return (document.querySelector('input[name="date_of_birth"]')?.value || '').trim();
-        }
-
-        function setOcrStatus(block, state, message) {
-            const statusEl = block.querySelector('[data-ocr-status]');
-            if (!statusEl) return;
-            statusEl.classList.remove('is-pending', 'is-ok', 'is-fail');
-            if (state) statusEl.classList.add(state);
-            const icon = state === 'is-ok'
-                ? '<i class="fas fa-check-circle"></i>'
-                : state === 'is-fail'
-                    ? '<i class="fas fa-exclamation-circle"></i>'
-                    : state === 'is-pending'
-                        ? '<i class="fas fa-spinner fa-spin"></i>'
-                        : '<i class="fas fa-fingerprint"></i>';
-            statusEl.innerHTML = icon + ' <span>' + message + '</span>';
-        }
-
-        function resetOcrStatus(block) {
-            const flag = block.querySelector('[data-ocr-flag]');
-            if (flag) flag.value = '0';
-            // Clearing the cached signature means the next auto-run will
-            // treat the block as "fresh" and go through to the OCR service.
-            ocrLastSig.delete(block);
-            const single = block.dataset.ocrMode === 'single';
-            setOcrStatus(
-                block,
-                null,
-                single
-                    ? 'Fill in the name and birthdate, then upload the ID or birth certificate. OCR runs automatically.'
-                    : 'Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.'
-            );
-        }
-
-        // Per-block signature of the inputs that affect an OCR result. When
-        // the signature matches the one captured during the last successful
-        // verification, there is no reason to re-run OCR - skipping protects
-        // the previously verified status from being clobbered by a flaky
-        // retry from the free OCR service.
-        const ocrLastSig = new WeakMap();
-        // In-flight guard: a second OCR call on the same block is never
-        // started while the first is still pending, so a late response from
-        // the previous call cannot overwrite a newer result.
-        const ocrInFlight = new WeakSet();
-
-        function computeOcrSignature(block) {
-            const first = (document.querySelector('input[name="first_name"]')?.value || '').trim();
-            const middle = (document.querySelector('input[name="middle_name"]')?.value || '').trim();
-            const last = (document.querySelector('input[name="last_name"]')?.value || '').trim();
-            const dob = (document.querySelector('input[name="date_of_birth"]')?.value || '').trim();
-            const front = block.querySelector('[data-ocr-front]');
-            const back = block.querySelector('[data-ocr-back]');
-            const fileSig = function (input) {
-                const f = input && input.files && input.files[0];
-                return f ? (f.name + '|' + f.size + '|' + (f.lastModified || 0)) : '';
-            };
-            return [first, middle, last, dob, fileSig(front), fileSig(back)].join('::');
-        }
-
-        function hasOcrInputsChanged(block) {
-            const prev = ocrLastSig.get(block);
-            if (!prev) return true;             // no prior verification -> allow a run
-            return prev !== computeOcrSignature(block);
-        }
-
-        async function runOcr(block) {
-            // Never run two OCR calls for the same block in parallel. A late
-            // response from the previous call could otherwise overwrite the
-            // newer result - which was the main reason verified IDs flipped
-            // back to "not match" after a few seconds.
-            if (ocrInFlight.has(block)) return;
-
-            const front = block.querySelector('[data-ocr-front]');
-            const back = block.querySelector('[data-ocr-back]');
-            const runBtn = block.querySelector('[data-ocr-run]');
-            const flag = block.querySelector('[data-ocr-flag]');
-            const name = ocrHeadName();
-            const dob = ocrHeadDob();
-            const single = block.dataset.ocrMode === 'single';
-
-            if (!front || !front.files || !front.files[0]) {
-                setOcrStatus(block, 'is-fail', single ? 'Pick the ID or birth certificate first.' : 'Pick the front photo of the ID first.');
-                return;
-            }
-            if (!name) {
-                setOcrStatus(block, 'is-fail', 'Type the full name in personal information first.');
-                return;
-            }
-
-            ocrInFlight.add(block);
-
-            const form = new FormData();
-            form.append('id_front', front.files[0]);
-            if (back && back.files && back.files[0]) {
-                form.append('id_back', back.files[0]);
-            }
-            form.append('full_name', name);
-            form.append('first_name', (document.querySelector('input[name="first_name"]')?.value || '').trim());
-            form.append('middle_name', (document.querySelector('input[name="middle_name"]')?.value || '').trim());
-            form.append('last_name', (document.querySelector('input[name="last_name"]')?.value || '').trim());
-            if (dob) form.append('date_of_birth', dob);
-            form.append('document_type', single ? 'birth_or_id' : 'id_card');
-
-            setOcrStatus(block, 'is-pending', single ? 'Reading the ID or birth certificate with OCR… (trying multiple orientations)' : 'Reading the ID with OCR… (trying multiple orientations)');
-            if (runBtn) runBtn.disabled = true;
-
-            // The OCR route lives under the current role prefix so the session
-            // cookie for that role is picked up automatically.
-            const rolePrefix = (location.pathname.match(/^\/(admin|secretary|captain|council)(?=\/)/) || [null, 'secretary'])[1];
-            const ocrUrl = '/' + rolePrefix + '/ocr/verify-id';
-
-            try {
-                const response = await fetch(ocrUrl, { method: 'POST', body: form, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                const raw = await response.text();
-                let data = null;
-                try { data = raw ? JSON.parse(raw) : null; } catch (_) { data = null; }
-                if (!response.ok || !data || data.ok === false) {
-                    let message;
-                    if (data && data.error) {
-                        message = data.error;
-                    } else if (raw) {
-                        // Prefer the CI4 error page title if we got HTML back.
-                        const titleMatch = raw.match(/<title[^>]*>([^<]{1,200})<\/title>/i);
-                        const h1Match = raw.match(/<h1[^>]*>([\s\S]{1,240}?)<\/h1>/i);
-                        const bodyMatch = raw.match(/<p[^>]*>([\s\S]{5,240}?)<\/p>/i);
-                        const summary = (titleMatch && titleMatch[1].trim())
-                            || (h1Match && h1Match[1].replace(/<[^>]+>/g, ' ').trim())
-                            || (bodyMatch && bodyMatch[1].replace(/<[^>]+>/g, ' ').trim())
-                            || raw.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240);
-                        message = 'OCR service returned HTTP ' + response.status + '. ' + summary;
-                    } else {
-                        message = 'OCR service returned HTTP ' + response.status + ' with an empty body.';
-                    }
-                    if (flag) flag.value = '0';
-                    setOcrStatus(block, 'is-fail', message);
-                    return;
-                }
-                if (flag) flag.value = data.verified ? '1' : '0';
-                setOcrStatus(block, data.verified ? 'is-ok' : 'is-fail', data.reason || (data.verified ? 'Verified.' : 'Could not verify.'));
-                if (data.verified) {
-                    // Snapshot the inputs that produced this success so later
-                    // `change` events on the same inputs do NOT trigger a
-                    // redundant OCR call that could flip the result back.
-                    ocrLastSig.set(block, computeOcrSignature(block));
-                } else {
-                    ocrLastSig.delete(block);
-                }
-            } catch (err) {
-                if (flag) flag.value = '0';
-                setOcrStatus(block, 'is-fail', 'Network error while verifying the ID: ' + (err && err.message ? err.message : err));
-                ocrLastSig.delete(block);
-            } finally {
-                if (runBtn) runBtn.disabled = false;
-                ocrInFlight.delete(block);
-            }
-        }
-
-        function maybeRunOcr(block) {
-            const front = block.querySelector('[data-ocr-front]');
-            const back = block.querySelector('[data-ocr-back]');
-            const hasFront = front && front.files && front.files[0];
-            const hasBack = back && back.files && back.files[0];
-            const name = ocrHeadName();
-            const single = block.dataset.ocrMode === 'single' || !back;
-            if (hasFront && name && (single || hasBack)) {
-                runOcr(block);
-            }
-        }
-
-        document.addEventListener('click', function(e) {
-            const runBtn = e.target.closest('[data-ocr-run]');
-            if (!runBtn) return;
-            e.preventDefault();
-            const block = runBtn.closest('[data-id-block]');
-            if (block) runOcr(block);
-        });
-
-        // Re-verify when the head name or DOB changes and a file is already
-        // picked. We only reset / re-run when something that affects the OCR
-        // result actually changed since the last verification - this stops a
-        // stray `change` event (e.g. tabbing in and out of a field without
-        // editing it) from blowing away a previously verified status.
-        ['first_name', 'middle_name', 'last_name', 'date_of_birth'].forEach(function(field) {
-            const el = document.querySelector('input[name="' + field + '"]');
-            if (!el) return;
-            el.addEventListener('change', function() {
-                document.querySelectorAll('[data-id-block]').forEach(function(block) {
-                    if (!hasOcrInputsChanged(block)) return;   // keep the current green status
-                    resetOcrStatus(block);
-                    maybeRunOcr(block);
-                });
-            });
-        });
+        // Document name display and OCR live in /js/census-ocr.js
 
         // ── Init ──────────────────────────────────────────────────────────────
         (function() {
@@ -2345,9 +1309,11 @@
             document.getElementById('linkHouseholdModal')?.addEventListener('click', function (e) {
                 if (e.target.id === 'linkHouseholdModal') closeHouseholdLinkModal();
             });
-            // Auto-set today as recorded date
-            document.getElementById('recordedDate').value =
-                new Date().toISOString().split('T')[0];
+            // Auto-set today as recorded date only when the field is empty
+            const recordedDate = document.getElementById('recordedDate');
+            if (recordedDate && !recordedDate.value) {
+                recordedDate.value = new Date().toISOString().split('T')[0];
+            }
         })();
 
         // ── Step navigation ───────────────────────────────────────────────────
@@ -2398,13 +1364,13 @@
         function addChildRow() {
             const i = _childIdx++;
             document.getElementById('childrenRows').insertAdjacentHTML('beforeend', `
-                <div class="pf-member-card">
+                <div class="pf-member-card" data-ocr-person>
                     <div class="pf-member-fields">
-                        <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_last_name[]" placeholder="LAST NAME"></div>
-                        <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_first_name[]" placeholder="FIRST NAME"></div>
-                        <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_middle_name[]" placeholder="MIDDLE NAME"></div>
+                        <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_last_name[]" data-ocr-last placeholder="LAST NAME"></div>
+                        <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_first_name[]" data-ocr-first placeholder="FIRST NAME"></div>
+                        <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_middle_name[]" data-ocr-middle placeholder="MIDDLE NAME"></div>
                         <div class="pf-field-xs"><div class="pf-label">Suffix</div><select class="pf-ctrl" name="child_suffix[]"><option value="">—NONE—</option><option>Jr</option><option>Sr</option><option>II</option><option>III</option></select></div>
-                        <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="child_dob[]"><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
+                        <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="child_dob[]" data-ocr-dob><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
                         <div class="pf-field-xs"><div class="pf-label">Gender</div><select class="pf-ctrl" name="child_gender[]"><option value="">—Select—</option><option>Male</option><option>Female</option></select></div>
                         <div class="pf-field-sm"><div class="pf-label">Civil Status</div><input type="hidden" name="child_marital_status[]" value="Single"><label class="pf-married-toggle"><input type="checkbox" onchange="toggleChildMarried(this)"><span>Married</span></label></div>
                         <div class="pf-field-wrap"><div class="pf-label">Occupation</div>
@@ -2446,14 +1412,19 @@
                         </div>
                         </div>
                         <div class="pf-member-doc">
-                            <div class="pf-id-upload">
+                            <div class="pf-id-upload" data-id-block data-ocr-mode="single">
                                 <label class="pf-id-label"><i class="fas fa-id-card"></i> This child&#39;s ID or Birth Certificate</label>
                                 <label class="pf-file-drop">
                                     <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                     <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this child&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                                    <input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
+                                    <input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
                                 </label>
-                                <div class="pf-file-hint"><i class="fas fa-info-circle"></i> This file is saved for this child only. Use Save as Draft if it is not available yet.</div>
+                                <div class="pf-file-hint"><i class="fas fa-info-circle"></i> OCR checks this file against this child&#39;s name and birthdate. Use Save as Draft if it is not available yet.</div>
+                                <input type="hidden" name="child_supporting_verified[]" value="0" data-ocr-flag>
+                                <div class="pf-ocr-row">
+                                    <div class="pf-ocr-status" data-ocr-status>Fill in this child&#39;s name and birthdate, then upload the document. OCR runs automatically.</div>
+                                    <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2464,13 +1435,13 @@
         function addOtherRow() {
             const i = _otherIdx++;
             document.getElementById('otherRows').insertAdjacentHTML('beforeend', `
-                <div class="pf-member-card">
+                <div class="pf-member-card" data-ocr-person>
                     <div class="pf-member-fields">
-                        <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_last_name[]" placeholder="LAST NAME"></div>
-                        <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_first_name[]" placeholder="FIRST NAME"></div>
-                        <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_middle_name[]" placeholder="MIDDLE NAME"></div>
+                        <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_last_name[]" data-ocr-last placeholder="LAST NAME"></div>
+                        <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_first_name[]" data-ocr-first placeholder="FIRST NAME"></div>
+                        <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_middle_name[]" data-ocr-middle placeholder="MIDDLE NAME"></div>
                         <div class="pf-field-xs"><div class="pf-label">Suffix</div><select class="pf-ctrl" name="other_suffix[]"><option value="">—NONE—</option><option>Jr</option><option>Sr</option><option>II</option><option>III</option></select></div>
-                        <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="other_dob[]"><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
+                        <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="other_dob[]" data-ocr-dob><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
                         <div class="pf-field-xs"><div class="pf-label">Gender</div><select class="pf-ctrl" name="other_gender[]"><option value="">—Select—</option><option>Male</option><option>Female</option></select></div>
                         <div class="pf-field-sm"><div class="pf-label">Relationship</div>
                             <select class="pf-ctrl" name="other_relationship[]">
@@ -2496,14 +1467,19 @@
                     </div>
                     </div>
                     <div class="pf-member-doc">
-                        <div class="pf-id-upload">
+                        <div class="pf-id-upload" data-id-block data-ocr-mode="single">
                             <label class="pf-id-label"><i class="fas fa-id-card"></i> This member&#39;s ID or Birth Certificate</label>
                             <label class="pf-file-drop">
                                 <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                 <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this member&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                                <input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
+                                <input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
                             </label>
-                            <div class="pf-file-hint"><i class="fas fa-info-circle"></i> This file is saved for this member only. Use Save as Draft if it is not available yet.</div>
+                            <div class="pf-file-hint"><i class="fas fa-info-circle"></i> OCR checks this file against this member&#39;s name and birthdate. Use Save as Draft if it is not available yet.</div>
+                            <input type="hidden" name="other_supporting_verified[]" value="0" data-ocr-flag>
+                            <div class="pf-ocr-row">
+                                <div class="pf-ocr-status" data-ocr-status>Fill in this member&#39;s name and birthdate, then upload the document. OCR runs automatically.</div>
+                                <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
+                            </div>
                         </div>
                     </div>
                     </div>
@@ -2735,7 +1711,15 @@
 
         // ── Form submit validation ────────────────────────────────────────────
         document.getElementById('censusForm').addEventListener('submit', function(e) {
-            const savingDraft = e.submitter && e.submitter.value === 'draft';
+            const saveModeField = document.getElementById('saveModeField');
+            const savingDraft = !!(e.submitter && e.submitter.id === 'draftBtn');
+            if (saveModeField) saveModeField.value = savingDraft ? 'draft' : 'complete';
+            const onFamilyStep = document.getElementById('step2') && document.getElementById('step2').classList.contains('active');
+            if (!onFamilyStep) {
+                e.preventDefault();
+                goNext();
+                return;
+            }
             const ownership = document.getElementById('houseOwnershipSelect');
             const linkedHousehold = document.getElementById('linkedHouseholdNo');
             if (ownership && ownership.value === 'Shared' && linkedHousehold && linkedHousehold.value.trim() === '') {
@@ -2796,7 +1780,9 @@
                 const cbEl = document.querySelector(cfg.cb);
                 if (cbEl && cbEl.checked) {
                     const fileEl = document.querySelector(cfg.file);
-                    const hasFile = fileEl && fileEl.files && fileEl.files.length > 0;
+                    const keptName = fileEl && fileEl.closest('.pf-file-drop') && fileEl.closest('.pf-file-drop').querySelector('.pf-file-name');
+                    const hasFile = (fileEl && fileEl.files && fileEl.files.length > 0)
+                        || (keptName && /\(kept\)/i.test(keptName.textContent || ''));
                     if (!hasFile) {
                         idErrors.push(cfg.label);
                         const wrapEl = document.getElementById(cfg.wrap);
@@ -2842,10 +1828,36 @@
             const prevErr = document.getElementById('idUploadsError');
             if (prevErr) prevErr.remove();
 
+            if (!savingDraft && window.CensusOcr) {
+                const ocrIssues = CensusOcr.unverifiedLabels(this);
+                if (ocrIssues.length) {
+                    e.preventDefault();
+                    const msg = ocrIssues.length === 1
+                        ? 'The uploaded ' + ocrIssues[0] + ' does not match the required name and birthdate. Please upload the correct document and verify it with OCR.'
+                        : 'These uploaded documents do not match the required information: ' + ocrIssues.join('; ') + '. Please upload the correct files and verify them with OCR.';
+                    const banner = document.getElementById('formErrorBanner');
+                    const bannerText = document.getElementById('formErrorText');
+                    if (banner && bannerText) {
+                        banner.style.display = 'flex';
+                        bannerText.textContent = msg;
+                    }
+                    alert(msg);
+                    goTo(1);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    return;
+                }
+            }
+
             if (!savingDraft) {
+                const fileKept = (selector) => {
+                    const el = document.querySelector(selector);
+                    const nameEl = el && el.closest('.pf-file-drop') && el.closest('.pf-file-drop').querySelector('.pf-file-name');
+                    return !!(nameEl && /\(kept\)/i.test(nameEl.textContent || ''));
+                };
                 const fileMissing = (selector) => {
                     const el = document.querySelector(selector);
-                    return !el || !el.files || el.files.length === 0;
+                    const hasFile = el && el.files && el.files.length > 0;
+                    return !hasFile && !fileKept(selector);
                 };
                 const headCovered = !fileMissing('input[name="head_supporting_doc"]')
                     || (document.querySelector('input[name="is_4ps"]')?.checked && !fileMissing('input[name="id_4ps"]'))
@@ -2911,6 +1923,7 @@
             document.querySelectorAll('#censusForm input[type="text"]').forEach(f => {
                 f.value = f.value.toUpperCase();
             });
+            try { localStorage.removeItem('bisCensusFormDraft'); } catch (_) {}
         });
 
         // ── Live input: uppercase, philhealth digits, alpha-only ─────────────
@@ -2982,6 +1995,169 @@
             childList: true,
             subtree: true
         });
+
+        (function restoreCensusForm() {
+            const serverOld = <?= json_encode($censusOld, JSON_UNESCAPED_UNICODE) ?> || {};
+            const stashNames = <?= json_encode($censusStashNames, JSON_UNESCAPED_UNICODE) ?> || {};
+            const form = document.getElementById('censusForm');
+            if (!form) return;
+
+            function asList(value) {
+                if (value === undefined || value === null || value === '') return [];
+                return Array.isArray(value) ? value : [value];
+            }
+
+            function setFormValue(name, value) {
+                if (value === undefined || value === null) return;
+                const fields = form.querySelectorAll('[name="' + name + '"]');
+                if (!fields.length) return;
+                fields.forEach(function (field) {
+                    if (field.type === 'file') return;
+                    if (field.type === 'checkbox') {
+                        field.checked = value === true || String(value) === '1' || String(field.value) === String(value);
+                    } else if (field.type === 'radio') {
+                        field.checked = String(field.value) === String(value);
+                    } else {
+                        field.value = value;
+                    }
+                });
+            }
+
+            function setIndexedValues(name, values) {
+                const list = asList(values);
+                const fields = form.querySelectorAll('[name="' + name + '"], [name="' + name + '[]"]');
+                fields.forEach(function (field, i) {
+                    if (list[i] === undefined || field.type === 'file') return;
+                    if (field.type === 'radio' || field.type === 'checkbox') {
+                        field.checked = String(field.value) === String(list[i]);
+                    } else {
+                        field.value = list[i];
+                    }
+                });
+            }
+
+            function applyValues(data) {
+                if (!data || typeof data !== 'object' || !Object.keys(data).length) return false;
+
+                const childNames = asList(data.child_last_name).filter(function (v) { return String(v || '').trim() !== ''; });
+                const otherNames = asList(data.other_last_name).filter(function (v) { return String(v || '').trim() !== ''; });
+                while (document.querySelectorAll('#childrenRows .pf-member-card').length < Math.max(1, childNames.length)) {
+                    addChildRow();
+                }
+                while (document.querySelectorAll('#otherRows .pf-member-card').length < Math.max(1, otherNames.length)) {
+                    addOtherRow();
+                }
+
+                Object.keys(data).forEach(function (name) {
+                    if (name === 'save_mode' || name === csrfName()) return;
+                    const value = data[name];
+                    if (Array.isArray(value) || /\[\]$/.test(name) || /\[\d+\]$/.test(name)) {
+                        setIndexedValues(name.replace(/\[\]$/, ''), value);
+                        return;
+                    }
+                    setFormValue(name, value);
+                });
+
+                ['child_last_name', 'child_first_name', 'child_middle_name', 'child_suffix', 'child_dob', 'child_gender',
+                    'child_marital_status', 'child_occupation', 'child_grade', 'child_work', 'child_income',
+                    'child_philhealth', 'child_pwd_type', 'child_spouse_name', 'child_children_names'
+                ].forEach(function (name) {
+                    setIndexedValues(name, data[name]);
+                });
+                ['other_last_name', 'other_first_name', 'other_middle_name', 'other_suffix', 'other_dob',
+                    'other_gender', 'other_relationship', 'other_pwd_type'
+                ].forEach(function (name) {
+                    setIndexedValues(name, data[name]);
+                });
+
+                if (data.household_no_mode === 'manual' && typeof setHouseholdNoMode === 'function') {
+                    setHouseholdNoMode(false);
+                    if (data.household_no) setFormValue('household_no', data.household_no);
+                }
+                if (typeof toggleNumFamilies === 'function' && data.house_ownership) {
+                    toggleNumFamilies(data.house_ownership);
+                }
+                [['head_is_4ps', 'id_4ps_wrap'], ['head_is_senior', 'id_senior_wrap'], ['head_is_solo', 'id_solo_wrap']].forEach(function (pair) {
+                    if (typeof toggleIdUpload === 'function') toggleIdUpload(pair[0], pair[1]);
+                });
+                document.querySelectorAll('#childrenRows .pf-member-card').forEach(function (row) {
+                    if (typeof syncMinorChildCivilStatus === 'function') syncMinorChildCivilStatus(row);
+                });
+                return true;
+            }
+
+            function csrfName() {
+                const csrf = form.querySelector('input[type="hidden"][name]');
+                return csrf ? csrf.name : 'csrf_test_name';
+            }
+
+            function serializeForm() {
+                const data = {};
+                new FormData(form).forEach(function (value, key) {
+                    if (value instanceof File) return;
+                    if (Object.prototype.hasOwnProperty.call(data, key)) {
+                        if (!Array.isArray(data[key])) data[key] = [data[key]];
+                        data[key].push(value);
+                    } else {
+                        data[key] = value;
+                    }
+                });
+                return data;
+            }
+
+            let restored = applyValues(serverOld);
+            if (!restored) {
+                try {
+                    const saved = JSON.parse(localStorage.getItem('bisCensusFormDraft') || 'null');
+                    restored = applyValues(saved);
+                } catch (_) {}
+            }
+
+            function markKept(selector, fileName, index) {
+                if (!fileName) return;
+                const inputs = document.querySelectorAll(selector);
+                const input = inputs[index || 0];
+                if (!input) return;
+                const nameEl = input.closest('.pf-file-drop')?.querySelector('.pf-file-name');
+                if (nameEl) {
+                    nameEl.textContent = fileName + ' (kept)';
+                    nameEl.style.color = '#166534';
+                    nameEl.style.fontWeight = '700';
+                }
+            }
+
+            if (window.CensusOcr) CensusOcr.syncFlagsFromDom();
+
+            Object.keys(stashNames).forEach(function (field) {
+                const entry = stashNames[field];
+                if (typeof entry === 'string') {
+                    markKept('input[name="' + field + '"]', entry, 0);
+                    return;
+                }
+                if (entry && typeof entry === 'object') {
+                    Object.keys(entry).forEach(function (i) {
+                        markKept('input[name="' + field + '[]"]', entry[i], parseInt(i, 10) || 0);
+                    });
+                }
+            });
+
+            let saveTimer = null;
+            form.addEventListener('input', function () {
+                clearTimeout(saveTimer);
+                saveTimer = setTimeout(function () {
+                    try { localStorage.setItem('bisCensusFormDraft', JSON.stringify(serializeForm())); } catch (_) {}
+                }, 400);
+            });
+            form.addEventListener('change', function () {
+                try { localStorage.setItem('bisCensusFormDraft', JSON.stringify(serializeForm())); } catch (_) {}
+            });
+
+            document.querySelectorAll('a[href$="/census"]').forEach(function (link) {
+                link.addEventListener('click', function () {
+                    try { localStorage.removeItem('bisCensusFormDraft'); } catch (_) {}
+                });
+            });
+        })();
     </script>
 </body>
 

@@ -498,9 +498,18 @@
                             </optgroup>
                             <optgroup label="Other">
                                 <option>For general use</option>
-                                <option>Other purposes</option>
+                                <option value="Other">Other</option>
                             </optgroup>
                         </select>
+                        <div id="captainPurposeOtherWrap" hidden style="margin-top:10px;">
+                            <label for="captainPurposeOther" style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#9aa0b4;margin-bottom:6px;">
+                                Specify purpose <span style="color:#c0392b;">*</span>
+                            </label>
+                            <input type="text" name="purpose_other" id="captainPurposeOther" maxlength="255"
+                                placeholder="Type the exact purpose of this request"
+                                value="<?= esc(old('purpose_other') ?? '') ?>"
+                                style="width:100%;padding:10px 12px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13.5px;font-family:'Poppins',sans-serif;color:#1a1d2e;background:#fff;outline:none;box-sizing:border-box;">
+                        </div>
                     </div>
 
                     <!-- Notes -->
@@ -1044,6 +1053,7 @@
         }
     </style>
 
+    <script src="/js/doc-templates.js"></script>
     <script>
         function filterTable() {
             const q = document.getElementById('searchInput').value.toLowerCase();
@@ -1070,6 +1080,19 @@
         }
 
         // ── Captain member picker ─────────────────────────────────────────────
+        const captainPurpose = document.querySelector('#captainNewModal [name="purpose"]');
+        const captainPurposeOtherWrap = document.getElementById('captainPurposeOtherWrap');
+        const captainPurposeOther = document.getElementById('captainPurposeOther');
+        function toggleCaptainPurposeOther() {
+            const isOther = captainPurpose && captainPurpose.value === 'Other';
+            if (captainPurposeOtherWrap) captainPurposeOtherWrap.hidden = !isOther;
+            if (captainPurposeOther) captainPurposeOther.required = !!isOther;
+        }
+        if (captainPurpose) {
+            captainPurpose.addEventListener('change', toggleCaptainPurposeOther);
+            toggleCaptainPurposeOther();
+        }
+
         function selectCaptainMember(idx, name, rel) {
             document.getElementById('captainForMember').value = name;
             document.getElementById('captainMemberRel').value = rel;
@@ -1092,8 +1115,21 @@
         const templates = <?= json_encode($templates ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
         const pageVars = <?= json_encode(array_merge(
                                 $barangaySettings ?? [],
-                                ['captain_name' => $captainName ?? 'PUNONG BARANGAY']
+                                [
+                                    'captain_name' => $captainName ?? '',
+                                    'secretary_name' => $barangaySettings['secretary_name'] ?? '',
+                                ]
                             ), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+        const typeContents = <?= json_encode($typeContents ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+        if (window.BisDoc) {
+            BisDoc.setTypeContents(typeContents);
+            BisDoc.setBarangay(pageVars);
+            BisDoc.setCaptain(pageVars.captain_name || '');
+            BisDoc.setCensus({ name: 'Juan Dela Cruz', civil: 'Single', zone: 'Zone 1' });
+        }
+        function normalizeDocKey(type) {
+            return type === 'business' ? 'business_permit' : type;
+        }
 
         const BC_SCREEN_CSS = `<style>
 .bc-wrap{font-family:'Cambria',serif;font-size:14px;color:#111;background:#f0f0f0;display:flex;justify-content:center;padding:20px 0;}
@@ -1170,11 +1206,11 @@
         let currentDoc = null;
 
         function openDocModal(type) {
-            const tpl = templates[type];
-            if (!tpl) return;
-            currentDoc = type;
+            const key = normalizeDocKey(type);
+            const tpl = templates[key] || templates[type] || { name: type };
+            currentDoc = key;
             document.getElementById('docModalTitle').innerHTML = '<i class="fas fa-file-alt"></i> ' + (tpl.name || tpl.title || type);
-            document.getElementById('docPreviewArea').innerHTML = renderTemplate(tpl);
+            document.getElementById('docPreviewArea').innerHTML = BisDoc.build(key, 'Juan Dela Cruz', 'Employment');
             document.getElementById('docModal').classList.add('active');
         }
 
@@ -1188,6 +1224,8 @@
         });
 
         function printDoc(type) {
+            BisDoc.print(normalizeDocKey(type), 'Juan Dela Cruz', 'Employment');
+            return;
             const tpl = templates[type];
             if (!tpl) return;
             const html = renderTemplate(tpl);

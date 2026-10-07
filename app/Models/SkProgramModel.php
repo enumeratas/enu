@@ -21,6 +21,8 @@ class SkProgramModel extends Model
         'conducted_date',
         'min_age',
         'max_age',
+        'eligibility_groups',
+        'eligibility_other',
         'venue',
         'target_participants',
         'actual_participants',
@@ -84,8 +86,7 @@ class SkProgramModel extends Model
      */
     public static function parseRequirements(?string $req): array
     {
-        if (empty($req)) return [];
-        return array_filter(array_map('trim', explode(',', $req)));
+        return BarangayActivityModel::parseRequirements($req);
     }
 
     /** Keep non-cancelled program status aligned with the conducted date. */

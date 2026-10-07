@@ -203,21 +203,29 @@
                 $censusUpdateDrive = $censusUpdateDrive ?? null;
                 $censusUpdateAuth  = $censusUpdateAuth ?? null;
                 $portalRole = ($role ?? '') === 'council' ? 'council' : 'resident';
-                $updateLink = ! empty($censusUpdateAuth['token'])
-                    ? '/' . $portalRole . '/census-update'
-                    : '/' . $portalRole . '/dashboard';
+                $updateLink = '/' . $portalRole . '/census-update';
              ?>
              <?php if ($censusUpdateDrive): ?>
                  <div class="dash-card" style="margin-bottom:16px;border-top:3px solid #e0b32a;">
                      <div class="dash-card-head">
                          <h4><i class="fas fa-user-edit" style="margin-right:8px;"></i><?= esc($censusUpdateDrive['title']) ?></h4>
-                         <a href="<?= esc($updateLink) ?>">Update household →</a>
+                         <a href="<?= esc($updateLink) ?>">Open Census Update →</a>
                      </div>
                      <div style="padding:14px 16px;font-size:13px;color:#3d4658;line-height:1.6;">
                          <?= nl2br(esc($censusUpdateDrive['message'] ?: 'Please update your household information and add new family members, such as newborns.')) ?>
                          <div style="margin-top:8px;color:#16325c;font-weight:600;">
                              Deadline: <?= esc(date('F j, Y', strtotime($censusUpdateDrive['deadline']))) ?>
                          </div>
+                     </div>
+                 </div>
+             <?php else: ?>
+                 <div class="dash-card" style="margin-bottom:16px;border-top:3px solid #1d2448;">
+                     <div class="dash-card-head">
+                         <h4><i class="fas fa-user-edit" style="margin-right:8px;"></i>Census Update Form</h4>
+                         <a href="<?= esc($updateLink) ?>">Open form →</a>
+                     </div>
+                     <div style="padding:14px 16px;font-size:13px;color:#3d4658;line-height:1.6;">
+                         Household heads can review the full household record. Household members can update or confirm their own personal information.
                      </div>
                  </div>
              <?php endif; ?>

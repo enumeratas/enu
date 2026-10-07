@@ -1,0 +1,859 @@
+        /* ── Page wrapper ── */
+        .cf-page {
+            width: 100%;
+            max-width: none;
+        }
+
+        /* ── Header ── */
+        .pf-page-header {
+            background: linear-gradient(135deg, #1d2448, #2e3a6e);
+            border-radius: 12px;
+            padding: 16px 22px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        .pf-page-header-logo img {
+            width: 46px;
+            height: 46px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
+        .pf-page-header-text .republic {
+            font-size: 9.5px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, .55);
+            margin-bottom: 2px;
+        }
+
+        .pf-page-header-text .barangay {
+            font-size: 14px;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1.3;
+        }
+
+        .pf-page-header-text .formtitle {
+            font-size: 10.5px;
+            font-weight: 500;
+            letter-spacing: .8px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, .5);
+            margin-top: 2px;
+        }
+
+        /* ── Step tabs ── */
+        .pf-page-tabs {
+            display: flex;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 1px 6px rgba(29, 36, 72, .07);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .pf-page-tab {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            background: transparent;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            color: #9aa0b4;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            transition: background .18s, color .18s;
+            border-bottom: 3px solid transparent;
+        }
+
+        .pf-page-tab:hover:not(.active) {
+            color: #1d2448;
+            background: #f8f9ff;
+        }
+
+        .pf-page-tab.active {
+            color: #1d2448;
+            background: #f0f2ff;
+            border-bottom-color: #1d2448;
+        }
+
+        .pf-page-tab-num {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #e8ecf4;
+            color: #9aa0b4;
+            font-size: 11px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background .18s, color .18s;
+            flex-shrink: 0;
+        }
+
+        .pf-page-tab.active .pf-page-tab-num {
+            background: #1d2448;
+            color: #fff;
+        }
+
+        /* ── Section cards ── */
+        .pf-page-section {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 1px 6px rgba(29, 36, 72, .07);
+            overflow: hidden;
+            margin-bottom: 16px;
+            border: 1px solid #eef0f8;
+        }
+
+        .pf-page-section-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 11px 18px;
+            background: #f8f9ff;
+            border-bottom: 1.5px solid #e8ecf4;
+            border-left: 4px solid #1d2448;
+            font-size: 11.5px;
+            font-weight: 700;
+            letter-spacing: .5px;
+            text-transform: uppercase;
+            color: #1d2448;
+        }
+
+        .pf-page-section-bar i {
+            color: #5b6fd6;
+            font-size: 13px;
+        }
+
+        .pf-page-section-body {
+            padding: 18px 20px;
+        }
+
+        /* ── Grid rows ── */
+        .pf-row {
+            display: grid;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+
+        .pf-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .pf-row-4 {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .pf-row-3 {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .pf-row-2 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        @media (max-width: 860px) {
+            .pf-row-4 {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .pf-row-3 {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 520px) {
+
+            .pf-row-4,
+            .pf-row-3,
+            .pf-row-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ── Field label ── */
+        .pf-label {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #4a5068;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        /* ── Input / select ── */
+        .pf-ctrl {
+            width: 100%;
+            padding: 9px 11px;
+            border: 1.5px solid #e2e5ef;
+            border-radius: 7px;
+            font-size: 13px;
+            font-family: 'Poppins', sans-serif;
+            color: #1a1d2e;
+            background: #fff;
+            outline: none;
+            box-sizing: border-box;
+            transition: border-color .15s, box-shadow .15s;
+        }
+
+        .pf-ctrl:focus {
+            border-color: #1d2448;
+            box-shadow: 0 0 0 3px rgba(29, 36, 72, .07);
+        }
+
+        .pf-ctrl::placeholder {
+            color: #c0c6d8;
+        }
+
+        .pf-ctrl[readonly] {
+            background: #f0f4ff;
+            color: #1d2448;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            cursor: default;
+        }
+
+        /* ── Date field ── */
+        .pf-date-wrap {
+            position: relative;
+        }
+
+        .pf-date-icon {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #b0b6cc;
+            pointer-events: none;
+            font-size: 12px;
+        }
+
+        /* ── Radios ── */
+        .pf-radio-row {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            padding: 4px 0;
+        }
+
+        .pf-radio-row.horizontal {
+            flex-direction: row;
+            gap: 18px;
+        }
+
+        .pf-radio {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 12.5px;
+            color: #374151;
+            cursor: pointer;
+        }
+
+        .pf-radio input {
+            cursor: pointer;
+            accent-color: #1d2448;
+        }
+
+        /* ── Checkboxes ── */
+        .pf-check-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 16px;
+            padding: 6px 0 2px;
+        }
+
+        .pf-check-label {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #6b7280;
+        }
+
+        .pf-check {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12.5px;
+            color: #374151;
+            cursor: pointer;
+        }
+
+        .pf-check input {
+            cursor: pointer;
+            accent-color: #1d2448;
+        }
+
+        .pf-married-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border: 1px solid #d0d5e0;
+            border-radius: 5px;
+            color: #4a5068;
+            font-size: 12px;
+            cursor: pointer;
+            background: #fff;
+        }
+
+        .pf-married-toggle:has(input:checked) {
+            background: #1d2448;
+            border-color: #1d2448;
+            color: #fff;
+        }
+
+        .pf-married-toggle input {
+            accent-color: #1d2448;
+        }
+
+        /* ── Sub-section heading ── */
+        .pf-sub-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .5px;
+            text-transform: uppercase;
+            color: #5b6fd6;
+            margin-bottom: 12px;
+            padding-top: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pf-sub-label:first-child {
+            padding-top: 0;
+        }
+
+        /* ── Member cards (family) ── */
+        .pf-member-card {
+            background: #f8f9fc;
+            border: 1.5px solid #e8ecf4;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            position: relative;
+        }
+
+        .pf-member-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .pf-member-del {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 1.5px solid #fad4d4;
+            background: #fff;
+            color: #c0392b;
+            font-size: 11px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background .15s;
+        }
+
+        .pf-member-del:hover {
+            background: #c0392b;
+            color: #fff;
+        }
+
+        .pf-member-fields {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .pf-member-fields .pf-field-wrap {
+            flex: 1;
+            min-width: 130px;
+        }
+
+        .pf-member-fields .pf-field-xs {
+            flex: 0 0 90px;
+        }
+
+        .pf-member-fields .pf-field-sm {
+            flex: 0 0 148px;
+        }
+
+        .pf-member-fields > .pf-member-doc {
+            flex: 1 1 100%;
+            width: 100%;
+        }
+
+        #childrenRows .pf-member-fields {
+            display: grid;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+            gap: 10px;
+            align-items: start;
+        }
+
+        #childrenRows .pf-member-fields>* {
+            min-width: 0;
+        }
+
+        #childrenRows .pf-member-fields> :nth-child(1),
+        #childrenRows .pf-member-fields> :nth-child(2),
+        #childrenRows .pf-member-fields> :nth-child(3) {
+            grid-column: span 3;
+        }
+
+        #childrenRows .pf-member-fields> :nth-child(4) {
+            grid-column: span 1;
+        }
+
+        #childrenRows .pf-member-fields> :nth-child(5),
+        #childrenRows .pf-member-fields> :nth-child(6),
+        #childrenRows .pf-member-fields> :nth-child(7) {
+            grid-column: span 2;
+        }
+
+        #childrenRows .pf-member-fields> :nth-child(8) {
+            grid-column: span 4;
+        }
+
+        #childrenRows .pf-member-fields> :nth-child(9),
+        #childrenRows .pf-member-fields> :nth-child(10),
+        #childrenRows .pf-member-fields> :nth-child(11),
+        #childrenRows .pf-member-fields> :nth-child(12) {
+            grid-column: span 2;
+        }
+
+        #childrenRows .pf-member-fields>.pf-child-pwd-field,
+        #childrenRows .pf-member-fields>.pf-member-doc {
+            grid-column: 1 / -1;
+        }
+
+        /* ── Add-row button ── */
+        .pf-add-row-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            background: #fff;
+            border: 1.5px solid #1d2448;
+            border-radius: 7px;
+            font-size: 11.5px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            color: #1d2448;
+            cursor: pointer;
+            transition: background .15s;
+        }
+
+        .pf-add-row-btn:hover {
+            background: #1d2448;
+            color: #fff;
+        }
+
+        /* ── Occupation pills ── */
+        .pf-occ-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .pf-occ-pills {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .pf-occ-pill {
+            padding: 3px 9px;
+            border-radius: 100px;
+            border: 1.5px solid #e2e5ef;
+            background: #fff;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all .15s;
+        }
+
+        .pf-occ-pill.active,
+        .pf-occ-pill:hover {
+            background: #1d2448;
+            border-color: #1d2448;
+            color: #fff;
+        }
+
+        .pf-grade-wrap {
+            display: none;
+        }
+
+        .pf-grade-wrap.visible,
+        .pf-work-wrap.visible {
+            display: block;
+        }
+
+        .pf-work-wrap {
+            display: none;
+            margin-top: 8px;
+        }
+
+        .pf-grade-label {
+            font-size: 10.5px;
+            font-weight: 600;
+            color: #9aa0b4;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+            margin-bottom: 4px;
+        }
+
+        /* ── Certification ── */
+        .pf-cert-box {
+            background: #f5f7ff;
+            border: 1px solid #dde2f5;
+            border-radius: 10px;
+            padding: 16px 18px;
+            font-size: 12.5px;
+            color: #4a5068;
+            line-height: 1.7;
+        }
+
+        .pf-cert-date-wrap {
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .pf-cert-date-label {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #6b7280;
+            white-space: nowrap;
+        }
+
+        /* ── Footer ── */
+        .pf-page-footer {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-top: 6px;
+            margin-top: 4px;
+        }
+
+        .pf-page-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            padding: 10px 22px;
+            border-radius: 9px;
+            font-size: 13.5px;
+            font-weight: 600;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+            border: none;
+            transition: opacity .18s, transform .13s;
+        }
+
+        .pf-page-btn:hover {
+            opacity: .88;
+            transform: translateY(-1px);
+        }
+
+        .pf-page-btn--primary {
+            background: linear-gradient(135deg, #1d2448, #2e3a6e);
+            color: #fff;
+        }
+
+        .pf-page-btn--outline {
+            background: #fff;
+            color: #4a5068;
+            border: 1.5px solid #e2e5ef;
+        }
+
+        .pf-page-btn--outline:hover {
+            border-color: #1d2448;
+            color: #1d2448;
+            opacity: 1;
+        }
+
+        /* ── Step panels ── */
+        .pf-step {
+            display: none;
+        }
+
+        .pf-step.active {
+            display: block;
+        }
+
+        /* ── Field error state ── */
+        .pf-ctrl.pf-error {
+            border-color: #e74c3c !important;
+            box-shadow: 0 0 0 3px rgba(231, 76, 60, .12) !important;
+        }
+
+        .pf-error-msg {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11.5px;
+            color: #c0392b;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        .pf-error-msg i {
+            font-size: 10px;
+            flex-shrink: 0;
+        }
+
+        /* ── Step-level error banner ── */
+        .pf-step-error {
+            display: none;
+            align-items: flex-start;
+            gap: 10px;
+            background: #fff0f1;
+            border: 1.5px solid #fad4d4;
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: 13px;
+            color: #c0392b;
+            margin-bottom: 16px;
+            line-height: 1.6;
+        }
+
+        /* ── Document upload cards ── */
+        .pf-id-upload {
+            margin-top: 12px;
+            padding: 14px;
+            border: 1px solid #e2e6f2;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #fbfcff, #f5f7ff);
+        }
+
+        .pf-id-label {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            margin-bottom: 10px;
+            color: #26315d;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .pf-id-label i {
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: #e9edff;
+            color: #5b6fd6;
+            font-size: 13px;
+        }
+
+        .pf-req {
+            margin-left: auto;
+            padding: 3px 7px;
+            border-radius: 5px;
+            background: #fff0f1;
+            color: #c0392b;
+            font-size: 9px;
+            letter-spacing: .35px;
+        }
+
+        .pf-file-drop {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-height: 58px;
+            padding: 10px 12px;
+            border: 1.5px dashed #bfc8e8;
+            border-radius: 9px;
+            background: #fff;
+            cursor: pointer;
+            transition: border-color .18s, background .18s, box-shadow .18s;
+        }
+
+        .pf-file-drop:hover,
+        .pf-file-drop:focus-within {
+            border-color: #5b6fd6;
+            background: #f8f9ff;
+            box-shadow: 0 0 0 3px rgba(91, 111, 214, .1);
+        }
+
+        .pf-file-drop-icon {
+            width: 36px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            border-radius: 9px;
+            background: #eef0fb;
+            color: #5b6fd6;
+            font-size: 15px;
+        }
+
+        .pf-file-drop-copy {
+            min-width: 0;
+            line-height: 1.35;
+        }
+
+        .pf-file-drop-title {
+            display: block;
+            color: #1d2448;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .pf-file-name {
+            display: block;
+            max-width: 100%;
+            overflow: hidden;
+            color: #5b6fd6;
+            font-size: 11px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .pf-file-input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .pf-file-hint {
+            margin-top: 7px;
+            color: #8b93aa;
+            font-size: 10.5px;
+        }
+
+        .pf-file-hint i {
+            margin-right: 4px;
+            color: #5b6fd6;
+        }
+
+        .pf-id-pair {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .pf-ocr-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .pf-ocr-status {
+            flex: 1 1 260px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7291;
+            padding: 8px 10px;
+            border: 1px dashed #d7dce6;
+            background: #f8f9ff;
+            min-height: 34px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pf-ocr-status.is-pending {
+            color: #8657c9;
+            border-color: #c8b6ea;
+            background: #f6f0ff;
+        }
+
+        .pf-ocr-status.is-ok {
+            color: #197a3e;
+            border-color: #a6d9b9;
+            background: #ecf8f0;
+            border-style: solid;
+        }
+
+        .pf-ocr-status.is-fail {
+            color: #b5321a;
+            border-color: #e7b3a5;
+            background: #fdefeb;
+            border-style: solid;
+        }
+
+        .pf-ocr-btn {
+            border: 1px solid #5b6fd6;
+            background: #fff;
+            color: #5b6fd6;
+            padding: 8px 14px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pf-ocr-btn:hover:not(:disabled) {
+            background: #5b6fd6;
+            color: #fff;
+        }
+
+        .pf-ocr-btn:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
+        @media (max-width: 640px) {
+            .pf-id-pair {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 520px) {
+            #childrenRows .pf-member-fields {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            #childrenRows .pf-member-fields>* {
+                grid-column: span 1 !important;
+            }
+
+            #childrenRows .pf-member-fields> :nth-child(1),
+            #childrenRows .pf-member-fields> :nth-child(2),
+            #childrenRows .pf-member-fields> :nth-child(3),
+            #childrenRows .pf-member-fields> :nth-child(8) {
+                grid-column: span 2 !important;
+            }
+
+            #childrenRows .pf-member-fields > .pf-member-doc {
+                grid-column: 1 / -1 !important;
+            }
+
+            .pf-id-label {
+                align-items: flex-start;
+                flex-wrap: wrap;
+            }
+
+            .pf-req {
+                margin-left: 35px;
+            }
+        }

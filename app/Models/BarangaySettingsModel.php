@@ -23,24 +23,44 @@ class BarangaySettingsModel extends Model
      */
     public function getLiveCaptainName(): string
     {
-        $row = $this->db->table('users')
-            ->select('first_name, middle_name, last_name')
-            ->where('role', 'captain')
-            ->where('status', 'active')
-            ->get()
-            ->getRowArray();
+        return $this->getLiveOfficialName('captain');
+    }
 
+    /**
+     * Active secretary name, or empty when no secretary is appointed.
+     */
+    public function getLiveSecretaryName(): string
+    {
+        return $this->getLiveOfficialName('secretary');
+    }
+
+    private function getLiveOfficialName(string $role): string
+    {
+        if (! $this->db->tableExists('users')) {
+            return '';
+        }
+
+        $query = $this->db->table('users')
+            ->select('first_name, middle_name, last_name')
+            ->where('role', $role)
+            ->where('status', 'active');
+
+        if ($role === 'secretary') {
+            $query->where('username !=', 'secretary_admin');
+        }
+
+        $row = $query->get()->getRowArray();
         if (! $row) {
             return '';
         }
 
         $parts = array_filter([
-            trim($row['first_name']   ?? ''),
-            trim($row['middle_name']  ?? ''),
-            trim($row['last_name']    ?? ''),
+            trim((string) ($row['first_name'] ?? '')),
+            trim((string) ($row['middle_name'] ?? '')),
+            trim((string) ($row['last_name'] ?? '')),
         ]);
 
-        return strtoupper(implode(' ', $parts));
+        return official_display_name(strtoupper(implode(' ', $parts)));
     }
 
     /**
@@ -54,7 +74,8 @@ class BarangaySettingsModel extends Model
     {
         if (! $this->tableExists()) {
             $defaults = $this->getDefaults();
-            $defaults['captain_name'] = $this->getLiveCaptainName() ?: $defaults['captain_name'];
+            $defaults['captain_name'] = $this->getLiveCaptainName();
+            $defaults['secretary_name'] = $this->getLiveSecretaryName();
             return $defaults;
         }
 
@@ -66,11 +87,9 @@ class BarangaySettingsModel extends Model
 
         $merged = array_merge($this->getDefaults(), $map);
 
-        // Always override captain_name with the live appointed captain
-        $liveCaptain = $this->getLiveCaptainName();
-        if ($liveCaptain !== '') {
-            $merged['captain_name'] = $liveCaptain;
-        }
+        // Assigned officials only. Never fall back to a stored or placeholder name.
+        $merged['captain_name']   = $this->getLiveCaptainName();
+        $merged['secretary_name'] = $this->getLiveSecretaryName();
 
         return $merged;
     }
@@ -90,8 +109,8 @@ class BarangaySettingsModel extends Model
         $rows   = $this->orderBy('sort_order')->findAll();
         $groups = [];
         foreach ($rows as $row) {
-            // Skip captain_name — it's always pulled live from users table
-            if ($row['setting_key'] === 'captain_name') {
+            // Captain and secretary names come from appointed accounts only.
+            if (in_array($row['setting_key'], ['captain_name', 'secretary_name'], true)) {
                 continue;
             }
             $groups[$row['group']][] = $row;
@@ -107,7 +126,10 @@ class BarangaySettingsModel extends Model
     public function getValue(string $key, string $default = ''): string
     {
         if ($key === 'captain_name') {
-            return $this->getLiveCaptainName() ?: $default;
+            return $this->getLiveCaptainName();
+        }
+        if ($key === 'secretary_name') {
+            return $this->getLiveSecretaryName();
         }
 
         if (! $this->tableExists()) {
@@ -127,7 +149,7 @@ class BarangaySettingsModel extends Model
     public function saveAll(array $data): void
     {
         // Never allow overwriting captain_name via settings form
-        unset($data['captain_name']);
+        unset($data['captain_name'], $data['secretary_name']);
 
         foreach ($data as $key => $value) {
             $existing = $this->where('setting_key', $key)->first();
@@ -209,7 +231,7 @@ class BarangaySettingsModel extends Model
             'report_front_department'   => 'Department of the Interior and Local Government',
             'report_front_footer'       => 'Annex A',
             'report_front_footer_note'  => 'Barangay Profile DCF No. 1',
-            'report_front_annex_note'   => '(BP DC No. 1 s. 2020)',
+            'report_front_annex_note'   => '(BP DCF No. 1 s. 2020)',
             'report_front_district'     => 'V (Rinconada)',
             'report_front_legal_basis'  => '',
             'report_front_ratification_date' => '',
@@ -217,6 +239,17 @@ class BarangaySettingsModel extends Model
             'report_front_officials'    => '',
             'report_front_barangay_treasurer' => '',
             'report_front_sk_councilors' => '',
+            'report_front_sk_secretary' => '',
+            'report_front_sk_treasurer' => '',
+            'report_front_workers' => "Lupon Member - 10\nBarangay Tanod - 14\nBarangay Health Worker - 7\nBarangay Nutrition Scholar - 2\nDay Care Worker - 1\nVAW Desk Officer - 1\nBADAC Cluster Leaders - 7",
+            'report_front_power' => 'CASURECO 3',
+            'report_front_water_system' => 'Barangay Water System',
+            'report_front_transport' => 'Habal-Habal, Tricycle, Private Vehicle, Van, Motorboat',
+            'report_front_communication' => 'Mobile Phone, Internet and Television',
+            'report_front_award_national' => 'N/A',
+            'report_front_award_regional' => 'N/A',
+            'report_front_award_local' => 'N/A',
+            'report_front_dilg_officer' => 'IVY S. RAMIREZ',
             'report_front_fiscal_year' => '2025',
             'report_front_fiscal_ira' => '',
             'report_front_fiscal_donation_grant' => '',
@@ -248,6 +281,8 @@ class BarangaySettingsModel extends Model
         $settings = $this->getAll();
         $manualTreasurer = trim((string) ($settings['report_front_barangay_treasurer'] ?? ''));
         $manualSkCouncilors = trim((string) ($settings['report_front_sk_councilors'] ?? ''));
+        $manualSkSecretary = trim((string) ($settings['report_front_sk_secretary'] ?? ''));
+        $manualSkTreasurer = trim((string) ($settings['report_front_sk_treasurer'] ?? ''));
         $officialLines = $this->getAppointedOfficialLines();
         if ($manualTreasurer !== '') {
             $officialLines[] = 'Barangay Treasurer: ' . strtoupper($manualTreasurer);
@@ -257,6 +292,12 @@ class BarangaySettingsModel extends Model
             if ($councilor !== '') {
                 $officialLines[] = 'SK Councilor: ' . strtoupper($councilor);
             }
+        }
+        if ($manualSkSecretary !== '') {
+            $officialLines[] = 'SK Secretary: ' . strtoupper($manualSkSecretary);
+        }
+        if ($manualSkTreasurer !== '') {
+            $officialLines[] = 'SK Treasurer: ' . strtoupper($manualSkTreasurer);
         }
         $defaults['report_front_officials'] = implode("\n", $officialLines);
         foreach ($defaults as $key => $value) {
@@ -284,6 +325,7 @@ class BarangaySettingsModel extends Model
             ->select('role, first_name, middle_name, last_name, username')
             ->where('status', 'active')
             ->whereIn('role', ['captain', 'secretary', 'council', 'sk'])
+            ->where('username !=', 'secretary_admin')
             ->orderBy('last_name', 'ASC')
             ->get()
             ->getResultArray();
@@ -349,6 +391,17 @@ class BarangaySettingsModel extends Model
             'report_front_precincts',
             'report_front_barangay_treasurer',
             'report_front_sk_councilors',
+            'report_front_sk_secretary',
+            'report_front_sk_treasurer',
+            'report_front_workers',
+            'report_front_power',
+            'report_front_water_system',
+            'report_front_transport',
+            'report_front_communication',
+            'report_front_award_national',
+            'report_front_award_regional',
+            'report_front_award_local',
+            'report_front_dilg_officer',
             'report_front_fiscal_year',
             'report_front_fiscal_ira',
             'report_front_fiscal_donation_grant',
@@ -382,7 +435,11 @@ class BarangaySettingsModel extends Model
                 continue;
             }
 
-            $value = trim((string) $data[$key]);
+            if (is_array($data[$key])) {
+                $value = implode(', ', array_map('trim', $data[$key]));
+            } else {
+                $value = trim((string) $data[$key]);
+            }
             $existing = $this->where('setting_key', $key)->first();
 
             if ($existing) {
@@ -415,7 +472,7 @@ class BarangaySettingsModel extends Model
             'country'        => 'Republic of the Philippines',
             'full_address'   => 'Barangay Bacolod, Bato, Camarines Sur',
             'office_header'  => 'OFFICE OF THE PUNONG BARANGAY',
-            'captain_name'   => 'PUNONG BARANGAY',
+            'captain_name'   => '',
             'captain_title'  => 'Punong Barangay',
             'secretary_name' => '',
             'clearance_fee'  => '₱50.00',

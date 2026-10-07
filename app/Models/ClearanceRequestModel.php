@@ -26,6 +26,7 @@ class ClearanceRequestModel extends Model
         'issued_captain_name',
         'issued_date',
         'issued_document_snapshot',
+        'document_content',
     ];
 
     /**

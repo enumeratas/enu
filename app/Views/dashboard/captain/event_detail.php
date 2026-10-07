@@ -349,7 +349,7 @@
                                 <div class="ev-form-row" style="margin-bottom:14px;">
                                     <div class="ev-form-group" style="margin:0;">
                                         <label>Date <span style="color:#c0392b;">*</span></label>
-                                        <input type="date" name="event_date" class="ev-input" value="<?= esc($ev['event_date'] ?? '') ?>" required>
+                                        <input type="text" name="event_date" id="editEventDate" class="ev-input" value="<?= esc($ev['event_date'] ?? '') ?>" required autocomplete="off" placeholder="YYYY-MM-DD">
                                     </div>
                                     <div class="ev-form-group" style="margin:0;">
                                         <label>Type</label>
@@ -364,11 +364,15 @@
                                 <div class="ev-form-row" style="margin-bottom:14px;">
                                     <div class="ev-form-group" style="margin:0;">
                                         <label>Start Time</label>
-                                        <input type="time" name="start_time" class="ev-input" value="<?= esc($ev['start_time'] ?? '') ?>">
+                                        <select name="start_time" id="editStartTime" class="ev-select" data-current="<?= ! empty($ev['start_time']) ? esc(date('H:i', strtotime((string) $ev['start_time']))) : '' ?>" disabled>
+                                            <option value="">Select a date first</option>
+                                        </select>
                                     </div>
                                     <div class="ev-form-group" style="margin:0;">
                                         <label>End Time</label>
-                                        <input type="time" name="end_time" class="ev-input" value="<?= esc($ev['end_time'] ?? '') ?>">
+                                        <select name="end_time" id="editEndTime" class="ev-select" data-current="<?= ! empty($ev['end_time']) ? esc(date('H:i', strtotime((string) $ev['end_time']))) : '' ?>" disabled>
+                                            <option value="">Select a start time</option>
+                                        </select>
                                     </div>
                                 </div>
 
@@ -442,10 +446,22 @@
             </div>
         </div>
 
+        <script src="/js/appointment-slots.js?v=3"></script>
         <script>
             document.querySelectorAll('.db-nav-item').forEach(i =>
                 i.addEventListener('click', () => document.getElementById('sidebar').classList.remove('open'))
             );
+            if (window.BISAppointmentSlots) {
+                window.BISAppointmentSlots.bind(
+                    document.getElementById('editEventDate'),
+                    document.getElementById('editStartTime'),
+                    {
+                        endTimeSelect: document.getElementById('editEndTime'),
+                        excludeScheduleId: <?= (int) ($evId ?? 0) ?>,
+                        minDate: null
+                    }
+                );
+            }
         </script>
 </body>
 

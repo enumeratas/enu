@@ -475,6 +475,28 @@ class ChatbotController extends ResourceController
                     $conversationId
             );
 
+            $officialResponse = $this->handleOfficialIdentityQuestion($message);
+            if ($officialResponse !== null) {
+                $officialResponse = $this->saveConversationExchange(
+                    $conversationId,
+                    $message,
+                    $officialResponse
+                );
+
+                $this->touchConversationActivity($conversationId);
+
+                return $this->response->setJSON([
+                    'success' => true,
+                    'response' => $officialResponse,
+                    'source' => 'barangay_officials',
+                    'ai_available' => $this->apiKey !== '',
+                    'retrieved_documents' => 0,
+                    'conversation_id' => $conversationId,
+                    'live_data' => true,
+                    'support_mode' => $supportMode
+                ]);
+            }
+
             // ------------------------------------------------------------
             // SPECIFIC BIS SERVICE ROUTING
             // ------------------------------------------------------------
@@ -1011,6 +1033,7 @@ class ChatbotController extends ResourceController
             'Region: ' . $this->accountFact($settings['region'] ?? ($front['region'] ?? null)),
             'Address: ' . $this->accountFact($settings['full_address'] ?? null),
             'Punong Barangay: ' . $this->accountFact($settings['captain_name'] ?? null),
+            'Barangay Secretary: ' . $this->accountFact($settings['secretary_name'] ?? null),
             'Office: ' . $this->accountFact($settings['office_header'] ?? null),
             'Barangay clearance fee: ' . $this->accountFact($settings['clearance_fee'] ?? null),
             'Certificate of residency fee: ' . $this->accountFact($settings['residency_fee'] ?? null),
@@ -4164,9 +4187,81 @@ PROMPT;
         return 'I can only answer questions about the Barangay Bacolod Information System and its services, such as documents, blotter reports, accounts, schedules, fees, and office information.';
     }
 
+    protected function handleOfficialIdentityQuestion(string $message): ?string
+    {
+        $text = mb_strtolower(trim($message));
+        $text = (string) preg_replace('/[^\p{L}\p{N}\s\']/u', ' ', $text);
+        $text = trim((string) preg_replace('/\s+/u', ' ', $text));
+        if ($text === '') {
+            return null;
+        }
+
+        if (preg_match('/\b(talk|speak|contact|kausap|makausap|usap)\b/u', $text) === 1) {
+            return null;
+        }
+
+        $asksWho = preg_match(
+            '/\b(who is|who\'s|who are|name of|pangalan ng|sino ang|sino si|sino ba|i mean who)\b/u',
+            $text
+        ) === 1;
+        if (! $asksWho) {
+            return null;
+        }
+
+        $wantsSecretary = preg_match('/\b(secretary|sekretarya|sekretaryo)\b/u', $text) === 1;
+        $wantsCaptain = preg_match('/\b(captain|kapitan|punong)\b/u', $text) === 1;
+        if (! $wantsSecretary && ! $wantsCaptain) {
+            return null;
+        }
+
+        try {
+            $settings = (new \App\Models\BarangaySettingsModel())->getAll();
+        } catch (\Throwable $e) {
+            log_message('error', 'Official identity lookup failed: ' . $e->getMessage());
+            $settings = [];
+        }
+
+        $barangay = trim((string) ($settings['barangay_name'] ?? ''));
+        if ($barangay === '') {
+            $barangay = 'Bacolod';
+        }
+
+        $tagalog = $this->resolveReplyLanguage($message) === 'tagalog';
+        $parts = [];
+
+        if ($wantsCaptain) {
+            $name = trim((string) ($settings['captain_name'] ?? ''));
+            $parts[] = $name === ''
+                ? ($tagalog
+                    ? 'Walang naka-appoint na Punong Barangay sa record ngayon.'
+                    : 'No Punong Barangay (Barangay Captain) is currently appointed in the barangay record.')
+                : ($tagalog
+                    ? 'Ang Punong Barangay (Barangay Captain) ng Barangay ' . esc($barangay) . ' ay si <strong>' . esc($name) . '</strong>.'
+                    : 'The Punong Barangay (Barangay Captain) of Barangay ' . esc($barangay) . ' is <strong>' . esc($name) . '</strong>.');
+        }
+
+        if ($wantsSecretary) {
+            $name = trim((string) ($settings['secretary_name'] ?? ''));
+            $parts[] = $name === ''
+                ? ($tagalog
+                    ? 'Walang naka-appoint na Barangay Secretary sa record ngayon. Pakikumpirma sa Barangay Hall.'
+                    : 'No Barangay Secretary is currently appointed in the barangay record. Please confirm with the Barangay Hall.')
+                : ($tagalog
+                    ? 'Ang Barangay Secretary ng Barangay ' . esc($barangay) . ' ay si <strong>' . esc($name) . '</strong>.'
+                    : 'The Barangay Secretary of Barangay ' . esc($barangay) . ' is <strong>' . esc($name) . '</strong>.');
+        }
+
+        return implode('<br><br>', $parts);
+    }
+
     protected function handleSimpleQuestion(
         string $message
     ): ?string {
+
+        $official = $this->handleOfficialIdentityQuestion($message);
+        if ($official !== null) {
+            return $official;
+        }
 
         $m = mb_strtolower(trim($message));
 
@@ -4353,6 +4448,41 @@ PROMPT;
                 'upcoming barangay activities',
             ],
             'content' => $content,
+        ];
+    }
+
+    protected function barangayOfficialsKnowledge(): array
+    {
+        try {
+            $settings = (new \App\Models\BarangaySettingsModel())->getAll();
+        } catch (\Throwable $e) {
+            $settings = [];
+        }
+
+        $captain = $this->accountFact($settings['captain_name'] ?? null);
+        $secretary = $this->accountFact($settings['secretary_name'] ?? null);
+
+        return [
+            'id' => 'barangay_officials',
+            'title' => 'Barangay Officials',
+            'keys' => [
+                'barangay secretary',
+                'who is the secretary',
+                'who is the barangay secretary',
+                'secretary name',
+                'barangay captain',
+                'who is the captain',
+                'who is the barangay captain',
+                'punong barangay',
+                'sino ang secretary',
+                'sino ang sekretarya',
+                'sino ang kapitan',
+                'sino ang captain',
+            ],
+            'content' =>
+                'The Punong Barangay (Barangay Captain) is ' . $captain . '. ' .
+                'The Barangay Secretary is ' . $secretary . '. ' .
+                'Answer official-name questions from these records. Do not replace an official name with office hours.',
         ];
     }
 
@@ -4992,10 +5122,16 @@ PROMPT;
             PREG_SPLIT_NO_EMPTY
         );
 
+        $stopWords = [
+            'the', 'and', 'for', 'are', 'was', 'who', 'what', 'when', 'where',
+            'how', 'does', 'did', 'can', 'you', 'your', 'this', 'that', 'with',
+            'from', 'into', 'about', 'please', 'mean', 'there', 'they', 'them',
+            'have', 'has', 'had', 'will', 'would', 'could', 'should', 'also',
+        ];
         $queryWords = array_values(array_filter(
             $queryWords,
-            static function ($word) {
-                return mb_strlen($word) >= 2;
+            static function ($word) use ($stopWords) {
+                return mb_strlen($word) >= 2 && ! in_array($word, $stopWords, true);
             }
         ));
 
@@ -5029,6 +5165,11 @@ PROMPT;
         $results = [];
         $documents = $this->getKnowledgeBase();
         $documents[] = $this->barangayActivitiesKnowledge();
+        $documents[] = $this->barangayOfficialsKnowledge();
+
+        $isHoursQuery = preg_match('/\b(hour|hours|time|open|close|closing|oras|bukas|nagsasara|schedule|working)\b/u', $normalized) === 1;
+        $isOfficialQuery = preg_match('/\b(secretary|sekretarya|captain|kapitan|punong|kagawad|official)\b/u', $normalized) === 1
+            && preg_match('/\b(who|sino|name|pangalan)\b/u', $normalized) === 1;
 
         foreach ($documents as $document) {
 
@@ -5112,6 +5253,14 @@ PROMPT;
                     $score += 3500;
                 } elseif (in_array($documentId, ['available_documents'], true)) {
                     $score -= 200;
+                }
+            }
+
+            if ($isOfficialQuery) {
+                if ($documentId === 'barangay_officials') {
+                    $score += 5000;
+                } elseif ($documentId === 'office_hours' && ! $isHoursQuery) {
+                    $score -= 5000;
                 }
             }
 
@@ -5371,7 +5520,7 @@ BARANGAY FACTS
 
 {$barangayContext}
 
-Use BARANGAY FACTS for questions about Barangay Bacolod, its officials, location, fees, and profile. Official names in this block are public. If the user asks who the barangay captain is, answer with the Punong Barangay named here.
+Use BARANGAY FACTS for questions about Barangay Bacolod, its officials, location, fees, and profile. Official names in this block are public. If the user asks who the barangay captain is, answer with the Punong Barangay named here. If the user asks who the barangay secretary is, answer with the Barangay Secretary named here. Do not answer an official-name question with office hours.
 
 ============================================================
 SIGNED-IN ACCOUNT

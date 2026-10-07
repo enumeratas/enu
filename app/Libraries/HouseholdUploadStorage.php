@@ -6,17 +6,22 @@ use Google\Cloud\Storage\StorageClient;
 
 class HouseholdUploadStorage
 {
+    /** @var list<array{0:string,1:string}> */
+    private static array $queued = [];
+
+    private static bool $flushRegistered = false;
+
+    /**
+     * Keep the local file immediately so census save is not blocked by GCS.
+     * Remote upload is queued and flushed after the HTTP response.
+     */
     public function store(string $localPath, string $objectPath): bool
     {
-        $bucket = $this->bucket();
-        if ($bucket === null || ! is_file($localPath)) {
+        if (! is_file($localPath)) {
             return false;
         }
 
-        $bucket->upload(fopen($localPath, 'r'), [
-            'name' => ltrim($objectPath, '/'),
-            'metadata' => ['cacheControl' => 'private, max-age=3600'],
-        ]);
+        $this->queueRemote($localPath, $objectPath);
 
         return true;
     }
@@ -66,6 +71,56 @@ class HouseholdUploadStorage
         } catch (\Throwable $e) {
             log_message('error', 'Unable to download household upload: ' . $e->getMessage());
             return null;
+        }
+    }
+
+    public static function flushQueued(): void
+    {
+        $items = self::$queued;
+        self::$queued = [];
+        if ($items === []) {
+            return;
+        }
+
+        try {
+            $storage = new self();
+            $bucket = $storage->bucket();
+            if ($bucket === null) {
+                return;
+            }
+
+            foreach ($items as [$localPath, $objectPath]) {
+                if (! is_file($localPath)) {
+                    continue;
+                }
+                try {
+                    $handle = fopen($localPath, 'r');
+                    if ($handle === false) {
+                        continue;
+                    }
+                    $bucket->upload($handle, [
+                        'name' => ltrim($objectPath, '/'),
+                        'metadata' => ['cacheControl' => 'private, max-age=3600'],
+                    ]);
+                } catch (\Throwable $e) {
+                    log_message('error', 'Deferred household upload failed: ' . $e->getMessage());
+                }
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'Household upload flush failed: ' . $e->getMessage());
+        }
+    }
+
+    private function queueRemote(string $localPath, string $objectPath): void
+    {
+        if ($this->bucket() === null) {
+            return;
+        }
+
+        self::$queued[] = [$localPath, $objectPath];
+        if (! self::$flushRegistered) {
+            self::$flushRegistered = true;
+            register_shutdown_function([self::class, 'flushQueued']);
         }
     }
 

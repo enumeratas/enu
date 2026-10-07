@@ -10,17 +10,21 @@
     <link rel="stylesheet" href="/style.css">
     <style>
         .sk-form-panel { background: #fff; border: 1px solid #e8ecf4; padding: 22px; max-width: 760px; }
-        .sk-requirement-checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px; border: 1px solid #e1e5ef; background: #fafbfe; }
-        .sk-requirement-checks label { display: flex; align-items: center; gap: 7px; padding: 8px 9px; border: 1px solid #e8ecf4; background: #fff; color: #4a5068; font-size: 12px; cursor: pointer; }
         .sk-form-label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 6px; }
         .sk-form-label .sk-required { color: #ef4444; }
         .sk-form-input { width: 100%; padding: 10px 12px; border: 1.5px solid #e5e7eb; font-family: inherit; font-size: 13px; color: #1d2448; background: #fff; box-sizing: border-box; }
         .sk-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
         .sk-form-row--full { grid-template-columns: 1fr; }
+        .sk-form-row.is-disabled input { background: #f3f4f6; color: #9aa0b4; cursor: not-allowed; }
         .sk-form-hint { margin: 6px 0 0; font-size: 12px; color: #6b7689; }
         .sk-section-divider { margin: 8px 0 16px; font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: #9aa0b4; }
+        .sk-req-list { display: flex; flex-direction: column; gap: 8px; }
+        .sk-req-row { display: grid; grid-template-columns: 140px 1fr auto; gap: 8px; align-items: center; }
+        .sk-req-add { margin-top: 8px; }
+        .sk-elig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .sk-elig-option { display: flex; align-items: center; gap: 7px; padding: 8px 9px; border: 1px solid #e8ecf4; background: #fff; color: #4a5068; font-size: 12px; cursor: pointer; }
         .banner-preview img { display: block; max-width: 240px; max-height: 120px; margin-top: 8px; object-fit: cover; }
-        @media (max-width: 640px) { .sk-form-row, .sk-requirement-checks { grid-template-columns: 1fr; } }
+        @media (max-width: 640px) { .sk-form-row, .sk-req-row, .sk-elig-grid { grid-template-columns: 1fr; } }
     </style>
 </head>
 
@@ -35,7 +39,6 @@
     include(APPPATH . 'Views/dashboard/sidebar.php');
 
     $categories = \App\Models\BarangayActivityModel::CATEGORIES;
-    $requirements = \App\Models\BarangayActivityModel::REQUIREMENT_OPTIONS;
     $base = '/' . $role . '/activities';
     $action = $isEdit ? $base . '/update/' . $activityId : $base . '/store';
 
@@ -55,13 +58,24 @@
 
         return $value === '' ? '' : substr($value, 0, 10);
     };
-    $postedReqs = old('requirements', null, false);
-    if (is_array($postedReqs)) {
-        $selectedReqs = $postedReqs;
+    $postedTypes = old('req_type', null, false);
+    $postedLabels = old('req_label', null, false);
+    if (is_array($postedTypes) && is_array($postedLabels)) {
+        $reqRows = [];
+        foreach ($postedTypes as $index => $type) {
+            $reqRows[] = ['type' => (string) $type, 'label' => (string) ($postedLabels[$index] ?? '')];
+        }
     } else {
-        $raw = (string) ($activity['requirements'] ?? '');
-        $selectedReqs = $raw === '' ? [] : array_values(array_filter(array_map('trim', explode(',', $raw))));
+        $reqRows = \App\Models\BarangayActivityModel::decodeRequirements($activity['requirements'] ?? null);
     }
+    if ($reqRows === []) {
+        $reqRows = [['type' => 'document', 'label' => '']];
+    }
+    $postedGroups = old('eligibility_groups', null, false);
+    $selectedGroups = is_array($postedGroups)
+        ? $postedGroups
+        : \App\Models\BarangayActivityModel::parseEligibilityGroups($activity['eligibility_groups'] ?? null);
+    $eligibilityOther = (string) old('eligibility_other', $activity['eligibility_other'] ?? '', false);
     $banner = trim((string) ($activity['banner_path'] ?? ''));
     ?>
     <div class="db-main">
@@ -111,27 +125,16 @@
                         </div>
                     </div>
                     <?php $cleanupSelected = \App\Models\BarangayActivityModel::isCleanupDrive($field('category'), $field('title')); ?>
-                    <div id="activityRequirementsBlock" <?= $cleanupSelected ? 'hidden' : '' ?>>
-                        <p class="sk-section-divider">Upload requirements</p>
-                        <div class="sk-requirement-checks">
-                            <?php foreach ($requirements as $requirement): ?>
-                                <label>
-                                    <input type="checkbox" name="requirements[]" value="<?= esc($requirement) ?>" <?= in_array($requirement, $selectedReqs, true) ? 'checked' : '' ?>>
-                                    <?= esc($requirement) ?>
-                                </label>
-                            <?php endforeach; ?>
-                        </div>
-                        <p class="sk-form-hint" style="margin-bottom:16px;">Select documents or photos that residents must upload when they join.</p>
-                    </div>
+                    <?php include APPPATH . 'Views/dashboard/partials/activity_requirement_fields.php'; ?>
                     <p class="sk-section-divider">Schedule and venue</p>
-                    <div class="sk-form-row" id="activitySubmissionDates" <?= $cleanupSelected ? 'hidden' : '' ?>>
+                    <div class="sk-form-row<?= $cleanupSelected ? ' is-disabled' : '' ?>" id="activitySubmissionDates">
                         <div>
                             <label class="sk-form-label" for="activityStart">Start date of submission of requirements <span class="sk-required">*</span></label>
-                            <input class="sk-form-input" id="activityStart" name="start_date" type="date" <?= $cleanupSelected ? '' : 'required' ?> value="<?= esc($dateValue('start_date')) ?>">
+                            <input class="sk-form-input" id="activityStart" name="start_date" type="date" <?= $cleanupSelected ? 'disabled' : 'required' ?> value="<?= esc($dateValue('start_date')) ?>">
                         </div>
                         <div>
                             <label class="sk-form-label" for="activityEnd">End date of submission of requirements</label>
-                            <input class="sk-form-input" id="activityEnd" name="end_date" type="date" value="<?= esc($dateValue('end_date')) ?>">
+                            <input class="sk-form-input" id="activityEnd" name="end_date" type="date" <?= $cleanupSelected ? 'disabled' : '' ?> value="<?= esc($dateValue('end_date')) ?>">
                         </div>
                     </div>
                     <div class="sk-form-row">
@@ -140,23 +143,21 @@
                             <input class="sk-form-input" id="activityConducted" name="conducted_date" type="date" required value="<?= esc($dateValue('conducted_date')) ?>">
                         </div>
                         <div>
-                            <label class="sk-form-label">Eligible age range</label>
-                            <div style="display:flex;gap:8px;">
-                                <input class="sk-form-input" name="min_age" type="number" min="0" max="120" placeholder="Min age" value="<?= esc($field('min_age')) ?>">
-                                <input class="sk-form-input" name="max_age" type="number" min="0" max="120" placeholder="Max age" value="<?= esc($field('max_age')) ?>">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="sk-form-row">
-                        <div>
                             <label class="sk-form-label" for="activityVenue">Venue <span class="sk-required">*</span></label>
                             <input class="sk-form-input" id="activityVenue" name="venue" type="text" required maxlength="255" value="<?= esc($field('venue')) ?>" placeholder="e.g. Barangay Hall">
                         </div>
+                    </div>
+                    <div class="sk-form-row">
                         <div>
                             <label class="sk-form-label" for="activityTarget">Target participants</label>
                             <input class="sk-form-input" id="activityTarget" name="target_participants" type="number" min="0" value="<?= esc($field('target_participants')) ?>" placeholder="e.g. 50">
                         </div>
                     </div>
+                    <?php
+                    $minAge = $field('min_age');
+                    $maxAge = $field('max_age');
+                    include APPPATH . 'Views/dashboard/partials/activity_eligibility_fields.php';
+                    ?>
                     <div class="sk-form-row sk-form-row--full">
                         <div>
                             <label class="sk-form-label" for="activityBanner">Banner image</label>
@@ -169,7 +170,7 @@
                             <?php endif; ?>
                         </div>
                     </div>
-                    <p id="activityCleanupNote" class="sk-form-hint" style="margin-bottom:16px;<?= $cleanupSelected ? '' : 'display:none;' ?>">A clean-up drive does not use a requirements submission period. The conducted date is added to the calendar.</p>
+                    <p id="activityCleanupNote" class="sk-form-hint" style="margin-bottom:16px;<?= $cleanupSelected ? '' : 'display:none;' ?>">A clean-up drive does not use supporting files or a requirements submission period, so those dates stay disabled. The conducted date is added to the calendar.</p>
                     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;">
                         <a href="<?= esc($base) ?>" class="db-btn db-btn--outline">Cancel</a>
                         <button type="submit" class="db-btn db-btn--primary"><?= $isEdit ? 'Save changes' : 'Create activity' ?></button>
@@ -178,39 +179,19 @@
             </div>
         </div>
     </div>
+    <script src="/js/activity-form.js"></script>
     <script>
-        (function () {
-            const category = document.getElementById('activityCategory');
-            const title = document.getElementById('activityTitle');
-            const requirements = document.getElementById('activityRequirementsBlock');
-            const dates = document.getElementById('activitySubmissionDates');
-            const note = document.getElementById('activityCleanupNote');
-            const start = document.getElementById('activityStart');
-            function isCleanup() {
-                const name = (title && title.value || '');
-                return (category && category.value === 'Clean-up Drive') || /clean[\s-]*up\s+drive/i.test(name);
-            }
-            function syncCleanup() {
-                const cleanup = isCleanup();
-                if (requirements) requirements.hidden = cleanup;
-                if (dates) dates.hidden = cleanup;
-                if (note) note.style.display = cleanup ? '' : 'none';
-                if (start) start.required = !cleanup;
-                if (dates) {
-                    dates.querySelectorAll('input').forEach(function (input) {
-                        input.disabled = cleanup;
-                    });
-                }
-                if (requirements) {
-                    requirements.querySelectorAll('input').forEach(function (input) {
-                        input.disabled = cleanup;
-                    });
-                }
-            }
-            category && category.addEventListener('change', syncCleanup);
-            title && title.addEventListener('input', syncCleanup);
-            syncCleanup();
-        })();
+        ActivityForm.bindRequirements('activityRequirementsBlock');
+        ActivityForm.bindCleanup({
+            categoryId: 'activityCategory',
+            titleId: 'activityTitle',
+            requirementsId: 'activityRequirementsBlock',
+            datesId: 'activitySubmissionDates',
+            noteId: 'activityCleanupNote',
+            startId: 'activityStart',
+            endId: 'activityEnd'
+        });
+        ActivityForm.bindEligibility();
     </script>
 </body>
 

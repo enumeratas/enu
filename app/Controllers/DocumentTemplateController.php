@@ -161,6 +161,7 @@ class DocumentTemplateController extends BaseController
 
     public function edit(string $key)
     {
+        $key = DocumentTemplateModel::normalizedKey($key);
         $template = $this->templateModel->getTemplate($key);
         if (! $template) {
             throw new PageNotFoundException('Template not found');
@@ -169,11 +170,13 @@ class DocumentTemplateController extends BaseController
         return view('dashboard/secretary/document_templates_edit', [
             'template'         => $template,
             'barangaySettings' => $this->getSettings(),
+            'role'             => session_role() === 'admin' ? 'admin' : 'secretary',
         ]);
     }
 
     public function update(string $key)
     {
+        $key = DocumentTemplateModel::normalizedKey($key);
         $template = $this->templateModel->getTemplate($key);
         if (! $template) {
             return redirect()->back()->with('error', 'Template not found');
@@ -190,18 +193,32 @@ class DocumentTemplateController extends BaseController
         }
         unset($field);
 
-        $newHtml = $this->request->getPost('html');
+        $content = DocumentTemplateModel::normalizeContent($key, [
+            'title' => $this->request->getPost('content_title'),
+            'salutation' => $this->request->getPost('content_salutation'),
+            'body_html' => $this->request->getPost('content_body_html'),
+            'signature_label' => $this->request->getPost('content_signature_label'),
+            'signature_title' => $this->request->getPost('content_signature_title'),
+        ]);
+
         $updateData = [
             'fields' => json_encode($fields, JSON_UNESCAPED_UNICODE),
-            'html'   => $newHtml,
         ];
+        $newHtml = $this->request->getPost('html');
+        if ($newHtml !== null && trim((string) $newHtml) !== '') {
+            $updateData['html'] = $newHtml;
+        }
+        $db = \Config\Database::connect();
+        if ($this->templateModel->tableExists() && in_array('content', $db->getFieldNames('document_templates'), true)) {
+            $updateData['content'] = json_encode($content, JSON_UNESCAPED_UNICODE);
+        }
 
-        if (! $this->templateModel->update($template['id'], $updateData)) {
+        if ((int) ($template['id'] ?? 0) < 1 || ! $this->templateModel->update($template['id'], $updateData)) {
             return redirect()->back()->with('error', 'Unable to save template changes');
         }
 
         return redirect()->to(site_url(session_role() . '/clearance/templates/edit/' . $key))
-            ->with('success', 'Template updated successfully');
+            ->with('success', 'Document content updated successfully');
     }
 
     // ── Barangay Settings ─────────────────────────────────────────────────────

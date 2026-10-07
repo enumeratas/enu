@@ -22,7 +22,7 @@
     $household = $household ?? null;
     $requests = $requests ?? [];
     $censusRecord = $censusRecord ?? null;
-    $canEditDocument = in_array($role, ['secretary', 'captain'], true);
+    $canEditDocument = in_array($role, ['secretary', 'captain', 'admin'], true);
 
     // Build resident display info from census
     $resName    = esc(trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Unknown');
@@ -194,10 +194,14 @@
                     <div class="cld-card">
                         <div class="cld-card-title-row">
                             <h4 class="cld-card-title" style="margin:0;"><i class="fas fa-file-contract"></i> Document Preview</h4>
-                            <button class="db-btn db-btn--sm db-btn--primary"
-                                onclick="printCurrentDoc()">
-                                <i class="fas fa-print"></i> Print
-                            </button>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button class="db-btn db-btn--sm db-btn--outline" onclick="downloadCurrentDoc()">
+                                    <i class="fas fa-download"></i> Download
+                                </button>
+                                <button class="db-btn db-btn--sm db-btn--primary" onclick="printCurrentDoc()">
+                                    <i class="fas fa-print"></i> Print
+                                </button>
+                            </div>
                         </div>
                         <div id="docInfo" style="background:#f8f9fc;border:1px solid #e8ecf4;border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:12.5px;color:#4a5068;">
                             <?php if ($activeReq): ?>
@@ -214,7 +218,7 @@
                                 <div class="cld-editor-head">
                                     <div>
                                         <span><i class="fas fa-edit"></i> Edit document content</span>
-                                        <small>Changes apply to this preview and print only.</small>
+                                        <small>Saved wording and formatting appear on preview, print, and download.</small>
                                     </div>
                                     <button type="button" class="cld-editor-toggle" id="documentEditorToggle" onclick="toggleDocumentEditor()">
                                         <i class="fas fa-eye"></i> View editor
@@ -224,10 +228,8 @@
                                     <label>Document title<input id="editDocTitle" type="text"></label>
                                     <label>Salutation<input id="editDocSalutation" type="text"></label>
                                     <label>Document body
-                                        <div class="cld-editor-toolbar" role="toolbar" aria-label="Document formatting">
-                                            <button type="button" class="db-btn db-btn--xs db-btn--outline" onclick="toggleEditorBold()" title="Bold selected text"><strong>B</strong> Bold</button>
-                                        </div>
-                                        <textarea id="editDocBody" rows="8" placeholder="Write the body as one continuous paragraph or separate paragraphs with blank lines."></textarea>
+                                        <?php include APPPATH . 'Views/dashboard/partials/document_editor_toolbar.php'; ?>
+                                        <div id="editDocBody" class="doc-editor-area" contenteditable="true"></div>
                                     </label>
                                     <div class="cld-editor-grid">
                                         <label>Signature label<input id="editDocSignatureLabel" type="text"></label>
@@ -235,7 +237,7 @@
                                     </div>
                                     <div class="cld-editor-actions">
                                         <button type="button" class="db-btn db-btn--sm db-btn--outline" onclick="resetDocumentEditor()"><i class="fas fa-undo"></i> Reset</button>
-                                        <button type="button" class="db-btn db-btn--sm db-btn--primary" onclick="applyDocumentEdits()"><i class="fas fa-check"></i> Apply to Preview</button>
+                                        <button type="button" class="db-btn db-btn--sm db-btn--primary" onclick="applyDocumentEdits()"><i class="fas fa-check"></i> Save &amp; apply</button>
                                     </div>
                                 </div>
                             </div>
@@ -245,12 +247,7 @@
                                 $docKey = $docKeyMap[$activeReq['document_type']] ?? 'clearance';
                                 $snapshotCaptain = addslashes($activeReq['issued_captain_name'] ?? '');
                                 $snapshotDate    = addslashes($activeReq['issued_date'] ?? '');
-                                echo '<script>document.addEventListener("DOMContentLoaded",function(){'
-                                    . 'BisDoc.setSnapshot("' . $snapshotCaptain . '","' . $snapshotDate . '");'
-                                    . 'BisDoc.setContent(null);'
-                                    . 'document.getElementById("docPreviewArea").innerHTML=BisDoc.build("' . $docKey . '","' . addslashes($activeReq['for_member'] ?? $resName) . '","' . addslashes($activeReq['purpose'] ?? '') . '");'
-                                    . 'loadDocumentEditor();'
-                                    . '});</script>';
+                                echo '<script>document.addEventListener("DOMContentLoaded",function(){ renderCurrentDoc(); loadDocumentEditor(); });</script>';
                             endif; ?>
                         </div>
                     </div>
@@ -696,11 +693,17 @@
     </style>
 
     <script src="/js/doc-templates.js"></script>
+    <script src="/js/document-editor.js"></script>
     <script>
         // Per-request census map (request_id → census fields for the for_member person).
         // Ensures the document preview uses the correct civil status, zone, age etc.
         // for the specific member the request is for — not always the account holder.
         const _requestCensus = <?= json_encode($requestCensus ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+        const _requestContents = <?= json_encode($requestContents ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+        const _typeContents = <?= json_encode($typeContents ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+        const _contentSaveUrl = <?= json_encode(site_url(($role ?? 'captain') . '/clearance/content/')) ?>;
+        const _csrfName = <?= json_encode(csrf_token()) ?>;
+        const _csrfHash = <?= json_encode(csrf_hash()) ?>;
 
         function applyRequestCensus(requestId) {
             if (_requestCensus && _requestCensus[requestId]) {
@@ -719,7 +722,8 @@
             occupation: '<?= addslashes($occupation) ?>',
         });
         // Set the active Punong Barangay name
-        BisDoc.setCaptain('<?= addslashes($captainName ?? 'PUNONG BARANGAY') ?>');
+        BisDoc.setCaptain(<?= json_encode($captainName ?? '') ?>);
+        BisDoc.setTypeContents(_typeContents);
         // Set dynamic barangay identity (from barangay_settings table)
         BisDoc.setBarangay(<?= json_encode([
                                 'barangay_name' => $barangaySettings['barangay_name'] ?? 'BARANGAY BACOLOD',
@@ -729,7 +733,8 @@
                                 'country'       => $barangaySettings['country']       ?? 'Republic of the Philippines',
                                 'full_address'  => $barangaySettings['full_address']  ?? 'Barangay Bacolod, Bato, Camarines Sur',
                                 'office_header' => $barangaySettings['office_header'] ?? 'OFFICE OF THE PUNONG BARANGAY',
-                                'captain_name'  => $captainName ?? ($barangaySettings['captain_name'] ?? 'PUNONG BARANGAY'),
+                                'captain_name'  => $captainName ?? ($barangaySettings['captain_name'] ?? ''),
+                                'secretary_name'=> $barangaySettings['secretary_name'] ?? '',
                                 'captain_title' => $barangaySettings['captain_title'] ?? 'Punong Barangay',
                             ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);
 
@@ -754,11 +759,53 @@
             };
         }
 
+        function applyDocSnapshot() {
+            if (_currentDoc.snapshotDate) {
+                BisDoc.setSnapshot(_currentDoc.snapshotCaptain, _currentDoc.snapshotDate);
+            } else {
+                BisDoc.setSnapshot(null, null);
+            }
+        }
+
+        function collectEditorContent() {
+            return {
+                title: document.getElementById('editDocTitle').value,
+                salutation: document.getElementById('editDocSalutation').value,
+                body_html: DocumentEditor.html(document.getElementById('editDocBody')),
+                signature_label: document.getElementById('editDocSignatureLabel').value,
+                signature_title: document.getElementById('editDocSignatureTitle').value,
+            };
+        }
+
+        function renderCurrentDoc() {
+            BisDoc.setTypeContents(_typeContents);
+            BisDoc.setContent(_requestContents[_currentDoc.id] || null);
+            applyDocSnapshot();
+            document.getElementById('docPreviewArea').innerHTML = BisDoc.build(_currentDoc.key, _currentDoc.member, _currentDoc.purpose);
+        }
+
+        function saveDocumentContent(content, reset) {
+            if (!_currentDoc.id) return Promise.resolve();
+            const body = new URLSearchParams();
+            body.set(_csrfName, _csrfHash);
+            if (reset) {
+                body.set('reset', '1');
+            } else {
+                Object.entries(content).forEach(([key, value]) => body.set(key, value || ''));
+            }
+            return fetch(_contentSaveUrl + _currentDoc.id, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body,
+            }).then(response => response.json()).catch(() => ({ ok: false }));
+        }
+
         function loadDocumentEditor() {
             const editor = document.getElementById('documentEditor');
             if (!editor || !_currentDoc) return;
 
-            const content = BisDoc.editableContent(
+            applyDocSnapshot();
+            const content = _requestContents[_currentDoc.id] || BisDoc.editableContent(
                 _currentDoc.key,
                 _currentDoc.member,
                 (_requestCensus?.[_currentDoc.id]?.civil || 'Single'),
@@ -768,9 +815,9 @@
             );
             document.getElementById('editDocTitle').value = content.title || '';
             document.getElementById('editDocSalutation').value = content.salutation || '';
-            document.getElementById('editDocSignatureLabel').value = content.signatureLabel || '';
-            document.getElementById('editDocSignatureTitle').value = content.signatureTitle || '';
-            document.getElementById('editDocBody').value = BisDoc.normalizeBodyText(content.paragraphs || []);
+            document.getElementById('editDocSignatureLabel').value = content.signature_label || content.signatureLabel || '';
+            document.getElementById('editDocSignatureTitle').value = content.signature_title || content.signatureTitle || '';
+            DocumentEditor.setHtml(document.getElementById('editDocBody'), content.body_html || '');
         }
 
         function toggleDocumentEditor() {
@@ -787,35 +834,19 @@
         function applyDocumentEdits() {
             const editor = document.getElementById('documentEditor');
             if (!editor) return;
-            BisDoc.setContent({
-                title: document.getElementById('editDocTitle').value,
-                salutation: document.getElementById('editDocSalutation').value,
-                paragraphs: BisDoc.parseBodyText(document.getElementById('editDocBody').value),
-                signatureLabel: document.getElementById('editDocSignatureLabel').value,
-                signatureTitle: document.getElementById('editDocSignatureTitle').value,
-            });
-            BisDoc.setSnapshot(_currentDoc.snapshotCaptain, _currentDoc.snapshotDate);
-            document.getElementById('docPreviewArea').innerHTML = BisDoc.build(_currentDoc.key, _currentDoc.member, _currentDoc.purpose);
-        }
-
-        function toggleEditorBold() {
-            const editor = document.getElementById('editDocBody');
-            if (!editor) return;
-
-            const start = editor.selectionStart;
-            const end = editor.selectionEnd;
-            if (start === end) return;
-
-            const selected = editor.value.slice(start, end);
-            editor.setRangeText('**' + selected + '**', start, end, 'select');
-            editor.focus();
+            const content = collectEditorContent();
+            _requestContents[_currentDoc.id] = content;
+            renderCurrentDoc();
+            saveDocumentContent(content, false);
         }
 
         function resetDocumentEditor() {
+            _requestContents[_currentDoc.id] = null;
             BisDoc.setContent(null);
+            applyDocSnapshot();
             loadDocumentEditor();
-            BisDoc.setSnapshot(_currentDoc.snapshotCaptain, _currentDoc.snapshotDate);
-            document.getElementById('docPreviewArea').innerHTML = BisDoc.build(_currentDoc.key, _currentDoc.member, _currentDoc.purpose);
+            renderCurrentDoc();
+            saveDocumentContent({}, true);
         }
 
         // Immediately override with the active request's census data so the
@@ -839,9 +870,7 @@
             // Switch census context to the specific person this request is for
             applyRequestCensus(r.id);
             _currentDoc.id = r.id;
-            BisDoc.setContent(null);
-            BisDoc.setSnapshot(_currentDoc.snapshotCaptain, _currentDoc.snapshotDate);
-            document.getElementById('docPreviewArea').innerHTML = BisDoc.build(docKey, r.for_member, r.purpose);
+            renderCurrentDoc();
             loadDocumentEditor();
         }
 
@@ -853,8 +882,7 @@
             group.hidden = isOpen;
         }
 
-        function printCurrentDoc() {
-            // Re-apply the active request's census before printing (safety net)
+        function prepareCurrentDoc() {
             if (_currentDoc && typeof _currentDoc.key !== 'undefined') {
                 const reqId = Object.keys(_requestCensus || {}).find(id => {
                     const rc = _requestCensus[id];
@@ -862,9 +890,31 @@
                 });
                 if (reqId) applyRequestCensus(reqId);
             }
-            BisDoc.setSnapshot(_currentDoc.snapshotCaptain, _currentDoc.snapshotDate);
+            if (document.getElementById('editDocTitle')) {
+                _requestContents[_currentDoc.id] = collectEditorContent();
+            }
+            BisDoc.setTypeContents(_typeContents);
+            BisDoc.setContent(_requestContents[_currentDoc.id] || null);
+            applyDocSnapshot();
+        }
+
+        function printCurrentDoc() {
+            prepareCurrentDoc();
             BisDoc.print(_currentDoc.key, _currentDoc.member, _currentDoc.purpose);
         }
+
+        function downloadCurrentDoc() {
+            prepareCurrentDoc();
+            BisDoc.download(_currentDoc.key, _currentDoc.member, _currentDoc.purpose);
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const editor = document.getElementById('editDocBody');
+            const toolbar = document.querySelector('#documentEditor .doc-editor-toolbar');
+            if (editor && toolbar) {
+                DocumentEditor.bindToolbar(toolbar, editor);
+            }
+        });
 
         function openRejectModal(id, role) {
             document.getElementById('rejectForm').action = '/' + role + '/clearance/reject/' + id;

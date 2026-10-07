@@ -278,13 +278,14 @@ class BarangayActivityController extends BaseController
             return redirect()->to($this->activitiesHome())->with('error', 'This activity is not open for registration.');
         }
 
-        $age = $this->residentAge((new \App\Models\UserModel())->find($userId));
-        $min = $activity['min_age'] ?? null;
-        $max = $activity['max_age'] ?? null;
-        if (($min !== null && $min !== '' && ($age === null || $age < (int) $min))
-            || ($max !== null && $max !== '' && ($age === null || $age > (int) $max))
-        ) {
+        $user = (new \App\Models\UserModel())->find($userId);
+        $age = resident_census_age($user);
+        if (! age_within_inclusive_range($age, $activity['min_age'] ?? null, $activity['max_age'] ?? null)) {
             return redirect()->to($this->activitiesHome())->with('error', 'You are not within the required age range for this activity.');
+        }
+        $educationError = BarangayActivityModel::educationEligibilityError($user, $activity);
+        if ($educationError !== null) {
+            return redirect()->to($this->activitiesHome())->with('error', $educationError);
         }
 
         if (! empty($activity['end_date']) && $activity['end_date'] < date('Y-m-d')) {
@@ -298,17 +299,23 @@ class BarangayActivityController extends BaseController
         $requirements = BarangayActivityModel::parseRequirements($activity['requirements'] ?? null);
         $uploads = array_values(array_filter(
             $requirements,
-            static fn (string $requirement): bool => preg_match('/^(document|photo)\s*:/i', $requirement) === 1
+            static fn (string $requirement): bool => BarangayActivityModel::isFileRequirement($requirement)
         ));
         $files = $this->request->getFileMultiple('attachments') ?? [];
         $attachments = [];
         foreach ($uploads as $index => $requirement) {
             $file = $files[$index] ?? null;
             if (! $file || ! $file->isValid() || $file->getError() === UPLOAD_ERR_NO_FILE) {
-                return redirect()->to($this->activitiesHome())->with('error', 'Please attach all required documents and photos before joining.');
+                return redirect()->to($this->activitiesHome())->with('error', 'Please attach all required documents and images before joining.');
             }
-            if ($file->getSize() > 5 * 1024 * 1024 || ! in_array($file->getMimeType(), ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'], true)) {
-                return redirect()->to($this->activitiesHome())->with('error', 'Each attachment must be a JPG, PNG, WebP, or PDF file up to 5 MB.');
+            $kind = BarangayActivityModel::requirementKind($requirement);
+            $allowedMimes = $kind === 'image'
+                ? ['image/jpeg', 'image/png', 'image/webp']
+                : ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+            if ($file->getSize() > 5 * 1024 * 1024 || ! in_array($file->getMimeType(), $allowedMimes, true)) {
+                return redirect()->to($this->activitiesHome())->with('error', $kind === 'image'
+                    ? 'Each image must be a JPG, PNG, or WebP file up to 5 MB.'
+                    : 'Each document must be a JPG, PNG, WebP, or PDF file up to 5 MB.');
             }
             $directory = FCPATH . 'uploads/barangay_activities/';
             if (! is_dir($directory) && ! mkdir($directory, 0755, true) && ! is_dir($directory)) {
@@ -425,24 +432,25 @@ class BarangayActivityController extends BaseController
             return null;
         }
 
-        $rawRequirements = $cleanup ? [] : ($this->request->getPost('requirements') ?? []);
-        $requirements = is_array($rawRequirements)
-            ? array_values(array_filter(array_map('trim', $rawRequirements)))
-            : [];
-        $allowed = BarangayActivityModel::REQUIREMENT_OPTIONS;
-        $requirements = array_values(array_filter(
-            $requirements,
-            static fn (string $item): bool => in_array($item, $allowed, true)
-        ));
+        $requirements = $cleanup
+            ? null
+            : BarangayActivityModel::encodeRequirements(BarangayActivityModel::collectPostedRequirements($this->request));
+
+        $eligibilityError = null;
+        $eligibility = BarangayActivityModel::collectPostedEligibility($this->request, $eligibilityError);
+        if ($eligibility === null) {
+            session()->setFlashdata('error', $eligibilityError ?: 'Eligibility settings are not valid.');
+            return null;
+        }
 
         $today  = date('Y-m-d');
         $status = $conductedDate < $today ? 'Completed' : ($conductedDate === $today ? 'Active' : 'Upcoming');
 
-        return [
+        $payload = [
             'title'               => $title,
             'category'            => $category,
             'description'         => $description !== '' ? $description : null,
-            'requirements'        => $requirements !== [] ? implode(', ', $requirements) : null,
+            'requirements'        => $requirements,
             'start_date'          => $startDate !== '' ? $startDate : null,
             'end_date'            => $endDate !== '' ? $endDate : null,
             'conducted_date'      => $conductedDate,
@@ -453,6 +461,13 @@ class BarangayActivityController extends BaseController
             'target_participants' => max(0, (int) $this->request->getPost('target_participants')),
             'status'              => $status,
         ];
+
+        $db = \Config\Database::connect();
+        if ($db->tableExists('barangay_activities') && $db->fieldExists('eligibility_groups', 'barangay_activities')) {
+            $payload = $payload + $eligibility;
+        }
+
+        return $payload;
     }
 
     private function normalizeAge($age): ?int
@@ -467,25 +482,7 @@ class BarangayActivityController extends BaseController
 
     private function residentAge(?array $user): ?int
     {
-        if (! $user || empty($user['household_no'])) {
-            return null;
-        }
-
-        $household = (new \App\Models\HouseholdModel())->find($user['household_no']);
-        $fullName  = strtoupper(trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')));
-        if ($household && strtoupper(trim(($household['first_name'] ?? '') . ' ' . ($household['last_name'] ?? ''))) === $fullName) {
-            return ! empty($household['date_of_birth']) ? \App\Models\SkYouthModel::calcAge($household['date_of_birth']) : null;
-        }
-
-        $member = (new \App\Models\HouseholdMemberModel())
-            ->where('household_no', $user['household_no'])
-            ->where('first_name', $user['first_name'] ?? '')
-            ->where('last_name', $user['last_name'] ?? '')
-            ->first();
-
-        return $member && ! empty($member['date_of_birth'])
-            ? \App\Models\SkYouthModel::calcAge($member['date_of_birth'])
-            : null;
+        return resident_census_age($user);
     }
 
     private function notifyOfficeOfJoin(array $activity, int $residentId): void

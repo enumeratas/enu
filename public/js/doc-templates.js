@@ -25,8 +25,9 @@ const BisDoc = (function () {
         country       : 'Republic of the Philippines',
         full_address  : 'Barangay Bacolod, Bato, Camarines Sur',
         office_header : 'OFFICE OF THE PUNONG BARANGAY',
-        captain_name  : 'Punong Barangay',
+        captain_name  : '',
         captain_title : 'Punong Barangay',
+        secretary_name: '',
     };
 
     // ── Per-document snapshot (set when rendering an already-approved doc) ────
@@ -34,20 +35,78 @@ const BisDoc = (function () {
     // so pending documents still use the live captain name and today's date.
     let _snapshot = { captain_name: null, issued_date: null };
     let _contentOverride = null;
+    let _typeContents = {};
+
+    function officialDisplayName(name) {
+        const value = String(name || '').trim();
+        if (value === '') {
+            return '';
+        }
+        const upper = value.replace(/\s+/g, ' ').toUpperCase();
+        if (['PUNONG BARANGAY', 'BARANGAY SECRETARY', 'SECRETARY', 'CAPTAIN'].includes(upper)) {
+            return '';
+        }
+        return value;
+    }
 
     function setCensus(data)   { _census = Object.assign(_census, data); }
-    function setCaptain(name)  { if (name) _b.captain_name = name; }
+    function setCaptain(name)  { _b.captain_name = officialDisplayName(name); }
+    function setTypeContents(map) { _typeContents = map && typeof map === 'object' ? map : {}; }
 
     /**
      * Override barangay identity settings.
      * Call with the PHP-injected object on each page that uses BisDoc.
      */
     function setBarangay(data) {
-        if (data) _b = Object.assign(_b, data);
+        if (!data) {
+            return;
+        }
+        _b = Object.assign(_b, data);
+        _b.captain_name = officialDisplayName(_b.captain_name);
+        _b.secretary_name = officialDisplayName(_b.secretary_name);
     }
 
     function setContent(content) {
       _contentOverride = content && typeof content === 'object' ? content : null;
+    }
+
+    function tokenMap(name, civil, zone, purpose, d) {
+      const zoneText = zone ? zone + ', ' : '';
+      return {
+        recipient_name: name,
+        recipient_civil_status: civil,
+        recipient_zone: zone,
+        recipient_address: zoneText + _b.full_address,
+        purpose: purpose,
+        issued_date: `${ordinal(d.day)} day of ${d.month}, ${d.year}`,
+        issued_day: ordinal(d.day),
+        issued_month: d.month,
+        issued_year: String(d.year),
+        full_address: _b.full_address,
+        barangay_name: _b.barangay_name,
+        captain_name: officialDisplayName(_b.captain_name),
+        secretary_name: officialDisplayName(_b.secretary_name),
+        captain_title: _b.captain_title,
+      };
+    }
+
+    function applyContentTokens(html, tokens) {
+      return String(html || '').replace(/\{\{(\w+)\}\}/g, function (_, key) {
+        return Object.prototype.hasOwnProperty.call(tokens, key) ? escapeText(tokens[key]) : '{{' + key + '}}';
+      });
+    }
+
+    function signatureNameHtml(extraStyle) {
+      const name = officialDisplayName(_b.captain_name);
+      const style = extraStyle || 'padding-top:12mm;';
+      if (name === '') {
+        return `<p class="bc-captain-name" style="${style}">&nbsp;</p>`;
+      }
+      return `<p class="bc-captain-name" style="${style}">${escapeText(name)}</p>`;
+    }
+
+    function contentLabel(content, snake, camel, fallback) {
+      return content[snake] || content[camel] || fallback || '';
     }
 
     function escapeText(value) {
@@ -79,6 +138,7 @@ const BisDoc = (function () {
       const zoneText = zone ? zone + ', ' : '';
       const address = zoneText + _b.full_address;
       const dateText = `${ordinal(d.day)} day of ${d.month}, ${d.year}`;
+      const tokens = tokenMap(name, civil, zone, purpose, d);
       const defaults = {
         clearance: {
           title: 'BARANGAY CLEARANCE',
@@ -173,22 +233,32 @@ const BisDoc = (function () {
         },
       };
 
-      return _contentOverride || defaults[docKey] || defaults.clearance;
+      const fallback = defaults[docKey] || defaults.clearance;
+      const typeContent = _typeContents[docKey] || {};
+      const override = _contentOverride || {};
+      const merged = Object.assign({}, fallback, typeContent, override);
+      if (!merged.body_html && Array.isArray(merged.paragraphs)) {
+        merged.body_html = merged.paragraphs
+          .map(paragraph => `<p>${escapeText(paragraph).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
+          .join('');
+      }
+      merged.body_html = applyContentTokens(merged.body_html || '', tokens);
+      merged.title = merged.title || fallback.title;
+      merged.salutation = merged.salutation || fallback.salutation;
+      merged.signature_label = contentLabel(merged, 'signature_label', 'signatureLabel', fallback.signatureLabel);
+      merged.signature_title = contentLabel(merged, 'signature_title', 'signatureTitle', fallback.signatureTitle);
+      merged.signatureLabel = merged.signature_label;
+      merged.signatureTitle = merged.signature_title;
+      return merged;
     }
 
-    function editableBody(content, boldValues = []) {
-      const paragraphs = Array.isArray(content.paragraphs) ? content.paragraphs : [];
+    function editableBody(content) {
+      if (content && content.body_html) {
+        return String(content.body_html).replace(/<p(?![^>]*class=)/g, '<p class="bc-indent"');
+      }
+      const paragraphs = Array.isArray(content && content.paragraphs) ? content.paragraphs : [];
       return paragraphs.filter(paragraph => String(paragraph).trim() !== '')
-        .map(paragraph => {
-          let formattedText = escapeText(paragraph).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-          boldValues
-            .filter(value => String(value ?? '').trim() !== '')
-            .forEach(value => {
-              const safeValue = escapeText(value);
-              formattedText = formattedText.replaceAll(safeValue, `<strong>${safeValue}</strong>`);
-            });
-          return `<p class="bc-indent">${formattedText}</p>`;
-        })
+        .map(paragraph => `<p class="bc-indent">${escapeText(paragraph).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
         .join('\n');
     }
 
@@ -213,7 +283,9 @@ const BisDoc = (function () {
      * @param {string|null} issuedDate   ISO date string e.g. '2026-08-20'
      */
     function setSnapshot(captainName, issuedDate) {
-        _snapshot.captain_name = captainName || null;
+        _snapshot.captain_name = (captainName === null || captainName === undefined)
+            ? null
+            : officialDisplayName(captainName);
         _snapshot.issued_date  = issuedDate  || null;
     }
 
@@ -332,111 +404,64 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
     // ── Document body builders ────────────────────────────────────────────────
 
     function _clearance(name, civil, zone, purpose, d) {
-        const zoneText = zone ? zone + ', ' : '';
       const content = editableContent('clearance', name, civil, zone, purpose, d);
-        if (_contentOverride) return `<div class="bc-doc-title">${escapeText(content.title)}</div>
-  <div class="bc-body-text"><p><strong>${escapeText(content.salutation)}</strong></p>${editableBody(content, [name, civil, purpose, zone, _b.full_address, d.month + ' ' + d.year])}</div>
-      <div class="bc-sig-section" style="justify-content:flex-end;"><div class="bc-sig-right"><p class="bc-approved-by">${escapeText(content.signatureLabel)}</p><p class="bc-captain-name" style="padding-top: 12mm;">${escapeText(_b.captain_name)}</p><p class="bc-captain-title">${escapeText(content.signatureTitle)}</p></div></div>${clearanceFooter(d)}`;
-        return `<div class="bc-doc-title">BARANGAY CLEARANCE</div>
-<div class="bc-body-text">
-  <p><strong>TO WHOM IT MAY CONCERN,</strong></p>
-      <p class="bc-indent">This is to certify that <strong>${name}</strong>, <strong>a legal age</strong>, <strong>${civil}</strong> and a bonafide resident of <strong>${zoneText}${_b.full_address}</strong>.</p>
-  <p class="bc-indent">He/She possessed good moral character, trustworthy, a law-abiding Filipino Citizen and cooperative to all undertakings for the progress of the community.</p>
-  <p class="bc-indent">This Barangay Clearance is being issued upon the request of the above-named person for <strong>${purpose}</strong> and for whatever legal purposes it may serve.</p>
-      <p class="bc-indent">Given this <strong>${ordinal(d.day)}</strong> day of <strong>${d.month}, ${d.year}</strong> at <strong>${_b.full_address}, Philippines.</strong></p>
-</div>
-<div class="bc-sig-section">
-  <div class="bc-sig-left"><div class="bc-sig-line"></div><div class="bc-sig-sub">(Signature of Applicant)</div></div>
-  <div class="bc-sig-right">
-    <p class="bc-approved-by">Approved by:</p>
-    <p class="bc-captain-name" style="padding-top: 12mm;">${_b.captain_name}</p>
-    <p class="bc-captain-title">${_b.captain_title}</p>
-  </div>
-</div>
-  <div class="bc-footer-info" style="margin-top: auto;">
-    <p>CTC No.: _______________</p>
-    <p>Issued at: <strong>${_b.full_address}</strong></p>
-    <p>Issued on: <strong>${d.month} ${d.day}, ${d.year}</strong></p>
-    <div class="bc-photo-row"><div class="bc-photo-box"></div><div class="bc-photo-box"></div></div>
-    <p>OR. No.: _______________</p>
-    <p>Issued at: <strong>${_b.full_address}</strong></p>
-    <p>Issued on: <strong>${d.month} ${d.day}, ${d.year}</strong></p>
-  </div>
-`;
+      return `<div class="bc-doc-title">${escapeText(content.title)}</div>
+  <div class="bc-body-text"><p><strong>${escapeText(content.salutation)}</strong></p>${editableBody(content)}</div>
+  <div class="bc-sig-section">
+    <div class="bc-sig-left"><div class="bc-sig-line"></div><div class="bc-sig-sub">(Signature of Applicant)</div></div>
+    <div class="bc-sig-right">
+      <p class="bc-approved-by">${escapeText(content.signature_label)}</p>
+      ${signatureNameHtml('padding-top:12mm;')}
+      <p class="bc-captain-title">${escapeText(content.signature_title)}</p>
+    </div>
+  </div>${clearanceFooter(d)}`;
     }
 
     function _residency(name, civil, zone, purpose, d) {
-        const zoneText = zone ? zone + ', ' : '';
       const content = editableContent('residency', name, civil, zone, purpose, d);
-      if (_contentOverride) return `<div class="bc-doc-title" style="color:#1a3a8f;">${escapeText(content.title)}</div>
-  <div class="bc-body-text"><p><strong>${escapeText(content.salutation)}</strong></p>${editableBody(content, [name, civil, purpose, zone, _b.full_address, d.month + ' ' + d.year])}</div>
-  <div class="bc-sig-section" style="justify-content:flex-end;margin-top:auto;padding-top:18mm;"><div style="text-align:center;min-width:220px;font-family:Cambria,serif;font-size:13pt;line-height:1.7;"><p style="margin:0;">${escapeText(content.signatureLabel)}</p><p style="margin:0;padding-top:12mm;font-weight:700;">${escapeText(_b.captain_name)}</p><p style="margin:0;">${escapeText(content.signatureTitle)}</p></div></div>`;
-        return `<div class="bc-doc-title" style="color:#1a3a8f;">BARANGAY CERTIFICATION</div>
-<div class="bc-body-text">
-  <p><strong>TO WHOM IT MAY CONCERN:</strong></p>
-  <p class="bc-indent">This is to certify that <strong>${name}</strong>, both of legal age, ${civil} Filipino and a Bonafide resident of ${zoneText}<strong>${_b.full_address}.</strong></p>
-  <p class="bc-indent">This further certifies that according to the records, the above-mentioned name was living in the same household together at the address stated above.</p>
-  <p class="bc-indent">This certification is issued upon the request of the interested party as <strong>${purpose}</strong> and for whatever legal intent this may serve.</p>
-  <p class="bc-indent">Issued this <strong>${ordinal(d.day)}</strong> day of <strong>${d.month}, ${d.year}</strong> at <strong>${_b.full_address}. Philippines.</strong></p>
-</div>
-<div class="bc-sig-section" style="justify-content:flex-end;margin-top:auto;padding-top:18mm;">
-  <div style="text-align:center;min-width:220px;font-family:Cambria,serif;font-size:13pt;line-height:1.7;">
-    <p style="margin:0;">Attested by:</p>
-    <p style="margin:0;padding-top:12mm;font-weight:700;text-decoration:underline;">${_b.captain_name}</p>
-    <p style="margin:0;">${_b.captain_title}</p>
-  </div>
-</div>`;
+      return `<div class="bc-doc-title" style="color:#1a3a8f;">${escapeText(content.title)}</div>
+  <div class="bc-body-text"><p><strong>${escapeText(content.salutation)}</strong></p>${editableBody(content)}</div>
+  <div class="bc-sig-section" style="justify-content:flex-end;margin-top:auto;padding-top:18mm;">
+    <div style="text-align:center;min-width:220px;font-family:Cambria,serif;font-size:13pt;line-height:1.7;">
+      <p style="margin:0;">${escapeText(content.signature_label)}</p>
+      ${signatureNameHtml('padding-top:12mm;font-weight:700;')}
+      <p style="margin:0;">${escapeText(content.signature_title)}</p>
+    </div>
+  </div>`;
     }
 
     function _indigency(name, civil, zone, purpose, d) {
-        const zoneText = zone ? zone + ', ' : '';
       const content = editableContent('indigency', name, civil, zone, purpose, d);
-      if (_contentOverride) return `<div class="bc-doc-title" style="color:#1a3a8f;">${escapeText(content.title)}</div>
-  <div class="bc-body-text" style="flex:1;"><p><strong>${escapeText(content.salutation)}</strong></p>${editableBody(content, [name, civil, purpose, zone, _b.full_address, d.month + ' ' + d.year])}</div>
-  <div style="margin-top:auto;padding-top:20mm;text-align:right;font-family:Cambria,serif;font-size:12pt;position:relative;z-index:1;line-height:1.7;flex-shrink:0;"><p style="margin:0;">${escapeText(content.signatureLabel)}</p><p style="margin:0;padding-top:12mm;font-weight:700;">${escapeText(_b.captain_name)}</p><p style="margin:0;">${escapeText(content.signatureTitle)}</p></div>`;
-        return `<div class="bc-doc-title" style="color:#1a3a8f;">CERTIFICATE OF INDIGENCY</div>
-<div class="bc-body-text" style="flex:1;">
-  <p><strong>To Whom It May Concern,</strong></p>
-  <p class="bc-indent">This is to certify that <strong>${name}</strong>, legal age, ${civil.toLowerCase()}, bonafide resident of ${zoneText}<strong>${_b.full_address}</strong> and are identified belonging to the "Indigent family" in this community as per record in this office.</p>
-  <p class="bc-indent">This further certifies that the above-named and whose family earned meager income not enough to augment their basic needs and financial, hence an indigent and qualified to avail for <strong>${purpose}</strong>.</p>
-  <p class="bc-indent">Given this <strong>${ordinal(d.day)}</strong> day of <strong>${d.month}, ${d.year}</strong> at <strong>${_b.full_address}, Philippines.</strong></p>
-</div>
-<div style="margin-top:auto;padding-top:20mm;text-align:right;font-family:Cambria,serif;font-size:12pt;position:relative;z-index:1;line-height:1.7;flex-shrink:0;">
-  <p style="margin:0;">Attested by:</p>
-  <p style="margin:0;padding-top:12mm;font-weight:700;text-decoration:underline;">${_b.captain_name}</p>
-  <p style="margin:0;">${_b.captain_title}</p>
-</div>
-<p style="margin-top:10mm;font-family:Cambria,serif;font-size:12pt;color:#c0392b;position:relative;z-index:1;flex-shrink:0;">Not Valid Without Seal</p>`;
+      return `<div class="bc-doc-title" style="color:#1a3a8f;">${escapeText(content.title)}</div>
+  <div class="bc-body-text" style="flex:1;"><p><strong>${escapeText(content.salutation)}</strong></p>${editableBody(content)}</div>
+  <div style="margin-top:auto;padding-top:20mm;text-align:right;font-family:Cambria,serif;font-size:12pt;position:relative;z-index:1;line-height:1.7;flex-shrink:0;">
+    <p style="margin:0;">${escapeText(content.signature_label)}</p>
+    ${signatureNameHtml('padding-top:12mm;font-weight:700;')}
+    <p style="margin:0;">${escapeText(content.signature_title)}</p>
+  </div>
+  <p style="margin-top:10mm;font-family:Cambria,serif;font-size:12pt;color:#c0392b;position:relative;z-index:1;flex-shrink:0;">Not Valid Without Seal</p>`;
     }
 
     function _goodMoral(name, civil, zone, purpose, d) {
-        const content = editableContent('good_moral', name, civil, zone, purpose, d);
-        if (_contentOverride) return `<div class="bc-doc-title" style="color:#1a3a8f;">${escapeText(content.title)}</div>
-  <div class="bc-body-text" style="flex:1;"><p><strong>${escapeText(content.salutation)}</strong></p>${editableBody(content, [name, civil, purpose, zone, _b.full_address, d.month + ' ' + d.year])}</div>
-  <div style="margin-top:auto;padding-top:20mm;text-align:right;font-family:Cambria,serif;font-size:12pt;position:relative;z-index:1;line-height:1.7;flex-shrink:0;"><p style="margin:0;">${escapeText(content.signatureLabel)}</p><p style="margin:0;padding-top:12mm;font-weight:700;">${escapeText(_b.captain_name)}</p><p style="margin:0;">${escapeText(content.signatureTitle)}</p></div>`;
-
-        const zoneText = zone ? zone + ', ' : '';
-        return `<div class="bc-doc-title" style="color:#1a3a8f;">CERTIFICATE OF GOOD MORAL CHARACTER</div>
-<div class="bc-body-text" style="flex:1;">
-  <p><strong>TO WHOM IT MAY CONCERN:</strong></p>
-  <p class="bc-indent">This is to certify that <strong>${name}</strong>, legal age, ${civil.toLowerCase()}, is a bonafide resident of ${zoneText}<strong>${_b.full_address}</strong>.</p>
-  <p class="bc-indent">This further certifies that the above-named person is known to this office as a person of good moral character, law-abiding and with no derogatory record on file as of this date.</p>
-  <p class="bc-indent">This certification is issued upon the request of the interested party for <strong>${purpose}</strong> and for whatever legal purpose it may serve.</p>
-  <p class="bc-indent">Issued this <strong>${ordinal(d.day)}</strong> day of <strong>${d.month}, ${d.year}</strong> at <strong>${_b.full_address}, Philippines.</strong></p>
-</div>
-<div style="margin-top:auto;padding-top:20mm;text-align:right;font-family:Cambria,serif;font-size:12pt;position:relative;z-index:1;line-height:1.7;flex-shrink:0;">
-  <p style="margin:0;">Attested by:</p>
-  <p style="margin:0;padding-top:12mm;font-weight:700;text-decoration:underline;">${_b.captain_name}</p>
-  <p style="margin:0;">${_b.captain_title}</p>
-</div>`;
+      const content = editableContent('good_moral', name, civil, zone, purpose, d);
+      return `<div class="bc-doc-title" style="color:#1a3a8f;">${escapeText(content.title)}</div>
+  <div class="bc-body-text" style="flex:1;"><p><strong>${escapeText(content.salutation)}</strong></p>${editableBody(content)}</div>
+  <div style="margin-top:auto;padding-top:20mm;text-align:right;font-family:Cambria,serif;font-size:12pt;position:relative;z-index:1;line-height:1.7;flex-shrink:0;">
+    <p style="margin:0;">${escapeText(content.signature_label)}</p>
+    ${signatureNameHtml('padding-top:12mm;font-weight:700;')}
+    <p style="margin:0;">${escapeText(content.signature_title)}</p>
+  </div>`;
     }
 
     function _special(docKey, name, civil, zone, purpose, d) {
       const content = editableContent(docKey, name, civil, zone, purpose, d);
-      if (_contentOverride) {
-        return `<div class="bc-doc-title" style="color:#1a3a8f;">${escapeText(content.title)}</div><div class="bc-body-text" style="flex:1;"><p><strong>${escapeText(content.salutation)}</strong></p>${editableBody(content, [name, civil, purpose, zone, _b.full_address, d.month + ' ' + d.year])}</div><div style="margin-top:auto;padding-top:20mm;text-align:right;font-family:Cambria,serif;font-size:12pt;position:relative;z-index:1;"><p>${escapeText(content.signatureLabel)}</p><p style="padding-top:12mm;font-weight:700;">${escapeText(_b.captain_name)}</p><p>${escapeText(content.signatureTitle)}</p></div>`;
-      }
-      return `<div class="bc-doc-title" style="color:#1a3a8f;">${escapeText(content.title)}</div><div class="bc-body-text" style="flex:1;"><p><strong>${escapeText(content.salutation)}</strong></p>${content.paragraphs.map(paragraph => `<p class="bc-indent">${escapeText(paragraph)}</p>`).join('')}</div><div style="margin-top:auto;padding-top:20mm;text-align:right;font-family:Cambria,serif;font-size:12pt;position:relative;z-index:1;"><p>${escapeText(content.signatureLabel)}</p><p style="padding-top:12mm;font-weight:700;">${escapeText(_b.captain_name)}</p><p>${escapeText(content.signatureTitle)}</p></div>`;
+      return `<div class="bc-doc-title" style="color:#1a3a8f;">${escapeText(content.title)}</div>
+  <div class="bc-body-text" style="flex:1;"><p><strong>${escapeText(content.salutation)}</strong></p>${editableBody(content)}</div>
+  <div style="margin-top:auto;padding-top:20mm;text-align:right;font-family:Cambria,serif;font-size:12pt;position:relative;z-index:1;">
+    <p>${escapeText(content.signature_label)}</p>
+    ${signatureNameHtml('padding-top:12mm;font-weight:700;')}
+    <p>${escapeText(content.signature_title)}</p>
+  </div>`;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -463,7 +488,10 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
      * Uses the snapshot's captain_name if set, otherwise the live _b.captain_name.
      */
     function _resolveCaptain() {
-        return _snapshot.captain_name || _b.captain_name;
+        if (_snapshot.captain_name !== null && _snapshot.captain_name !== undefined) {
+            return officialDisplayName(_snapshot.captain_name);
+        }
+        return officialDisplayName(_b.captain_name);
     }
 
     /**
@@ -518,7 +546,7 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
      * @param {string} forMember
      * @param {string} purpose
      */
-    function print(docKey, forMember, purpose) {
+    function composeBody(docKey, forMember, purpose) {
         const name    = forMember || _census.name;
         const civil   = _census.civil || 'Single';
         const zone    = _census.zone  || '';
@@ -538,21 +566,44 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
 
         _b.captain_name = savedCaptain;
 
-        const html = `<!DOCTYPE html><html><head><title>Document</title>${PRINT_STYLES}</head>
+        return { name, body };
+    }
+
+    function printDocumentHtml(docKey, forMember, purpose) {
+        const composed = composeBody(docKey, forMember, purpose);
+        return `<!DOCTYPE html><html><head><title>Document</title>${PRINT_STYLES}</head>
 <body>
 <div class="bc-wrap"><div class="bc-page">
   ${_header()}
   <div class="bc-body-box">
     <div class="bc-watermark"><img src="/bacolod.png" alt="watermark"></div>
-    ${body}
+    ${composed.body}
   </div>
 </div></div>
-<script>window.onload=function(){window.print();window.close();}<\/script>
 </body></html>`;
+    }
 
+    function print(docKey, forMember, purpose) {
+        const html = printDocumentHtml(docKey, forMember, purpose).replace(
+            '</body></html>',
+            '<script>window.onload=function(){window.print();window.close();}<\\/script></body></html>'
+        );
         const win = window.open('', '_blank', 'width=900,height=900');
         win.document.write(html);
         win.document.close();
+    }
+
+    function download(docKey, forMember, purpose) {
+        const html = printDocumentHtml(docKey, forMember, purpose);
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        const link = document.createElement('a');
+        const safeName = String(forMember || _census.name || 'document').replace(/[^\w\-]+/g, '_');
+        link.href = URL.createObjectURL(blob);
+        link.download = (docKey || 'document') + '-' + safeName + '.html';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(function () { URL.revokeObjectURL(link.href); }, 1000);
     }
 
     const api = {
@@ -561,11 +612,14 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
         setBarangay,
         setSnapshot,
         setContent,
+        setTypeContents,
         editableContent,
         normalizeBodyText,
         parseBodyText,
         build,
         print,
+        download,
+        printDocumentHtml,
     };
 
     if (typeof window !== 'undefined') {

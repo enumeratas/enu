@@ -71,4 +71,20 @@ class CensusUpdateAuthorizationModel extends Model
             ->orderBy('created_at', 'DESC')
             ->first();
     }
+
+    /** @return list<array<string, mixed>> */
+    public function listForReview(array $statuses = ['submitted']): array
+    {
+        $builder = $this->db->table($this->table . ' a')
+            ->select('a.*, u.first_name, u.last_name, u.role AS user_role')
+            ->join('users u', 'u.id = a.user_id', 'left')
+            ->orderBy('a.submitted_at', 'DESC')
+            ->orderBy('a.id', 'DESC');
+
+        if ($statuses !== []) {
+            $builder->whereIn('a.status', $statuses);
+        }
+
+        return $builder->get()->getResultArray();
+    }
 }

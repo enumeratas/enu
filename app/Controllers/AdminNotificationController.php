@@ -199,6 +199,30 @@ class AdminNotificationController extends BaseController
                 ->get()->getResultArray();
         }
 
+        $pendingMoves = [];
+        if ($db->tableExists('household_moves')) {
+            $pendingMoves = $db->table('household_moves')
+                ->select('id, source_household_no, destination_household_no, destination_type, move_reason, created_at')
+                ->where('status', 'pending')
+                ->orderBy('created_at', 'DESC')
+                ->limit(15)
+                ->get()
+                ->getResultArray();
+        }
+
+        $pendingTransfers = [];
+        if ($db->tableExists('household_separation_requests')) {
+            $pendingTransfers = $db->table('household_separation_requests r')
+                ->select('r.id, r.separation_type, r.original_household_no, r.created_at, m.first_name, m.last_name, d.new_household_no')
+                ->join('household_members m', 'm.id = r.member_id', 'left')
+                ->join('household_separation_request_details d', 'd.request_id = r.id', 'left')
+                ->where('r.status', 'pending')
+                ->orderBy('r.created_at', 'DESC')
+                ->limit(15)
+                ->get()
+                ->getResultArray();
+        }
+
         // ── Groups for the bell badge total ──────────────────────────────────
         $groups = [
             ['key' => 'pending_accounts',  'count' => $pendingAccounts],
@@ -207,6 +231,7 @@ class AdminNotificationController extends BaseController
             ['key' => 'upcoming_hearings', 'count' => $upcomingHearings],
             ['key' => 'upcoming_schedules', 'count' => $upcomingSchedules],
             ['key' => 'pending_concerns',  'count' => $pendingConcerns],
+            ['key' => 'pending_moves',     'count' => count($pendingMoves) + count($pendingTransfers)],
         ];
 
         // ── Unified feed: merge all items, sort newest-first ─────────────────
@@ -275,6 +300,41 @@ class AdminNotificationController extends BaseController
                 'appt_time'   => $c['appointment_time'] ?? null,
                 'created_at'  => $c['created_at'],
                 'is_read'     => isset($dismissed[\App\Models\NotificationDismissalModel::key('concern', $refId)]),
+            ];
+        }
+
+        foreach ($pendingMoves as $move) {
+            $refId = (string) ($move['id'] ?? '');
+            $dest = ($move['destination_type'] ?? '') === 'new'
+                ? 'a new household'
+                : ('household #' . ($move['destination_household_no'] ?: '—'));
+            $feedItems[] = [
+                'type'        => 'move',
+                'ref_id'      => 'move-' . $refId,
+                'title'       => 'Household move from #' . ($move['source_household_no'] ?? '—'),
+                'sub'         => 'Requested transfer to ' . $dest
+                    . (! empty($move['move_reason']) ? ' · ' . $move['move_reason'] : ''),
+                'move_id'     => (int) ($move['id'] ?? 0),
+                'created_at'  => $move['created_at'] ?? null,
+                'is_read'     => isset($dismissed[\App\Models\NotificationDismissalModel::key('move', 'move-' . $refId)]),
+            ];
+        }
+
+        foreach ($pendingTransfers as $transfer) {
+            $refId = (string) ($transfer['id'] ?? '');
+            $name = trim(($transfer['first_name'] ?? '') . ' ' . ($transfer['last_name'] ?? '')) ?: 'A household member';
+            $kind = ($transfer['separation_type'] ?? '') === 'Transfer Member' ? 'Transfer' : 'Separation';
+            $dest = ! empty($transfer['new_household_no'])
+                ? 'household #' . $transfer['new_household_no']
+                : 'a new household';
+            $feedItems[] = [
+                'type'        => 'move',
+                'ref_id'      => 'sep-' . $refId,
+                'title'       => $kind . ' request — ' . $name,
+                'sub'         => 'From household #' . ($transfer['original_household_no'] ?? '—') . ' to ' . $dest,
+                'household_no'=> (string) ($transfer['original_household_no'] ?? ''),
+                'created_at'  => $transfer['created_at'] ?? null,
+                'is_read'     => isset($dismissed[\App\Models\NotificationDismissalModel::key('move', 'sep-' . $refId)]),
             ];
         }
 

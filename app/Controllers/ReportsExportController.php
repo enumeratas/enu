@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Controllers\BaseController;
 use Dompdf\Dompdf;
+use Dompdf\Options;
 
 class ReportsExportController extends BaseController
 {
@@ -18,15 +19,64 @@ class ReportsExportController extends BaseController
 
     public function download(string $role = 'secretary')
     {
-        $dompdf = new Dompdf();
+        $options = new Options();
+        $options->set('isRemoteEnabled', true);
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('defaultFont', 'DejaVu Sans');
+        $options->setChroot(FCPATH);
+        $dompdf = new Dompdf($options);
         $dompdf->loadHtml($this->renderReport($role));
-        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->setPaper('legal', 'portrait');
         $dompdf->render();
 
         return $this->response->download(
             'barangay-report-' . date('Y-m-d') . '.pdf',
             $dompdf->output()
         );
+    }
+
+    public function skExport()
+    {
+        return $this->renderSkReport();
+    }
+
+    public function skDownload()
+    {
+        $year = $this->skReportYear();
+        $dompdf = new Dompdf();
+        $dompdf->loadHtml($this->renderSkReport());
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        return $this->response->download(
+            'sk-report-' . $year . '.pdf',
+            $dompdf->output()
+        );
+    }
+
+    private function skReportYear(): int
+    {
+        $year = (int) ($this->request->getGet('year') ?? date('Y'));
+        if ($year < 2000 || $year > 2100) {
+            $year = (int) date('Y');
+        }
+
+        return $year;
+    }
+
+    private function renderSkReport(): string
+    {
+        $year = $this->skReportYear();
+        $ui = new UIController();
+        $settings = (new \App\Models\BarangaySettingsModel())->getReportFrontPageSettings();
+
+        return view('dashboard/sk/reports_export', array_merge(
+            $ui->buildSkReportData($year),
+            [
+                'filterYear' => $year,
+                'reportFrontPage' => $settings,
+            ]
+        ));
     }
 
     private function renderReport(string $role): string
@@ -61,7 +111,7 @@ class ReportsExportController extends BaseController
         $db = \Config\Database::connect();
 
         $heads   = $db->table('households')
-            ->select('date_of_birth, gender, civil_status, occupation,
+            ->select('date_of_birth, gender, civil_status, occupation, nationality,
                       is_pwd, is_solo_parent, is_4ps, is_senior_citizen,
                       is_indigenous, monthly_income, educational_attainment,
                       registered_voter, num_families,
@@ -70,7 +120,7 @@ class ReportsExportController extends BaseController
             ->get()->getResultArray();
 
         $members = $db->table('household_members')
-            ->select('date_of_birth, gender, occupation, monthly_income, educational_attainment')
+            ->select('date_of_birth, gender, occupation, monthly_income, educational_attainment, is_pwd, marital_status')
             ->get()->getResultArray();
 
         $age = function (?string $dob): ?int {
@@ -155,15 +205,16 @@ class ReportsExportController extends BaseController
         $sectorMap = [
             'Labor Force' => ['male' => 0, 'female' => 0, 'total' => 0],
             'Unemployed' => ['male' => 0, 'female' => 0, 'total' => 0],
-            'Out-of-School Youth (OSY) 15–24 y/o' => ['male' => 0, 'female' => 0, 'total' => 0],
-            'Out-of-School Children (OSC) 6–14 y/o' => ['male' => 0, 'female' => 0, 'total' => 0],
+            'Out-of-School Youth (OSY) 15-24 y/o' => ['male' => 0, 'female' => 0, 'total' => 0],
+            'Out-of-School Children (OSC) 6-14 y/o' => ['male' => 0, 'female' => 0, 'total' => 0],
             'Persons with Disabilities (PWDs)' => ['male' => 0, 'female' => 0, 'total' => 0],
             'Overseas Filipino Workers (OFWs)' => ['male' => 0, 'female' => 0, 'total' => 0],
             'Solo Parents' => ['male' => 0, 'female' => 0, 'total' => 0],
+            'Indigenous Peoples (IPs)' => ['male' => 0, 'female' => 0, 'total' => 0],
             'Civil Status: Single' => ['male' => 0, 'female' => 0, 'total' => 0],
             'Civil Status: Married' => ['male' => 0, 'female' => 0, 'total' => 0],
-            'Civil Status: Widowed' => ['male' => 0, 'female' => 0, 'total' => 0],
-            'Civil Status: Separated/Annulled' => ['male' => 0, 'female' => 0, 'total' => 0],
+            'Citizenship: Filipino' => ['male' => 0, 'female' => 0, 'total' => 0],
+            'Citizenship: Foreigner' => ['male' => 0, 'female' => 0, 'total' => 0],
         ];
 
         $addSectorCount = function (string $label, array $person) use (&$sectorMap): void {
@@ -202,15 +253,26 @@ class ReportsExportController extends BaseController
                 $addSectorCount('Solo Parents', $person);
             }
 
+            if ((int) ($person['is_indigenous'] ?? 0)) {
+                $addSectorCount('Indigenous Peoples (IPs)', $person);
+            }
+
+            $nationality = strtolower(trim((string) ($person['nationality'] ?? 'filipino')));
+            if ($nationality === '' || str_contains($nationality, 'filipino')) {
+                $addSectorCount('Citizenship: Filipino', $person);
+            } else {
+                $addSectorCount('Citizenship: Foreigner', $person);
+            }
+
             if ($a !== null && $a >= 15 && $a <= 24 && in_array($occ, ['', 'none', 'n/a', 'student', 'out-of-school'])) {
-                $addSectorCount('Out-of-School Youth (OSY) 15–24 y/o', $person);
+                $addSectorCount('Out-of-School Youth (OSY) 15-24 y/o', $person);
             }
 
             if ($a !== null && $a >= 6 && $a <= 14 && in_array($occ, ['', 'none', 'n/a', 'student', 'out-of-school'])) {
-                $addSectorCount('Out-of-School Children (OSC) 6–14 y/o', $person);
+                $addSectorCount('Out-of-School Children (OSC) 6-14 y/o', $person);
             }
 
-            $cs = strtolower(trim($person['civil_status'] ?? ''));
+            $cs = strtolower(trim((string) ($person['civil_status'] ?? $person['marital_status'] ?? '')));
             if ($cs === 'single') {
                 $addSectorCount('Civil Status: Single', $person);
             }

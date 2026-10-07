@@ -119,6 +119,10 @@ class NotificationModel extends Model
      */
     public static function push(int $userId, string $type, string $title, string $body = '', string $link = ''): void
     {
+        if ($userId <= 0) {
+            return;
+        }
+
         $model = new self();
         $model->insert([
             'user_id' => $userId,
@@ -128,6 +132,51 @@ class NotificationModel extends Model
             'link'    => $link ?: null,
             'read_at' => null,
         ]);
+    }
+
+    /**
+     * Notify every user with the given role, skipping rejected/inactive accounts
+     * and optionally the person who just performed the action.
+     */
+    public static function pushToRole(
+        string $role,
+        string $type,
+        string $title,
+        string $body = '',
+        string $link = '',
+        ?int $exceptUserId = null
+    ): int {
+        $role = strtolower(trim($role));
+        if ($role === '') {
+            return 0;
+        }
+
+        $rows = \Config\Database::connect()->table('users')
+            ->select('id, status')
+            ->where('role', $role)
+            ->get()
+            ->getResultArray();
+
+        $sent = 0;
+        foreach ($rows as $row) {
+            $userId = (int) ($row['id'] ?? 0);
+            $status = strtolower(trim((string) ($row['status'] ?? '')));
+            if ($userId <= 0 || ($exceptUserId !== null && $userId === $exceptUserId)) {
+                continue;
+            }
+            if (in_array($status, ['rejected', 'inactive', 'disabled', 'blocked'], true)) {
+                continue;
+            }
+
+            self::push($userId, $type, $title, $body, $link);
+            $sent++;
+        }
+
+        if ($sent === 0) {
+            log_message('warning', 'No ' . $role . ' account received notification: ' . $title);
+        }
+
+        return $sent;
     }
 
     /**

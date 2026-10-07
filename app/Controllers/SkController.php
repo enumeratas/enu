@@ -905,24 +905,7 @@ class SkController extends BaseController
 
     private function residentAge(?array $user): ?int
     {
-        if (! $user || empty($user['household_no'])) {
-            return null;
-        }
-
-        $household = (new \App\Models\HouseholdModel())->find($user['household_no']);
-        $fullName = strtoupper(trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')));
-        if ($household && strtoupper(trim(($household['first_name'] ?? '') . ' ' . ($household['last_name'] ?? ''))) === $fullName) {
-            return ! empty($household['date_of_birth']) ? \App\Models\SkYouthModel::calcAge($household['date_of_birth']) : null;
-        }
-
-        $member = (new \App\Models\HouseholdMemberModel())
-            ->where('household_no', $user['household_no'])
-            ->where('first_name', $user['first_name'] ?? '')
-            ->where('last_name', $user['last_name'] ?? '')
-            ->first();
-        return $member && ! empty($member['date_of_birth'])
-            ? \App\Models\SkYouthModel::calcAge($member['date_of_birth'])
-            : null;
+        return resident_census_age($user);
     }
 
     public function programs()
@@ -1032,12 +1015,16 @@ class SkController extends BaseController
                 : ($conductedDate === $today ? 'Active' : 'Upcoming');
         }
 
-        // Parse requirements (one per line from textarea → store as comma-separated)
-        $reqRaw  = $cleanup ? [] : ($post['requirements'] ?? []);
-        $reqList = is_array($reqRaw) ? array_filter(array_map('trim', $reqRaw)) : array_filter(array_map('trim', preg_split('/[\n,]+/', trim($reqRaw))));
-        $reqStr  = implode(', ', $reqList) ?: null;
+        $reqStr = $cleanup ? null : \App\Models\BarangayActivityModel::encodeRequirements(
+            \App\Models\BarangayActivityModel::collectPostedRequirements($this->request)
+        );
+        $eligibilityError = null;
+        $eligibility = \App\Models\BarangayActivityModel::collectPostedEligibility($this->request, $eligibilityError);
+        if ($eligibility === null) {
+            return redirect()->to($this->programBase() . '/new')->with('error', $eligibilityError ?: 'Eligibility settings are not valid.')->withInput();
+        }
 
-        $programId = $progModel->insert([
+        $programPayload = [
             'name'                => trim($post['name']),
             'category'            => $post['category'],
             'description'         => trim($post['description'] ?? '') ?: null,
@@ -1054,7 +1041,13 @@ class SkController extends BaseController
             'status'              => $status,
             'created_by'          => (int)session()->get('user_id'),
             'notify_residents'    => 0,
-        ], true);
+        ];
+        $db = \Config\Database::connect();
+        if ($db->tableExists('sk_programs') && $db->fieldExists('eligibility_groups', 'sk_programs')) {
+            $programPayload = $programPayload + $eligibility;
+        }
+
+        $programId = $progModel->insert($programPayload, true);
 
         $this->syncProgramCalendar((int) $programId, [
             'name' => trim($post['name']),
@@ -1135,12 +1128,16 @@ class SkController extends BaseController
                 : ($conductedDate === $today ? 'Active' : 'Upcoming');
         }
 
-        // Parse requirements
-        $reqRaw  = $cleanup ? [] : ($post['requirements'] ?? []);
-        $reqList = is_array($reqRaw) ? array_filter(array_map('trim', $reqRaw)) : array_filter(array_map('trim', preg_split('/[\n,]+/', trim($reqRaw))));
-        $reqStr  = implode(', ', $reqList) ?: null;
+        $reqStr = $cleanup ? null : \App\Models\BarangayActivityModel::encodeRequirements(
+            \App\Models\BarangayActivityModel::collectPostedRequirements($this->request)
+        );
+        $eligibilityError = null;
+        $eligibility = \App\Models\BarangayActivityModel::collectPostedEligibility($this->request, $eligibilityError);
+        if ($eligibility === null) {
+            return redirect()->to($editUrl)->with('error', $eligibilityError ?: 'Eligibility settings are not valid.')->withInput();
+        }
 
-        $progModel->update($id, [
+        $programPayload = [
             'name'                => trim($post['name']),
             'category'            => $post['category'] ?? $prog['category'],
             'description'         => trim($post['description'] ?? '') ?: null,
@@ -1155,7 +1152,12 @@ class SkController extends BaseController
             'actual_participants' => (int)($post['actual_participants'] ?? 0),
             'budget'              => (float)($post['budget'] ?? 0),
             'status'              => $status,
-        ]);
+        ];
+        $db = \Config\Database::connect();
+        if ($db->tableExists('sk_programs') && $db->fieldExists('eligibility_groups', 'sk_programs')) {
+            $programPayload = $programPayload + $eligibility;
+        }
+        $progModel->update($id, $programPayload);
 
         $this->syncProgramCalendar($id, [
             'name' => trim($post['name']),
@@ -1325,12 +1327,14 @@ class SkController extends BaseController
         }
 
         $user = (new \App\Models\UserModel())->find($userId);
-        $age = $this->residentAge($user);
-        if (($program['min_age'] !== null && ($age === null || $age < (int) $program['min_age']))
-            || ($program['max_age'] !== null && ($age === null || $age > (int) $program['max_age']))
-        ) {
+        $age = resident_census_age($user);
+        if (! age_within_inclusive_range($age, $program['min_age'] ?? null, $program['max_age'] ?? null)) {
             $range = trim(($program['min_age'] !== null ? $program['min_age'] . '+' : '') . ($program['max_age'] !== null ? ' to ' . $program['max_age'] : ''));
             return redirect()->to('/resident/sk-activities')->with('error', 'You are not within the required age range' . ($range ? ' (' . $range . ' years).' : '.'));
+        }
+        $educationError = \App\Models\BarangayActivityModel::educationEligibilityError($user, $program);
+        if ($educationError !== null) {
+            return redirect()->to('/resident/sk-activities')->with('error', $educationError);
         }
 
         // Block registration if the schedule end date has already passed
@@ -1351,17 +1355,23 @@ class SkController extends BaseController
 
         $uploadRequirements = array_values(array_filter(
             \App\Models\SkProgramModel::parseRequirements($program['requirements']),
-            static fn(string $requirement): bool => preg_match('/^(document|photo)\s*:/i', $requirement) === 1
+            static fn(string $requirement): bool => \App\Models\BarangayActivityModel::isFileRequirement($requirement)
         ));
         $uploadedFiles = $this->request->getFileMultiple('attachments') ?? [];
         $attachments = [];
         foreach ($uploadRequirements as $index => $requirement) {
             $file = $uploadedFiles[$index] ?? null;
             if (! $file || ! $file->isValid() || $file->getError() === UPLOAD_ERR_NO_FILE) {
-                return redirect()->to('/resident/sk-activities')->with('error', 'Please attach all required documents/photos before joining.');
+                return redirect()->to('/resident/sk-activities')->with('error', 'Please attach all required documents and images before joining.');
             }
-            if ($file->getSize() > 5 * 1024 * 1024 || ! in_array($file->getMimeType(), ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'], true)) {
-                return redirect()->to('/resident/sk-activities')->with('error', 'Each attachment must be a JPG, PNG, WebP, or PDF file up to 5 MB.');
+            $kind = \App\Models\BarangayActivityModel::requirementKind($requirement);
+            $allowedMimes = $kind === 'image'
+                ? ['image/jpeg', 'image/png', 'image/webp']
+                : ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+            if ($file->getSize() > 5 * 1024 * 1024 || ! in_array($file->getMimeType(), $allowedMimes, true)) {
+                return redirect()->to('/resident/sk-activities')->with('error', $kind === 'image'
+                    ? 'Each image must be a JPG, PNG, or WebP file up to 5 MB.'
+                    : 'Each document must be a JPG, PNG, WebP, or PDF file up to 5 MB.');
             }
             $directory = FCPATH . 'uploads/sk_programs/';
             if (! is_dir($directory)) mkdir($directory, 0755, true);

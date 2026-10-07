@@ -1809,6 +1809,26 @@ class UIController extends BaseController
     }
     public function sk_reports()
     {
+        $year = (int) ($this->request->getGet('year') ?? date('Y'));
+        if ($year < 2000 || $year > 2100) {
+            $year = (int) date('Y');
+        }
+
+        return view('dashboard/sk/reports', array_merge(
+            $this->buildSkReportData($year),
+            ['filterYear' => $year]
+        ));
+    }
+
+    /**
+     * Youth demographics + program participation used by the SK report
+     * screen and its print / PDF export.
+     *
+     * @return array<string, mixed>
+     */
+    public function buildSkReportData(?int $year = null): array
+    {
+        $year = $year ?: (int) date('Y');
         $db = \Config\Database::connect();
 
         $youthMax = date('Y-m-d', strtotime('-15 years'));
@@ -1895,21 +1915,31 @@ class UIController extends BaseController
             if ($s === 'Out-of-School')      $totals['oos']++;
         }
 
-        // Programs from DB
-        $progModel  = new \App\Models\SkProgramModel();
-        $programs   = $progModel->orderBy('start_date', 'DESC')->findAll();
+        // Programs from DB, optionally limited to a calendar year.
+        $progModel = new \App\Models\SkProgramModel();
+        $query = $progModel->orderBy('start_date', 'DESC');
+        if ($year > 0) {
+            $query->groupStart()
+                ->like('start_date', (string) $year, 'after')
+                ->orLike('end_date', (string) $year, 'after')
+                ->orLike('conducted_date', (string) $year, 'after')
+                ->groupEnd();
+        }
+        $programs = $query->findAll();
         $progCounts = $progModel->statusCounts();
 
-        // Total actual participants across all programs
         $totalParticipants = (int) array_sum(array_column($programs, 'actual_participants'));
+        $totalTarget = (int) array_sum(array_column($programs, 'target_participants'));
 
-        return view('dashboard/sk/reports', [
+        return [
             'demographics'      => $demographics,
             'totals'            => $totals,
             'programs'          => $programs,
             'progCounts'        => $progCounts,
             'totalParticipants' => $totalParticipants,
-        ]);
+            'totalTarget'       => $totalTarget,
+            'filterYear'        => $year,
+        ];
     }
     public function sk_settings()
     {

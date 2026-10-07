@@ -166,8 +166,7 @@
                         $status = $closed ? 'Closed' : ($activity['status'] ?? 'Upcoming');
                         $reqs = $activity['requirements_list'] ?? [];
                         $reg = $activity['registration'] ?? null;
-                        $minAge = $activity['min_age'] ?? null;
-                        $maxAge = $activity['max_age'] ?? null;
+                        $eligLabels = \App\Models\BarangayActivityModel::eligibilitySummary($activity);
                     ?>
                         <article class="brgy-card">
                             <?php $banner = trim((string) ($activity['banner_path'] ?? '')); ?>
@@ -182,10 +181,8 @@
                                         <span><i class="fas fa-tag"></i> <?= esc($activity['category'] ?? 'Other') ?></span>
                                         <span><i class="fas fa-calendar"></i> <?= $conducted !== '' ? esc(date('M j, Y', strtotime($conducted))) : 'Date to be announced' ?></span>
                                         <span><i class="fas fa-map-marker-alt"></i> <?= esc($activity['venue'] ?: 'Venue to be announced') ?></span>
-                                        <?php if ($minAge !== null && $minAge !== '' || $maxAge !== null && $maxAge !== ''): ?>
-                                            <span><i class="fas fa-user"></i>
-                                                <?= $minAge !== null && $minAge !== '' ? (int) $minAge : '0' ?>–<?= $maxAge !== null && $maxAge !== '' ? (int) $maxAge : 'any' ?> years
-                                            </span>
+                                        <?php if ($eligLabels !== []): ?>
+                                            <span><i class="fas fa-user-check"></i> <?= esc(implode(' · ', $eligLabels)) ?></span>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -273,6 +270,7 @@
         </div>
     </div>
 
+    <script src="/js/activity-form.js"></script>
     <script>
         function closeJoinModal() {
             document.getElementById('joinModal').classList.remove('active');
@@ -280,42 +278,13 @@
         function openJoinModal(activity) {
             document.getElementById('joinModalTitle').textContent = 'Join: ' + activity.name;
             document.getElementById('joinForm').action = '/<?= esc($role) ?>/activities/join/' + activity.id;
-            const reqWrap = document.getElementById('joinReqsWrap');
-            const reqList = document.getElementById('joinReqsList');
-            const uploadWrap = document.getElementById('joinUploadsWrap');
-            const uploadList = document.getElementById('joinUploadsList');
-            reqList.innerHTML = '';
-            uploadList.innerHTML = '';
-            reqWrap.style.display = 'none';
-            uploadWrap.style.display = 'none';
-            (activity.reqs || []).forEach(function (requirement) {
-                const uploadMatch = requirement.match(/^(document|photo)\s*:/i);
-                if (uploadMatch) {
-                    uploadWrap.style.display = '';
-                    const label = document.createElement('label');
-                    label.style.cssText = 'display:block;padding:8px 0;font-size:12.5px;color:#1c2b45;';
-                    label.textContent = requirement.replace(/^(document|photo)\s*:/i, uploadMatch[1].toUpperCase() + ':');
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.name = 'attachments[]';
-                    input.required = true;
-                    input.accept = uploadMatch[1].toLowerCase() === 'photo' ? 'image/jpeg,image/png,image/webp' : 'image/jpeg,image/png,image/webp,application/pdf';
-                    input.style.cssText = 'display:block;margin-top:5px;width:100%;font-size:12px;';
-                    label.appendChild(input);
-                    uploadList.appendChild(label);
-                } else {
-                    reqWrap.style.display = '';
-                    const label = document.createElement('label');
-                    label.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;cursor:pointer;';
-                    const box = document.createElement('input');
-                    box.type = 'checkbox';
-                    box.name = 'requirements[]';
-                    box.value = requirement;
-                    label.appendChild(box);
-                    label.appendChild(document.createTextNode(' ' + requirement));
-                    reqList.appendChild(label);
-                }
-            });
+            ActivityForm.renderJoinRequirements(
+                activity.reqs || [],
+                document.getElementById('joinReqsList'),
+                document.getElementById('joinUploadsList'),
+                document.getElementById('joinReqsWrap'),
+                document.getElementById('joinUploadsWrap')
+            );
             document.getElementById('joinModal').classList.add('active');
         }
         document.getElementById('joinModal').addEventListener('click', function (event) {

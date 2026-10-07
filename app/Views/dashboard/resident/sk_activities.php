@@ -413,6 +413,10 @@
                                         <?php if (!empty($p['venue'])): ?>
                                             <span><i class="fas fa-map-marker-alt"></i> <?= esc($p['venue']) ?></span>
                                         <?php endif; ?>
+                                        <?php $eligLabels = \App\Models\BarangayActivityModel::eligibilitySummary($p); ?>
+                                        <?php if ($eligLabels !== []): ?>
+                                            <span><i class="fas fa-user-check"></i> <?= esc(implode(' · ', $eligLabels)) ?></span>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                                 <span class="db-badge <?= $badge ?>" style="flex-shrink:0;<?= $badgeStyle ?>"><?= esc($badgeLabel) ?></span>
@@ -533,50 +537,18 @@
         </div>
     </div>
 
+    <script src="/js/activity-form.js"></script>
     <script>
         function openJoinModal(prog) {
             document.getElementById('joinModalTitle').textContent = 'Join: ' + prog.name;
             document.getElementById('joinForm').action = '/resident/sk-activities/join/' + prog.id;
-
-            const reqWrap = document.getElementById('joinReqsWrap');
-            const reqList = document.getElementById('joinReqsList');
-            const uploadWrap = document.getElementById('joinUploadsWrap');
-            const uploadList = document.getElementById('joinUploadsList');
-            reqList.innerHTML = '';
-            uploadList.innerHTML = '';
-            let uploadIndex = 0;
-
-            if (prog.reqs && prog.reqs.length > 0) {
-                reqWrap.style.display = 'none';
-                prog.reqs.forEach((r, i) => {
-                    const uploadMatch = r.match(/^(document|photo)\s*:/i);
-                    if (uploadMatch) {
-                        uploadWrap.style.display = '';
-                        const label = document.createElement('label');
-                        label.style.cssText = 'display:block;padding:8px 0;font-size:12.5px;color:#1a1d2e;';
-                        label.textContent = r.replace(/^(document|photo)\s*:/i, uploadMatch[1].toUpperCase() + ':');
-                        const input = document.createElement('input');
-                        input.type = 'file';
-                        input.name = 'attachments[]';
-                        input.required = true;
-                        input.accept = uploadMatch[1].toLowerCase() === 'photo' ? 'image/jpeg,image/png,image/webp' : 'image/jpeg,image/png,image/webp,application/pdf';
-                        input.style.cssText = 'display:block;margin-top:5px;width:100%;font-size:12px;';
-                        label.appendChild(input);
-                        uploadList.appendChild(label);
-                        uploadIndex++;
-                    } else {
-                        reqWrap.style.display = '';
-                        const label = document.createElement('label');
-                        label.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;color:#1a1d2e;cursor:pointer;border-bottom:1px solid #f5f6fa;';
-                        label.innerHTML = `<input type="checkbox" name="requirements[]" value="${r}" style="width:15px;height:15px;accent-color:#1d2448;"> ${r}`;
-                        reqList.appendChild(label);
-                    }
-                });
-            } else {
-                reqWrap.style.display = 'none';
-                uploadWrap.style.display = 'none';
-            }
-
+            ActivityForm.renderJoinRequirements(
+                prog.reqs || [],
+                document.getElementById('joinReqsList'),
+                document.getElementById('joinUploadsList'),
+                document.getElementById('joinReqsWrap'),
+                document.getElementById('joinUploadsWrap')
+            );
             document.getElementById('joinModal').classList.add('active');
         }
 

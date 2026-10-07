@@ -224,11 +224,15 @@ class ClearanceController extends BaseController
         $forMember   = $this->request->getPost('for_member');
         $memberRel   = $this->request->getPost('member_relationship');
         $docType     = trim((string) $this->request->getPost('document_type'));
-        $purpose     = trim($this->request->getPost('purpose') ?? '');
+        $purpose     = $this->resolveRequestPurpose();
         $notes       = trim($this->request->getPost('notes') ?? '');
 
         if (empty($forMember) || empty($docType) || empty($purpose)) {
-            return redirect()->back()->with('error', 'Please fill in all required fields.')->withInput();
+            $message = $this->isOtherPurpose(trim((string) $this->request->getPost('purpose')))
+                ? 'Please specify the exact purpose of your request.'
+                : 'Please fill in all required fields.';
+
+            return redirect()->back()->with('error', $message)->withInput();
         }
 
         if (! in_array($docType, \Config\ClearanceDocuments::TYPES, true)) {
@@ -508,7 +512,7 @@ class ClearanceController extends BaseController
 
         $userId    = (int) $this->request->getPost('resident_user_id');
         $docType   = trim((string) $this->request->getPost('document_type'));
-        $purpose   = trim((string) $this->request->getPost('purpose'));
+        $purpose   = $this->resolveRequestPurpose();
         $notes     = trim((string) $this->request->getPost('notes'));
         $userModel = new UserModel();
         $user      = $userModel->where('role', 'resident')->where('status', 'active')->find($userId);
@@ -645,22 +649,15 @@ class ClearanceController extends BaseController
         $filteredTotal = $builder->countAllResults(false);
         $residents     = $builder->limit($perPage, $offset)->get()->getResultArray();
 
-        // Fetch active captain name for document signatures
-        $userModel   = new \App\Models\UserModel();
-        $captainRow  = $userModel->getActiveByRole('captain');
-        $captainName = $captainRow
-            ? strtoupper(trim(($captainRow['first_name'] ?? '') . ' ' . ($captainRow['middle_name'] ?? '') . ' ' . ($captainRow['last_name'] ?? '')))
-            : 'PUNONG BARANGAY';
-
         $templateModel = new DocumentTemplateModel();
         $templates     = $templateModel->tableExists()
             ? $templateModel->getTemplatesIndexedByKey()
             : $templateModel->getDefaultTemplates();
 
-        $settingsModel   = new BarangaySettingsModel();
+        $settingsModel    = new BarangaySettingsModel();
         $barangaySettings = $settingsModel->getAll();
-        // getAll() always overrides captain_name with the live appointed captain
-        $captainName = $barangaySettings['captain_name'] ?: $captainName;
+        $captainName      = official_display_name($barangaySettings['captain_name'] ?? '');
+        $typeContents     = $templateModel->allTypeContents();
 
         $residentAccounts = (new UserModel())
             ->select('id, first_name, last_name, household_no')
@@ -755,6 +752,7 @@ class ClearanceController extends BaseController
             'search'              => $search,
             'captainName'         => $captainName,
             'templates'           => $templates,
+            'typeContents'        => $typeContents,
             'barangaySettings'    => $barangaySettings,
             'captainOwnRequests'  => $captainOwnRequests,
             'captainMembers'      => $captainMembers,
@@ -863,16 +861,15 @@ class ClearanceController extends BaseController
             }
         }
 
-        // Fetch active captain name for document signatures
-        $captainRow  = $userModel->getActiveByRole('captain');
-        $captainName = $captainRow
-            ? strtoupper(trim(($captainRow['first_name'] ?? '') . ' ' . ($captainRow['middle_name'] ?? '') . '. ' . ($captainRow['last_name'] ?? '')))
-            : 'PUNONG BARANGAY';
-
         $settingsModel    = new BarangaySettingsModel();
         $barangaySettings = $settingsModel->getAll();
-        // getAll() always overrides captain_name with the live appointed captain
-        $captainName = $barangaySettings['captain_name'] ?: $captainName;
+        $captainName      = official_display_name($barangaySettings['captain_name'] ?? '');
+        $typeContents     = (new DocumentTemplateModel())->allTypeContents();
+        $requestContents  = [];
+        foreach ($requests as $request) {
+            $docKey = $this->documentTypeKey((string) ($request['document_type'] ?? ''));
+            $requestContents[(int) $request['id']] = $this->decodeDocumentContent($docKey, $request['document_content'] ?? null);
+        }
 
         return view('dashboard/captain/clearance_detail', [
             'role'             => $role,
@@ -881,6 +878,8 @@ class ClearanceController extends BaseController
             'censusRecord'     => $censusRecord,
             'requests'         => $requests,
             'requestCensus'    => $requestCensus,
+            'requestContents'  => $requestContents,
+            'typeContents'     => $typeContents,
             'requestId'        => $userId,
             'captainName'      => $captainName,
             'barangaySettings' => $barangaySettings,
@@ -924,7 +923,7 @@ class ClearanceController extends BaseController
     private function markApproved(int $id, ?int $processedBy, array $req): void
     {
         $barangaySettings = (new BarangaySettingsModel())->getAll();
-        $snapshotCaptain  = $barangaySettings['captain_name'] ?: 'PUNONG BARANGAY';
+        $snapshotCaptain  = official_display_name($barangaySettings['captain_name'] ?? '');
         $snapshotDate     = date('Y-m-d');
 
         $this->model->update($id, [
@@ -1029,7 +1028,7 @@ class ClearanceController extends BaseController
 
         $snapshot = $this->buildReleasedDocumentSnapshot($req);
         $settings = (new BarangaySettingsModel())->getAll();
-        $captainName = $settings['captain_name'] ?: 'PUNONG BARANGAY';
+        $captainName = official_display_name($settings['captain_name'] ?? '');
 
         $this->model->update($id, [
             'status'       => 'released',
@@ -1178,5 +1177,77 @@ class ClearanceController extends BaseController
         }
 
         return false;
+    }
+
+    public function saveDocumentContent(int $id)
+    {
+        if (! can_role('secretary', 'admin', 'captain')) {
+            return $this->response->setStatusCode(403)->setJSON(['ok' => false, 'error' => 'Not allowed.']);
+        }
+
+        $req = $this->model->find($id);
+        if (! $req) {
+            return $this->response->setStatusCode(404)->setJSON(['ok' => false, 'error' => 'Request not found.']);
+        }
+
+        $docKey = $this->documentTypeKey((string) ($req['document_type'] ?? ''));
+        $reset = $this->request->getPost('reset') === '1';
+        $content = $reset ? null : DocumentTemplateModel::normalizeContent($docKey, [
+            'title' => $this->request->getPost('title'),
+            'salutation' => $this->request->getPost('salutation'),
+            'body_html' => $this->request->getPost('body_html'),
+            'signature_label' => $this->request->getPost('signature_label'),
+            'signature_title' => $this->request->getPost('signature_title'),
+        ]);
+
+        $this->model->update($id, [
+            'document_content' => $content === null ? null : json_encode($content, JSON_UNESCAPED_UNICODE),
+        ]);
+
+        return $this->response->setJSON([
+            'ok' => true,
+            'content' => $content,
+        ]);
+    }
+
+    private function resolveRequestPurpose(): string
+    {
+        $purpose = trim((string) $this->request->getPost('purpose'));
+        if ($this->isOtherPurpose($purpose)) {
+            return trim((string) $this->request->getPost('purpose_other'));
+        }
+
+        return $purpose;
+    }
+
+    private function isOtherPurpose(string $purpose): bool
+    {
+        $normalized = strtolower(preg_replace('/\s+/', ' ', $purpose) ?? $purpose);
+
+        return in_array($normalized, ['other', 'other purpose', 'other purposes'], true);
+    }
+
+    private function documentTypeKey(string $documentType): string
+    {
+        return match ($documentType) {
+            'Barangay Clearance' => 'clearance',
+            'Certificate of Residency' => 'residency',
+            'Certificate of Indigency' => 'indigency',
+            'Certificate of Good Moral' => 'good_moral',
+            'First Time Job Seekers', 'First Time Job Seeker' => 'first_time_job_seeker',
+            'Solo Parent Certificate' => 'solo_parent',
+            'Business Permit Clearance' => 'business_permit',
+            'Other Document' => 'other_document',
+            default => 'indigency',
+        };
+    }
+
+    private function decodeDocumentContent(string $docKey, mixed $raw): ?array
+    {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        return DocumentTemplateModel::normalizeContent($docKey, $raw);
     }
 }

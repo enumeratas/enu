@@ -364,6 +364,8 @@
         'blotter'   => ['icon' => 'fa-exclamation-circle', 'color' => '#dc3545', 'bg' => 'rgba(220,53,69,.12)',   'label' => 'Blotter Report'],
         'concern'   => ['icon' => 'fa-comments',           'color' => '#e67e22', 'bg' => 'rgba(230,126,34,.12)',  'label' => 'Concern / Inquiry'],
         'schedule'  => ['icon' => 'fa-calendar-alt',       'color' => '#7c5cbf', 'bg' => 'rgba(124,92,191,.12)',  'label' => 'Upcoming Event'],
+        'move'      => ['icon' => 'fa-exchange-alt',       'color' => '#0e7c66', 'bg' => 'rgba(14,124,102,.12)',  'label' => 'Household Move'],
+        'household_move' => ['icon' => 'fa-exchange-alt',  'color' => '#0e7c66', 'bg' => 'rgba(14,124,102,.12)',  'label' => 'Household Move'],
         'personal'  => ['icon' => 'fa-bell',               'color' => '#1d2448', 'bg' => 'rgba(29,36,72,.08)',    'label' => 'Direct Update'],
     ];
     ?>
@@ -405,6 +407,7 @@
                 <button class="notif-tab" onclick="filterNotifs('blotter',this)">Blotter</button>
                 <button class="notif-tab" onclick="filterNotifs('concern',this)">Concerns</button>
                 <button class="notif-tab" onclick="filterNotifs('schedule',this)">Events</button>
+                <button class="notif-tab" onclick="filterNotifs('move',this)">Moves</button>
             </div>
 
             <?php
@@ -446,10 +449,12 @@
             ?>
                     <?php
                         $isUnread = empty($notification['read_at']);
-                        $cfg = $typeConfig['personal'];
+                        $personalType = (string) ($notification['type'] ?? 'personal');
+                        $cfg = $typeConfig[$personalType] ?? $typeConfig['personal'];
                         $actionHref = notification_href_for_role($notification['link'] ?? '', (string) $role);
+                        $filterType = $personalType === 'household_move' ? 'move' : 'personal';
                     ?>
-                        <div class="notif-card <?= $isUnread ? 'unread' : 'read' ?>" data-type="personal"
+                        <div class="notif-card <?= $isUnread ? 'unread' : 'read' ?>" data-type="<?= esc($filterType) ?>"
                             data-unread="<?= $isUnread ? '1' : '0' ?>"
                             id="notif-personal-<?= (int) $notification['id'] ?>">
                             <div class="notif-card-inner">
@@ -514,6 +519,12 @@
                         } elseif ($item['type'] === 'schedule') {
                             $actionHref = '/' . $role . '/calendar/view/' . (int)($item['schedule_id'] ?? 0);
                             $actionLabel = 'Calendar';
+                        } elseif ($item['type'] === 'move') {
+                            $actionHref = ! empty($item['household_no'])
+                                ? '/' . $role . '/household/' . rawurlencode((string) $item['household_no'])
+                                : '/' . $role . '/moves?status=pending';
+                            $actionLabel = 'Review';
+                            $isPrimary   = true;
                         }
                     ?>
                         <?php $isUnread = empty($item['is_read']); ?>

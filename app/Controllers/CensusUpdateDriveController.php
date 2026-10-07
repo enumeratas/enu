@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Models\CensusUpdateAuthorizationModel;
 use App\Models\CensusUpdateDriveModel;
+use App\Models\HouseholdMemberRequestModel;
 use App\Models\NotificationModel;
 use App\Models\UserModel;
 
@@ -12,6 +13,11 @@ class CensusUpdateDriveController extends BaseController
     public function index()
     {
         $search = \App\Libraries\RecordSearch::term();
+
+        $memberRequests = [];
+        if (\Config\Database::connect()->tableExists('household_member_requests')) {
+            $memberRequests = (new HouseholdMemberRequestModel())->listPending();
+        }
 
         return view('dashboard/census_update_drives/index', [
             'role'   => $this->currentRole(),
@@ -31,6 +37,8 @@ class CensusUpdateDriveController extends BaseController
             ),
             'open'   => (new CensusUpdateDriveModel())->currentOpen(),
             'search' => $search,
+            'submittedUpdates' => (new CensusUpdateAuthorizationModel())->listForReview(['submitted']),
+            'pendingMemberRequests' => $memberRequests,
         ]);
     }
 

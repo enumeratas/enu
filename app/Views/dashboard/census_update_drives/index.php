@@ -101,6 +101,10 @@
                 </div>
             <?php endif; ?>
 
+            <?php
+            $submittedUpdates = $submittedUpdates ?? [];
+            $pendingMemberRequests = $pendingMemberRequests ?? [];
+            ?>
             <?php if ($open): ?>
                 <div class="db-alert" style="margin-bottom:16px;background:#f4f6fd;border:1px solid #c5d0e8;color:#16325c;">
                     <i class="fas fa-bell"></i>
@@ -108,6 +112,129 @@
                     — <?= esc($open['title']) ?>.
                 </div>
             <?php endif; ?>
+
+            <div class="cud-card">
+                <div class="cud-head">
+                    <h2>Submitted census updates</h2>
+                    <p>Approve or reject household and personal updates from residents. Changes take effect only after Captain or Secretary approval.</p>
+                </div>
+                <div class="db-table-wrap">
+                    <table class="db-table">
+                        <thead>
+                            <tr>
+                                <th>Resident</th>
+                                <th>Household</th>
+                                <th>Request</th>
+                                <th>Submitted</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if ($submittedUpdates === []): ?>
+                                <tr>
+                                    <td colspan="5" style="text-align:center;color:#6b7689;padding:28px 16px;">No census updates are waiting for review.</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($submittedUpdates as $update): ?>
+                                    <?php
+                                    $notes = json_decode((string) ($update['notes'] ?? ''), true);
+                                    $scope = is_array($notes) ? ($notes['scope'] ?? 'head') : 'head';
+                                    $confirmOnly = is_array($notes) && ! empty($notes['confirm_only']);
+                                    $who = trim(($update['first_name'] ?? '') . ' ' . ($update['last_name'] ?? '')) ?: 'Resident';
+                                    $summary = $confirmOnly
+                                        ? 'Confirmed existing information'
+                                        : ($scope === 'member' ? 'Personal information update' : 'Household information update');
+                                    ?>
+                                    <tr>
+                                        <td><strong><?= esc($who) ?></strong></td>
+                                        <td>#<?= esc($update['household_no'] ?? '—') ?></td>
+                                        <td><?= esc($summary) ?></td>
+                                        <td style="font-size:12px;color:#6b7689;white-space:nowrap;">
+                                            <?= ! empty($update['submitted_at']) ? esc(date('M j, Y g:i A', strtotime((string) $update['submitted_at']))) : '—' ?>
+                                        </td>
+                                        <td style="white-space:nowrap;">
+                                            <form method="post" action="/<?= esc($role) ?>/resident/approve-census-update/<?= (int) $update['id'] ?>" style="display:inline;" onsubmit="return confirm('Apply this census update now?');">
+                                                <?= csrf_field() ?>
+                                                <button type="submit" class="db-btn db-btn--primary db-btn--sm"><i class="fas fa-check"></i> Approve</button>
+                                            </form>
+                                            <form method="post" action="/<?= esc($role) ?>/resident/reject-census-update/<?= (int) $update['id'] ?>" style="display:inline-flex;gap:6px;align-items:center;margin-left:6px;">
+                                                <?= csrf_field() ?>
+                                                <input type="text" name="remarks" placeholder="Reason (optional)" style="width:160px;padding:6px 8px;border:1px solid #d7dce6;font-size:12px;">
+                                                <button type="submit" class="db-btn db-btn--outline db-btn--sm"><i class="fas fa-times"></i> Reject</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="cud-card">
+                <div class="cud-head">
+                    <h2>Household member requests</h2>
+                    <p>Add, move, and remove requests from household heads stay pending until the Captain or Secretary approves them.</p>
+                </div>
+                <div class="db-table-wrap">
+                    <table class="db-table">
+                        <thead>
+                            <tr>
+                                <th>Request</th>
+                                <th>Household</th>
+                                <th>Details</th>
+                                <th>Requested by</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if ($pendingMemberRequests === []): ?>
+                                <tr>
+                                    <td colspan="5" style="text-align:center;color:#6b7689;padding:28px 16px;">No member add, move, or remove requests are pending.</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($pendingMemberRequests as $request): ?>
+                                    <?php
+                                    $reqName = trim(($request['req_first'] ?? '') . ' ' . ($request['req_last'] ?? '')) ?: 'Household head';
+                                    $memName = trim(($request['mem_first'] ?? '') . ' ' . ($request['mem_last'] ?? ''));
+                                    $addPayload = json_decode((string) ($request['payload'] ?? ''), true) ?: [];
+                                    if ($memName === '' && ($request['request_type'] ?? '') === 'add') {
+                                        $memName = trim(($addPayload['first_name'] ?? '') . ' ' . ($addPayload['last_name'] ?? ''));
+                                    }
+                                    $detail = ucfirst((string) ($request['request_type'] ?? 'change'));
+                                    if ($memName !== '') {
+                                        $detail .= ' ' . $memName;
+                                    }
+                                    if (! empty($request['destination_household_no'])) {
+                                        $detail .= ' → #' . $request['destination_household_no'];
+                                    }
+                                    if (! empty($request['reason'])) {
+                                        $detail .= ' — ' . $request['reason'];
+                                    }
+                                    ?>
+                                    <tr>
+                                        <td><span class="dbadge dbadge--pending"><?= esc(ucfirst((string) ($request['request_type'] ?? 'change'))) ?></span></td>
+                                        <td>#<?= esc($request['household_no'] ?? '—') ?></td>
+                                        <td><?= esc($detail) ?></td>
+                                        <td><?= esc($reqName) ?></td>
+                                        <td style="white-space:nowrap;">
+                                            <form method="post" action="/<?= esc($role) ?>/member-request/approve/<?= (int) $request['id'] ?>" style="display:inline;" onsubmit="return confirm('Apply this member request now?');">
+                                                <?= csrf_field() ?>
+                                                <button type="submit" class="db-btn db-btn--primary db-btn--sm"><i class="fas fa-check"></i> Approve</button>
+                                            </form>
+                                            <form method="post" action="/<?= esc($role) ?>/member-request/reject/<?= (int) $request['id'] ?>" style="display:inline-flex;gap:6px;align-items:center;margin-left:6px;">
+                                                <?= csrf_field() ?>
+                                                <input type="text" name="remarks" placeholder="Reason (optional)" style="width:160px;padding:6px 8px;border:1px solid #d7dce6;font-size:12px;">
+                                                <button type="submit" class="db-btn db-btn--outline db-btn--sm"><i class="fas fa-times"></i> Reject</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
             <div class="cud-card">
                 <div class="cud-head">

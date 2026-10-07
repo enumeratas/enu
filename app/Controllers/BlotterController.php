@@ -1034,43 +1034,92 @@ class BlotterController extends BaseController
 
     public function viewCertificate(int $id)
     {
-        $role   = (string)(session()->get('role') ?? 'captain');
-        $db     = \Config\Database::connect();
-        $report = $db->table('blotter_reports b')
+        $payload = $this->certificatePayload($id);
+        if ($payload === null) {
+            $role = (string) (session()->get('role') ?? 'captain');
+            return redirect()->to('/' . $role . '/blotter')->with('error', 'Report not found.');
+        }
+
+        return view('blotter_certificate', $payload + ['mode' => 'screen']);
+    }
+
+    public function downloadCertificate(int $id)
+    {
+        $payload = $this->certificatePayload($id);
+        if ($payload === null) {
+            $role = (string) (session()->get('role') ?? 'captain');
+            return redirect()->to('/' . $role . '/blotter')->with('error', 'Report not found.');
+        }
+
+        $html = view('blotter_certificate', $payload + ['mode' => 'pdf']);
+        $options = new \Dompdf\Options();
+        $options->set('isRemoteEnabled', true);
+        $options->set('isHtml5ParserEnabled', true);
+        $options->setChroot(FCPATH);
+
+        $dompdf = new \Dompdf\Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        $filename = 'certificate-to-file-action-BL-' . str_pad((string) $id, 4, '0', STR_PAD_LEFT) . '.pdf';
+
+        return $this->response
+            ->setHeader('Content-Type', 'application/pdf')
+            ->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->setBody($dompdf->output());
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function certificatePayload(int $id): ?array
+    {
+        $role = (string) (session()->get('role') ?? 'captain');
+        $report = \Config\Database::connect()->table('blotter_reports b')
             ->select("b.*, CONCAT(TRIM(COALESCE(u.first_name,'')), ' ', TRIM(COALESCE(u.last_name,''))) AS complainant_full_name, u.email AS complainant_email_addr")
             ->join('users u', 'u.id = b.complainant_user_id', 'left')
             ->where('b.id', $id)
             ->get()->getRowArray();
 
         if (! $report) {
-            return redirect()->to('/' . $role . '/blotter')->with('error', 'Report not found.');
+            return null;
         }
 
-        $userModel     = new \App\Models\UserModel();
-        $captainRow    = $userModel->getActiveByRole('captain');
-        $captainName   = $captainRow
-            ? strtoupper(preg_replace('/\s+/', ' ', trim(
-                ($captainRow['first_name'] ?? '') . ' ' .
-                    ($captainRow['middle_name'] ?? '') . ' ' .
-                    ($captainRow['last_name']   ?? '')
-            )))
-            : 'PUNONG BARANGAY';
+        $userModel = new UserModel();
+        $officialName = static function (?array $row, string $fallback): string {
+            if (! $row) {
+                return $fallback;
+            }
+            $name = strtoupper(preg_replace('/\s+/', ' ', trim(
+                ($row['first_name'] ?? '') . ' ' .
+                ($row['middle_name'] ?? '') . ' ' .
+                ($row['last_name'] ?? '')
+            )) ?? '');
 
-        $secretaryRow  = $userModel->getAppointedSecretary();
-        $secretaryName = $secretaryRow
-            ? strtoupper(preg_replace('/\s+/', ' ', trim(
-                ($secretaryRow['first_name'] ?? '') . ' ' .
-                    ($secretaryRow['middle_name'] ?? '') . ' ' .
-                    ($secretaryRow['last_name']   ?? '')
-            )))
-            : 'BARANGAY SECRETARY';
+            return $name !== '' ? $name : $fallback;
+        };
 
-        return view('blotter_certificate', [
+        return [
             'report'        => $report,
             'role'          => $role,
-            'captainName'   => $captainName,
-            'secretaryName' => $secretaryName,
-        ]);
+            'captainName'   => $officialName($userModel->getActiveByRole('captain'), 'PUNONG BARANGAY'),
+            'secretaryName' => $officialName($userModel->getAppointedSecretary(), 'BARANGAY SECRETARY'),
+            'downloadUrl'   => '/' . $role . '/blotter/certificate/' . $id . '/download',
+            'viewUrl'       => '/' . $role . '/blotter/certificate/' . $id,
+            'barangaySeal'  => $this->certificateAssetUri('bacolod.png'),
+            'municipalitySeal' => $this->certificateAssetUri('Picture1.png'),
+        ];
+    }
+
+    private function certificateAssetUri(string $filename): string
+    {
+        $path = FCPATH . ltrim($filename, '/\\');
+        if (! is_file($path)) {
+            return '/' . ltrim($filename, '/');
+        }
+
+        return 'data:image/png;base64,' . base64_encode((string) file_get_contents($path));
     }
 
     public function evidence(int $id, int $index)

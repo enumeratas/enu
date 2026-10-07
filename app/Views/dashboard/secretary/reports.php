@@ -486,7 +486,7 @@
 
 <body class="db-body">
     <?php
-    $role      = 'secretary';
+    $role      = session()->get('role') === 'admin' ? 'admin' : 'secretary';
     $active    = 'reports';
     $pageTitle = 'Reports & Analytics';
     include(APPPATH . 'Views/dashboard/sidebar.php');
@@ -510,6 +510,7 @@
         'demographic' => 'IV. Demographic Information',
         'age_bracket' => 'F. Population by Age Bracket',
         'sector'      => 'G. Population by Sector',
+        'water'       => 'H. Water Source & Sanitation',
     ];
     ?>
 
@@ -518,7 +519,7 @@
         <div class="db-content">
             <!-- ── Toolbar ── -->
             <div class="rpt-toolbar">
-                <a href="/secretary/reports/front-page" class="db-btn db-btn--outline">
+                <a href="/<?= esc($role) ?>/reports/front-page" class="db-btn db-btn--outline">
                     <i class="fas fa-edit"></i> Edit Front Page
                 </a>
                 <button class="db-btn db-btn--outline" id="filterToggleBtn" onclick="toggleFilterPanel()">
@@ -649,7 +650,7 @@
                     <div class="rpt-card" id="sec-age_bracket">
                         <div class="rpt-card-header">
                             <i class="fas fa-table"></i>
-                            <h4>G. &nbsp;Popuplation by Sector</h4>
+                            <h4>G. &nbsp;Population by Sector</h4>
                         </div>
                         <table class="rpt-table">
                             <thead>
@@ -770,8 +771,8 @@
                 if (cb.checked) selected.push(cb.value);
             });
             const sections = selected.length > 0 ? selected.join(',') : 'all';
-            const url = '/secretary/reports/export?sections=' + encodeURIComponent(sections);
-            const downloadUrl = '/secretary/reports/download?sections=' + encodeURIComponent(sections);
+            const url = '/<?= esc($role) ?>/reports/export?sections=' + encodeURIComponent(sections);
+            const downloadUrl = '/<?= esc($role) ?>/reports/download?sections=' + encodeURIComponent(sections);
 
             // ── Confirmation dialog ───────────────────────────────────────────
             const overlay = document.createElement('div');

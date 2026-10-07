@@ -390,6 +390,16 @@
     $role      = strtolower((string) (session()->get('role') ?? 'resident'));
     $active    = $role === 'resident' ? 'profile' : 'settings';
     $pageTitle = 'My Profile';
+    $roleLabels = [
+        'admin'     => 'Administrator',
+        'captain'   => 'Barangay Captain',
+        'secretary' => 'Barangay Secretary',
+        'council'   => 'Barangay Council',
+        'sk'        => 'SK Official',
+        'resident'  => 'Resident',
+    ];
+    $roleLabel = $roleLabels[$role] ?? ucwords(str_replace('_', ' ', $role));
+    $roleIcon  = $role === 'council' ? 'fa-landmark' : ($role === 'resident' ? 'fa-users' : 'fa-user-tie');
     include(APPPATH . 'Views/dashboard/sidebar.php');
 
     $user         = $user         ?? [];
@@ -455,7 +465,7 @@
                         <div class="pf-avatar-card">
                             <div class="pf-avatar"><?= $initial ?></div>
                             <div class="pf-avatar-name"><?= esc($fullName) ?><?= $suffix ? ', ' . esc($suffix) : '' ?></div>
-                            <div class="pf-avatar-role"><i class="fas fa-users"></i> Resident</div>
+                            <div class="pf-avatar-role"><i class="fas <?= esc($roleIcon) ?>"></i> <?= esc($roleLabel) ?></div>
                             <?php if ($hhNo !== '—'): ?>
                                 <div class="pf-avatar-hh">Household No. <strong><?= esc($hhNo) ?></strong></div>
                             <?php endif; ?>
@@ -492,6 +502,13 @@
                                     </div>
                                 </div>
                                 <div class="pf-info-item">
+                                    <div class="pf-info-icon"><i class="fas <?= esc($roleIcon) ?>"></i></div>
+                                    <div>
+                                        <div class="pf-info-label">Account Type</div>
+                                        <div class="pf-info-value"><?= esc($roleLabel) ?></div>
+                                    </div>
+                                </div>
+                                <div class="pf-info-item">
                                     <div class="pf-info-icon"><i class="fas fa-envelope"></i></div>
                                     <div>
                                         <div class="pf-info-label">Email</div>
@@ -510,7 +527,7 @@
                             </div>
                             <div>
                                 <h4>Change Password</h4>
-                                <p>OTP sent to your email</p>
+                                <p><?= esc($roleLabel) ?> account · OTP sent to your email</p>
                             </div>
                         </div>
                         <div class="pf-card-body">

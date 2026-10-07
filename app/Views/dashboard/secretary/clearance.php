@@ -212,7 +212,7 @@
                         <p>General-purpose clearance for employment, travel, and other purposes.</p>
                     </div>
                     <div class="doc-tpl-actions">
-                        <a class="db-btn db-btn--sm db-btn--outline" href="/secretary/clearance/templates/edit/clearance"><i class="fas fa-pen"></i> Edit Template</a>
+                        <a class="db-btn db-btn--sm db-btn--outline" href="/<?= esc($feeRole) ?>/clearance/templates/edit/clearance"><i class="fas fa-pen"></i> Edit Template</a>
                         <button class="db-btn db-btn--sm db-btn--primary" onclick="event.stopPropagation();printDoc('clearance')"><i class="fas fa-print"></i> Print</button>
                     </div>
                 </div>
@@ -223,7 +223,7 @@
                         <p>Certifies that the resident lives within the barangay jurisdiction.</p>
                     </div>
                     <div class="doc-tpl-actions">
-                        <a class="db-btn db-btn--sm db-btn--outline" href="/secretary/clearance/templates/edit/residency"><i class="fas fa-pen"></i> Edit Template</a>
+                        <a class="db-btn db-btn--sm db-btn--outline" href="/<?= esc($feeRole) ?>/clearance/templates/edit/residency"><i class="fas fa-pen"></i> Edit Template</a>
                         <button class="db-btn db-btn--sm db-btn--primary" onclick="event.stopPropagation();printDoc('residency')"><i class="fas fa-print"></i> Print</button>
                     </div>
                 </div>
@@ -234,7 +234,7 @@
                         <p>Certifies that the resident belongs to an indigent family.</p>
                     </div>
                     <div class="doc-tpl-actions">
-                        <a class="db-btn db-btn--sm db-btn--outline" href="/secretary/clearance/templates/edit/indigency"><i class="fas fa-pen"></i> Edit Template</a>
+                        <a class="db-btn db-btn--sm db-btn--outline" href="/<?= esc($feeRole) ?>/clearance/templates/edit/indigency"><i class="fas fa-pen"></i> Edit Template</a>
                         <button class="db-btn db-btn--sm db-btn--primary" onclick="event.stopPropagation();printDoc('indigency')"><i class="fas fa-print"></i> Print</button>
                     </div>
                 </div>
@@ -245,7 +245,7 @@
                         <p>Clearance required for business permit applications within the barangay.</p>
                     </div>
                     <div class="doc-tpl-actions">
-                        <a class="db-btn db-btn--sm db-btn--outline" href="/secretary/clearance/templates/edit/business"><i class="fas fa-pen"></i> Edit Template</a>
+                        <a class="db-btn db-btn--sm db-btn--outline" href="/<?= esc($feeRole) ?>/clearance/templates/edit/business"><i class="fas fa-pen"></i> Edit Template</a>
                         <button class="db-btn db-btn--sm db-btn--primary" onclick="event.stopPropagation();printDoc('business')"><i class="fas fa-print"></i> Print</button>
                     </div>
                 </div>
@@ -256,7 +256,7 @@
                         <p>Attests to the good moral character of the resident in the community.</p>
                     </div>
                     <div class="doc-tpl-actions">
-                        <a class="db-btn db-btn--sm db-btn--outline" href="/secretary/clearance/templates/edit/good_moral"><i class="fas fa-pen"></i> Edit Template</a>
+                        <a class="db-btn db-btn--sm db-btn--outline" href="/<?= esc($feeRole) ?>/clearance/templates/edit/good_moral"><i class="fas fa-pen"></i> Edit Template</a>
                         <button class="db-btn db-btn--sm db-btn--primary" onclick="event.stopPropagation();printDoc('good_moral')"><i class="fas fa-print"></i> Print</button>
                     </div>
                 </div>
@@ -267,7 +267,7 @@
                         <p>Certifies the resident's status as a solo parent for government benefits.</p>
                     </div>
                     <div class="doc-tpl-actions">
-                        <a class="db-btn db-btn--sm db-btn--outline" href="/secretary/clearance/templates/edit/solo_parent"><i class="fas fa-pen"></i> Edit Template</a>
+                        <a class="db-btn db-btn--sm db-btn--outline" href="/<?= esc($feeRole) ?>/clearance/templates/edit/solo_parent"><i class="fas fa-pen"></i> Edit Template</a>
                         <button class="db-btn db-btn--sm db-btn--primary" onclick="event.stopPropagation();printDoc('solo_parent')"><i class="fas fa-print"></i> Print</button>
                     </div>
                 </div>
@@ -278,7 +278,7 @@
                         <p>Certifies that the resident is a first-time jobseeker under R.A. 11261, exempting them from certain government fees.</p>
                     </div>
                     <div class="doc-tpl-actions">
-                        <a class="db-btn db-btn--sm db-btn--outline" href="/secretary/clearance/templates/edit/first_time_job_seeker"><i class="fas fa-pen"></i> Edit Template</a>
+                        <a class="db-btn db-btn--sm db-btn--outline" href="/<?= esc($feeRole) ?>/clearance/templates/edit/first_time_job_seeker"><i class="fas fa-pen"></i> Edit Template</a>
                         <button class="db-btn db-btn--sm db-btn--primary" onclick="event.stopPropagation();printDoc('first_time_job_seeker')"><i class="fas fa-print"></i> Print</button>
                     </div>
                 </div>
@@ -289,7 +289,7 @@
                         <p>A flexible general-purpose document template that can be customized for any barangay certification not covered by the specific types.</p>
                     </div>
                     <div class="doc-tpl-actions">
-                        <a class="db-btn db-btn--sm db-btn--outline" href="/secretary/clearance/templates/edit/other_document"><i class="fas fa-pen"></i> Edit Template</a>
+                        <a class="db-btn db-btn--sm db-btn--outline" href="/<?= esc($feeRole) ?>/clearance/templates/edit/other_document"><i class="fas fa-pen"></i> Edit Template</a>
                         <button class="db-btn db-btn--sm db-btn--primary" onclick="event.stopPropagation();printDoc('other_document')"><i class="fas fa-print"></i> Print</button>
                     </div>
                 </div>
@@ -734,6 +734,7 @@
         }
     </style>
 
+    <script src="/js/doc-templates.js"></script>
     <script>
         document.querySelectorAll('.db-nav-item').forEach(i =>
             i.addEventListener('click', () => document.getElementById('sidebar').classList.remove('open'))
@@ -931,8 +932,21 @@
         // ── Barangay settings + captain name for token replacement ────────────
         const pageVars = <?= json_encode(array_merge(
                                 $barangaySettings ?? [],
-                                ['captain_name' => $captainName ?? 'PUNONG BARANGAY']
+                                [
+                                    'captain_name' => $captainName ?? '',
+                                    'secretary_name' => $barangaySettings['secretary_name'] ?? '',
+                                ]
                             ), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+        const typeContents = <?= json_encode($typeContents ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+        if (window.BisDoc) {
+            BisDoc.setTypeContents(typeContents);
+            BisDoc.setBarangay(pageVars);
+            BisDoc.setCaptain(pageVars.captain_name || '');
+            BisDoc.setCensus({ name: 'Juan Dela Cruz', civil: 'Single', zone: 'Zone 1' });
+        }
+        function normalizeDocKey(type) {
+            return type === 'business' ? 'business_permit' : type;
+        }
 
         // ── Screen-preview CSS injected alongside rendered template HTML ──────
         const BC_SCREEN_CSS = `<style>
@@ -1015,11 +1029,11 @@
         let currentDoc = null;
 
         function openDocModal(type) {
-            const tpl = templates[type];
-            if (!tpl) return;
-            currentDoc = type;
+            const key = normalizeDocKey(type);
+            const tpl = templates[key] || templates[type] || { name: type };
+            currentDoc = key;
             document.getElementById('docModalTitle').innerHTML = '<i class="fas fa-file-alt"></i> ' + (tpl.name || tpl.title || type);
-            document.getElementById('docPreviewArea').innerHTML = renderTemplate(tpl);
+            document.getElementById('docPreviewArea').innerHTML = BisDoc.build(key, 'Juan Dela Cruz', 'Employment');
             document.getElementById('docModal').classList.add('active');
         }
 
@@ -1033,6 +1047,8 @@
         });
 
         function printDoc(type) {
+            BisDoc.print(normalizeDocKey(type), 'Juan Dela Cruz', 'Employment');
+            return;
             const tpl = templates[type];
             if (!tpl) return;
             const rendered = renderTemplate(tpl);

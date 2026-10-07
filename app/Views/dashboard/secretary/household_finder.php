@@ -13,6 +13,7 @@
 $role = $role ?? 'secretary';
 $active = 'household_finder';
 $pageTitle = 'Household Finder';
+$hideGlobalSearch = true;
 $finderQuery = trim((string) ($query ?? ''));
 $finderMessage = trim((string) ($message ?? ''));
 $families = (isset($families) && is_array($families)) ? $families : [];

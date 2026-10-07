@@ -13,9 +13,11 @@
     ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Household Members - Bacolod BIS</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/css/census-form.css">
+    <script src="/js/census-ocr.js"></script>
 </head>
 
 <body class="db-body">
@@ -40,6 +42,14 @@
 
     // Education options
     $eduOptions = ['No Formal Education', 'Elementary Level', 'Elementary Graduate', 'High School Level', 'High School Graduate', 'College Level', 'College Graduate', 'Vocational / Tech-Voc', 'Post Graduate'];
+    $censusDocUrl = static function (?string $path): string {
+        $normalized = \App\Controllers\HouseholdUploadController::normalizeUploadPath($path);
+        if ($normalized === '') {
+            return '';
+        }
+        $route = preg_replace('#^uploads/#i', '', ltrim($normalized, '/'));
+        return site_url('household-files/' . implode('/', array_map('rawurlencode', explode('/', $route))));
+    };
     ?>
 
     <div class="db-main">
@@ -509,6 +519,7 @@
         <div class="db-modal pf-modal">
             <form action="/<?= $role ?>/census/update/<?= esc($householdId) ?>" method="post" id="editHeadForm" enctype="multipart/form-data" novalidate>
                 <?= csrf_field() ?>
+                <input type="hidden" name="save_mode" id="editSaveModeField" value="complete">
 
                 <div class="pf-modal-header">
                     <div class="pf-modal-title-wrap">
@@ -516,281 +527,292 @@
                         <div>
                             <div class="pf-modal-republic">Republic of the Philippines</div>
                             <div class="pf-modal-barangay">Barangay Bacolod, Bato, Camarines Sur</div>
-                            <div class="pf-modal-formtitle">EDIT HOUSEHOLD HEAD — CENSUS FORM</div>
+                            <div class="pf-modal-formtitle">Household Census Registration Form — Update Household</div>
                         </div>
                     </div>
                     <button type="button" class="pf-close-btn" onclick="closeModal('editHeadModal')"><i class="fas fa-times"></i></button>
                 </div>
 
                 <div class="pf-body">
-                    <div class="pf-section">
-                        <div class="pf-section-bar"><i class="fas fa-user"></i> PERSONAL INFORMATION</div>
-                        <div class="pf-field-row pf-cols-4">
-                            <div class="pf-field">
-                                <div class="pf-field-label">Last Name</div>
-                                <input type="text" class="pf-input pf-upper pf-alpha" name="last_name" value="<?= esc($head['last_name'] ?? '') ?>" required>
-                            </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">First Name</div>
-                                <input type="text" class="pf-input pf-upper pf-alpha" name="first_name" value="<?= esc($head['first_name'] ?? '') ?>" required>
-                            </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">Middle Name</div>
-                                <input type="text" class="pf-input pf-upper pf-alpha" name="middle_name" value="<?= esc($head['middle_name'] ?? '') ?>">
-                            </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">Suffix</div>
-                                <select class="pf-input" name="suffix">
-                                    <option value="">— NONE —</option>
-                                    <?php foreach (['Jr', 'Sr', 'II', 'III', 'IV'] as $s): ?>
-                                        <option <?= ($head['suffix'] ?? '') === $s ? 'selected' : '' ?>><?= $s ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
+                    <div class="pf-page-section">
+                        <div class="pf-page-section-bar">
+                            <i class="fas fa-user"></i> Household Head — Personal Information
                         </div>
-                        <div class="pf-field-row pf-cols-4">
-                            <div class="pf-field">
-                                <div class="pf-field-label">Date of Birth</div>
-                                <div class="pf-date-wrap"><input type="date" class="pf-input pf-date-input" name="date_of_birth" value="<?= esc($headDobVal) ?>"><i class="fas fa-calendar-alt pf-date-icon"></i></div>
-                            </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">Place of Birth</div>
-                                <input type="text" class="pf-input pf-upper pf-alpha" name="place_of_birth" value="<?= esc($head['place_of_birth'] ?? '') ?>">
-                            </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">Gender</div>
-                                <select class="pf-input" name="gender">
-                                    <option <?= ($head['gender'] ?? '') === 'Male' ? 'selected' : '' ?>>Male</option>
-                                    <option <?= ($head['gender'] ?? '') === 'Female' ? 'selected' : '' ?>>Female</option>
-                                </select>
-                            </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">Civil Status</div>
-                                <select class="pf-input" name="civil_status">
-                                    <?php foreach (['Single', 'Married', 'Widowed', 'Separated', 'Annulled'] as $cs): ?>
-                                        <option <?= ($head['civil_status'] ?? '') === $cs ? 'selected' : '' ?>><?= $cs ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="pf-field-row pf-cols-4">
-                            <div class="pf-field">
-                                <div class="pf-field-label">Nationality</div>
-                                <input type="text" class="pf-input pf-upper pf-alpha" name="nationality" value="<?= esc($head['nationality'] ?? 'FILIPINO') ?>">
-                            </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">Religion</div>
-                                <input type="text" class="pf-input pf-upper pf-alpha" name="religion" value="<?= esc($head['religion'] ?? '') ?>">
-                            </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">Occupation</div>
-                                <input type="text" class="pf-input pf-upper pf-alpha" name="occupation" value="<?= esc($head['occupation'] ?? '') ?>">
-                            </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">Monthly Income (₱)</div>
-                                <input type="number" class="pf-input" name="monthly_income" value="<?= esc($head['monthly_income'] ?? '0') ?>" min="0" step="0.01">
-                            </div>
-                        </div>
-                        <div class="pf-field-row pf-cols-3">
-                            <div class="pf-field">
-                                <div class="pf-field-label">Contact Number</div>
-                                <input type="tel" class="pf-input js-contact-number" name="contact_number" value="<?= esc($head['contact_number'] ?? '') ?>" maxlength="11" inputmode="numeric" pattern="[0-9]{11}" title="Enter exactly 11 digits" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)">
-                            </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">Educational Attainment</div>
-                                <?php $savedEdu = trim((string) ($head['educational_attainment'] ?? '')); $eduMatched = false; ?>
-                                <select class="pf-input" name="educational_attainment">
-                                    <option value="">— Select —</option>
-                                    <?php foreach ($eduOptions as $e): ?>
-                                        <?php $eduSelected = strcasecmp($savedEdu, $e) === 0; if ($eduSelected) { $eduMatched = true; } ?>
-                                        <option value="<?= esc($e) ?>" <?= $eduSelected ? 'selected' : '' ?>><?= esc($e) ?></option>
-                                    <?php endforeach; ?>
-                                    <?php if ($savedEdu !== '' && ! $eduMatched): ?>
-                                        <option value="<?= esc($savedEdu) ?>" selected><?= esc($savedEdu) ?></option>
-                                    <?php endif; ?>
-                                </select>
-                            </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">PhilHealth Number</div>
-                                <input type="text" class="pf-input pf-philhealth" name="philhealth_no" value="<?= esc($head['philhealth_no'] ?? '') ?>" maxlength="12" inputmode="numeric">
-                            </div>
-                        </div>
-                        <div class="pf-field-row pf-cols-1">
-                            <div class="pf-field">
-                                <div class="pf-field-label">Registered Voter?</div>
-                                <div class="pf-radio-row" style="flex-direction:row;gap:20px;padding:8px 10px;">
-                                    <label class="pf-radio">
-                                        <input type="radio" name="registered_voter" value="1" <?= !empty($head['registered_voter']) ? 'checked' : '' ?>>
-                                        <span>Yes</span>
-                                    </label>
-                                    <label class="pf-radio">
-                                        <input type="radio" name="registered_voter" value="0" <?= empty($head['registered_voter']) ? 'checked' : '' ?>>
-                                        <span>No</span>
-                                    </label>
+                        <div class="pf-page-section-body">
+                            <div class="pf-row pf-row-4">
+                                <div>
+                                    <div class="pf-label">Last Name</div>
+                                    <input type="text" class="pf-ctrl pf-upper pf-alpha" name="last_name" data-ocr-last value="<?= esc($head['last_name'] ?? '') ?>" required>
+                                </div>
+                                <div>
+                                    <div class="pf-label">First Name</div>
+                                    <input type="text" class="pf-ctrl pf-upper pf-alpha" name="first_name" data-ocr-first value="<?= esc($head['first_name'] ?? '') ?>" required>
+                                </div>
+                                <div>
+                                    <div class="pf-label">Middle Name</div>
+                                    <input type="text" class="pf-ctrl pf-upper pf-alpha" name="middle_name" data-ocr-middle value="<?= esc($head['middle_name'] ?? '') ?>">
+                                </div>
+                                <div>
+                                    <div class="pf-label">Suffix</div>
+                                    <select class="pf-ctrl" name="suffix">
+                                        <option value="">— NONE —</option>
+                                        <?php foreach (['Jr', 'Sr', 'II', 'III', 'IV'] as $s): ?>
+                                            <option <?= ($head['suffix'] ?? '') === $s ? 'selected' : '' ?>><?= $s ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
                                 </div>
                             </div>
-                        </div>
-                        <div class="pf-field-row pf-cols-1">
-                            <div class="pf-field">
-                                <div class="pf-field-label">Complete Address</div>
-                                <input type="text" class="pf-input pf-upper" name="address" value="<?= esc($head['address'] ?? '') ?>">
+                            <div class="pf-row pf-row-4">
+                                <div>
+                                    <div class="pf-label">Date of Birth</div>
+                                    <div class="pf-date-wrap">
+                                        <input type="date" class="pf-ctrl" name="date_of_birth" data-ocr-dob value="<?= esc($headDobVal) ?>">
+                                        <i class="fas fa-calendar-alt pf-date-icon"></i>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="pf-label">Place of Birth</div>
+                                    <input type="text" class="pf-ctrl pf-upper pf-alpha" name="place_of_birth" value="<?= esc($head['place_of_birth'] ?? '') ?>">
+                                </div>
+                                <div>
+                                    <div class="pf-label">Gender</div>
+                                    <select class="pf-ctrl" name="gender">
+                                        <option <?= ($head['gender'] ?? '') === 'Male' ? 'selected' : '' ?>>Male</option>
+                                        <option <?= ($head['gender'] ?? '') === 'Female' ? 'selected' : '' ?>>Female</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <div class="pf-label">Civil Status</div>
+                                    <select class="pf-ctrl" name="civil_status">
+                                        <?php foreach (['Single', 'Married', 'Widowed', 'Separated', 'Annulled'] as $cs): ?>
+                                            <option <?= ($head['civil_status'] ?? '') === $cs ? 'selected' : '' ?>><?= $cs ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="pf-row pf-row-4">
+                                <div>
+                                    <div class="pf-label">Nationality</div>
+                                    <input type="text" class="pf-ctrl pf-upper pf-alpha" name="nationality" value="<?= esc($head['nationality'] ?? 'FILIPINO') ?>">
+                                </div>
+                                <div>
+                                    <div class="pf-label">Religion</div>
+                                    <input type="text" class="pf-ctrl pf-upper pf-alpha" name="religion" value="<?= esc($head['religion'] ?? '') ?>">
+                                </div>
+                                <div>
+                                    <div class="pf-label">Occupation</div>
+                                    <input type="text" class="pf-ctrl pf-upper pf-alpha" name="occupation" value="<?= esc($head['occupation'] ?? '') ?>">
+                                </div>
+                                <div>
+                                    <div class="pf-label">Monthly Income (₱)</div>
+                                    <input type="number" class="pf-ctrl" name="monthly_income" value="<?= esc($head['monthly_income'] ?? '0') ?>" min="0" step="0.01">
+                                </div>
+                            </div>
+                            <div class="pf-row pf-row-3">
+                                <div>
+                                    <div class="pf-label">Contact Number</div>
+                                    <input type="tel" class="pf-ctrl js-contact-number" name="contact_number" value="<?= esc($head['contact_number'] ?? '') ?>" maxlength="11" inputmode="numeric" pattern="[0-9]{11}" title="Enter exactly 11 digits" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)">
+                                </div>
+                                <div>
+                                    <div class="pf-label">Educational Attainment</div>
+                                    <?php $savedEdu = trim((string) ($head['educational_attainment'] ?? '')); $eduMatched = false; ?>
+                                    <select class="pf-ctrl" name="educational_attainment">
+                                        <option value="">— Select —</option>
+                                        <?php foreach ($eduOptions as $e): ?>
+                                            <?php $eduSelected = strcasecmp($savedEdu, $e) === 0; if ($eduSelected) { $eduMatched = true; } ?>
+                                            <option value="<?= esc($e) ?>" <?= $eduSelected ? 'selected' : '' ?>><?= esc($e) ?></option>
+                                        <?php endforeach; ?>
+                                        <?php if ($savedEdu !== '' && ! $eduMatched): ?>
+                                            <option value="<?= esc($savedEdu) ?>" selected><?= esc($savedEdu) ?></option>
+                                        <?php endif; ?>
+                                    </select>
+                                </div>
+                                <div>
+                                    <div class="pf-label">PhilHealth Number</div>
+                                    <input type="text" class="pf-ctrl pf-philhealth" name="philhealth_no" value="<?= esc($head['philhealth_no'] ?? '') ?>" maxlength="12" inputmode="numeric">
+                                </div>
+                            </div>
+                            <div class="pf-label" style="margin-top:4px;">Are you a Registered Voter?</div>
+                            <div class="pf-radio-row horizontal">
+                                <label class="pf-radio"><input type="radio" name="registered_voter" value="1" <?= !empty($head['registered_voter']) ? 'checked' : '' ?>> <span>Yes</span></label>
+                                <label class="pf-radio"><input type="radio" name="registered_voter" value="0" <?= empty($head['registered_voter']) ? 'checked' : '' ?>> <span>No</span></label>
+                            </div>
+                            <div class="pf-row pf-row-1" style="margin-top:14px;">
+                                <div>
+                                    <div class="pf-label">Complete Address</div>
+                                    <input type="text" class="pf-ctrl pf-upper" name="address" value="<?= esc($head['address'] ?? '') ?>">
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="pf-section">
-                        <div class="pf-section-bar"><i class="fas fa-tags"></i> HOUSEHOLD CLASSIFICATION</div>
-                        <div class="pf-field-row pf-cols-4">
-                            <div class="pf-field">
-                                <div class="pf-field-label">Zone / Purok</div>
-                                <select class="pf-input" name="zone">
-                                    <option value="">— Select —</option>
-                                    <?php foreach (['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4', 'Zone 5', 'Zone 6', 'Zone 7',] as $z): ?>
-                                        <option <?= ($head['zone'] ?? '') === $z ? 'selected' : '' ?>><?= $z ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">Years of Residency</div>
-                                <input type="number" class="pf-input" name="years_of_residency" value="<?= current_years_of_residency($head) ?>" min="0">
-                                <div style="font-size:11px;color:#9aa0b4;margin-top:3px;">This count increases by 1 every January.</div>
-                            </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">House Ownership</div>
-                                <select class="pf-input" name="house_ownership" id="edit_house_ownership"
-                                    onchange="toggleEditNumFamilies(this.value)">
-                                    <?php foreach (['Owned', 'Rented', 'Shared'] as $ho): ?>
-                                        <option <?= ($head['house_ownership'] ?? '') === $ho ? 'selected' : '' ?>><?= $ho ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
+                    <div class="pf-page-section">
+                        <div class="pf-page-section-bar">
+                            <i class="fas fa-tags"></i> Household Classification
                         </div>
+                        <div class="pf-page-section-body">
+                            <div class="pf-row pf-row-4">
+                                <div>
+                                    <div class="pf-label">Household No.</div>
+                                    <input type="text" class="pf-ctrl" value="<?= esc($householdId) ?>" readonly>
+                                </div>
+                                <div>
+                                    <div class="pf-label">Zone / Purok</div>
+                                    <select class="pf-ctrl" name="zone">
+                                        <option value="">— Select —</option>
+                                        <?php foreach (['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4', 'Zone 5', 'Zone 6', 'Zone 7'] as $z): ?>
+                                            <option <?= ($head['zone'] ?? '') === $z ? 'selected' : '' ?>><?= $z ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div>
+                                    <div class="pf-label">Years of Residency</div>
+                                    <input type="number" class="pf-ctrl" name="years_of_residency" value="<?= current_years_of_residency($head) ?>" min="0">
+                                    <div class="pf-file-hint">This count increases by 1 every January.</div>
+                                </div>
+                                <div>
+                                    <div class="pf-label">House Ownership</div>
+                                    <select class="pf-ctrl" name="house_ownership" id="edit_house_ownership" onchange="toggleEditNumFamilies(this.value)">
+                                        <?php foreach (['Owned', 'Rented', 'Shared'] as $ho): ?>
+                                            <option <?= ($head['house_ownership'] ?? '') === $ho ? 'selected' : '' ?>><?= $ho ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </div>
 
-                        <!-- Shared address group fields — visible only when Shared -->
-                        <div id="edit_shared_group_row" style="display:<?= ($head['house_ownership'] ?? '') === 'Shared' ? 'block' : 'none' ?>;margin-top:10px;padding:12px 14px;background:#f5f7ff;border:1px solid #dde2f5;border-radius:9px;">
-                            <div style="font-size:11.5px;font-weight:700;color:#4a5068;margin-bottom:8px;">
-                                <i class="fas fa-link" style="color:#8e44ad;margin-right:5px;"></i>Shared Dwelling Group
-                            </div>
-                            <div class="pf-field" style="margin-bottom:8px;">
-                                <div class="pf-field-label">Shared Address Group Code</div>
-                                <input type="text" class="pf-input" name="shared_address_group"
-                                    value="<?= esc($head['shared_address_group'] ?? '') ?>"
-                                    placeholder="e.g. SHR-12345 — must match all families at same address"
-                                    maxlength="20">
-                                <div style="font-size:11px;color:#9aa0b4;margin-top:3px;">All families sharing this dwelling must have the same group code.</div>
-                            </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">Family Number at this Address</div>
-                                <input type="number" class="pf-input" name="family_number"
-                                    value="<?= esc($head['family_number'] ?? 1) ?>" min="1" max="20"
-                                    style="max-width:80px;text-align:center;font-weight:700;">
-                                <div style="font-size:11px;color:#9aa0b4;margin-top:3px;">e.g. 1 = first family registered at this address, 2 = second, etc.</div>
-                            </div>
-                            <div class="pf-field" style="margin-top:8px;">
-                                <div class="pf-field-label">Household number this family belongs to</div>
-                                <input type="text" class="pf-input" name="linked_household_no" value="<?= esc($head['linked_household_no'] ?? '') ?>" maxlength="5" inputmode="numeric" placeholder="e.g. 12345" style="max-width:160px;">
-                            </div>
-                        </div>
-
-                        <!-- Supporting document + notes for ownership classification -->
-                        <div style="margin-top:14px;padding:14px;background:#f8f9ff;border:1px solid #dde2f5;border-radius:10px;">
-                            <div style="font-size:11.5px;font-weight:700;color:#4a5068;margin-bottom:10px;">
-                                <i class="fas fa-paperclip" style="color:#9aa0b4;margin-right:5px;"></i>
-                                Supporting Documents (Optional)
-                            </div>
-                            <div class="pf-field" style="margin-bottom:10px;">
-                                <div class="pf-field-label">Attach Proof of Ownership / Tenancy</div>
-                                <input type="file" name="ownership_document"
-                                    class="pf-input" style="padding:6px;"
-                                    accept=".pdf,.jpg,.jpeg,.png">
-                                <?php if (!empty($head['ownership_document_path'])): ?>
-                                    <div style="font-size:11.5px;color:#16a085;margin-top:4px;">
-                                        <i class="fas fa-file"></i>
-                                        Current: <a href="/household-files/ownership/<?= esc(rawurlencode(basename($head['ownership_document_path']))) ?>"
-                                            target="_blank" style="color:#16a085;">View attached file</a>
+                            <div id="edit_shared_group_row" style="display:<?= ($head['house_ownership'] ?? '') === 'Shared' ? 'block' : 'none' ?>;margin-top:12px;padding:12px 14px;background:#f5f7ff;border:1px solid #dde2f5;border-radius:9px;">
+                                <div class="pf-label"><i class="fas fa-link" style="color:#8e44ad;margin-right:5px;"></i>Shared Dwelling Group</div>
+                                <div class="pf-row pf-row-2" style="margin-top:8px;">
+                                    <div>
+                                        <div class="pf-label">Shared Address Group Code</div>
+                                        <input type="text" class="pf-ctrl" name="shared_address_group" value="<?= esc($head['shared_address_group'] ?? '') ?>" placeholder="e.g. SHR-12345" maxlength="20">
+                                        <div class="pf-file-hint">All families sharing this dwelling must have the same group code.</div>
                                     </div>
+                                    <div>
+                                        <div class="pf-label">Family Number at this Address</div>
+                                        <input type="number" class="pf-ctrl" name="family_number" value="<?= esc($head['family_number'] ?? 1) ?>" min="1" max="20">
+                                    </div>
+                                </div>
+                                <div style="margin-top:8px;">
+                                    <div class="pf-label">Household number this family belongs to</div>
+                                    <input type="text" class="pf-ctrl" name="linked_household_no" value="<?= esc($head['linked_household_no'] ?? '') ?>" maxlength="5" inputmode="numeric" placeholder="e.g. 12345" style="max-width:180px;">
+                                </div>
+                            </div>
+
+                            <?php $headSupportUrl = $censusDocUrl($head['supporting_doc_path'] ?? null); ?>
+                            <div class="pf-id-upload" style="margin-top:12px;" data-id-block data-id-key="head_support" data-ocr-mode="single">
+                                <label class="pf-id-label"><i class="fas fa-id-card"></i> Head ID or Birth Certificate <span class="pf-req">* REQUIRED</span></label>
+                                <label class="pf-file-drop">
+                                    <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                                    <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose one ID or birth certificate</span><span class="pf-file-name"><?= $headSupportUrl !== '' ? 'Existing file on record' : 'No file selected' ?></span></span>
+                                    <input type="file" name="head_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                                </label>
+                                <?php if ($headSupportUrl !== ''): ?>
+                                    <div class="pf-file-hint" style="color:#166534;"><i class="fas fa-check-circle"></i> Existing on file. <a href="<?= esc($headSupportUrl) ?>" target="_blank">View</a>. Leave blank to keep it, or upload a new file to replace it.</div>
+                                <?php else: ?>
+                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. OCR reads the document and checks it against the name and birthdate.</div>
                                 <?php endif; ?>
+                                <input type="hidden" name="head_supporting_verified" value="0" data-ocr-flag>
+                                <div class="pf-ocr-row">
+                                    <div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID or birth certificate. OCR runs automatically.</div>
+                                    <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
+                                </div>
                             </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">Notes / Remarks</div>
-                                <textarea class="pf-input" name="ownership_notes" rows="2"
-                                    placeholder="e.g. Renting from Brgy. Bacolod since 2018, lease renewed annually…"
-                                    style="resize:vertical;font-family:inherit;font-size:13px;"><?= esc($head['ownership_notes'] ?? '') ?></textarea>
-                            </div>
-                        </div>
-                        <div class="pf-check-row">
-                            <span class="pf-check-label">Belongs to:</span>
-                            <label class="pf-check"><input type="checkbox" name="is_4ps" value="1" id="head_edit_4ps"
-                                    <?= !empty($head['is_4ps']) ? 'checked' : '' ?>
-                                    onchange="toggleIdUpload('head_edit_4ps','head_edit_id_4ps_wrap')"> <span>4Ps</span></label>
-                            <label class="pf-check"><input type="checkbox" name="is_senior_citizen" value="1" id="head_edit_senior"
-                                    <?= !empty($head['is_senior_citizen']) ? 'checked' : '' ?>
-                                    onchange="toggleIdUpload('head_edit_senior','head_edit_id_senior_wrap')"> <span>Senior Citizen</span></label>
-                            <label class="pf-check"><input type="checkbox" name="is_solo_parent" value="1" id="head_edit_solo"
-                                    <?= !empty($head['is_solo_parent']) ? 'checked' : '' ?>
-                                    onchange="toggleIdUpload('head_edit_solo','head_edit_id_solo_wrap')"> <span>Solo Parent</span></label>
-                            <label class="pf-check"><input type="checkbox" name="is_indigenous" value="1" <?= !empty($head['is_indigenous']) ? 'checked' : '' ?>> <span>Indigenous</span></label>
-                        </div>
 
-                        <!-- Conditional ID uploads for head classification -->
-                        <?php
-                        $idFields = [
-                            ['wrap' => 'head_edit_id_4ps_wrap',    'field' => 'id_4ps',         'path' => $head['id_4ps_path'] ?? null,         'label' => '4Ps Beneficiary ID',    'checked' => !empty($head['is_4ps'])],
-                            ['wrap' => 'head_edit_id_senior_wrap', 'field' => 'id_senior',      'path' => $head['id_senior_path'] ?? null,      'label' => 'Senior Citizen ID',     'checked' => !empty($head['is_senior_citizen'])],
-                            ['wrap' => 'head_edit_id_solo_wrap',   'field' => 'id_solo_parent', 'path' => $head['id_solo_parent_path'] ?? null, 'label' => 'Solo Parent ID',        'checked' => !empty($head['is_solo_parent'])],
-                        ];
-                        foreach ($idFields as $idf):
-                        ?>
-                            <div id="<?= $idf['wrap'] ?>" class="pf-id-upload" style="display:<?= $idf['checked'] ? 'block' : 'none' ?>;margin-top:8px;">
-                                <label class="pf-id-label" style="display:flex;align-items:center;gap:6px;font-weight:600;font-size:13px;color:#2a3148;">
-                                    <i class="fas fa-id-card" style="color:#5b6fd6;"></i>
-                                    <?= $idf['label'] ?>
-                                    <?php if ($idf['field'] !== 'id_senior'): ?><span class="pf-req" style="color:#c0392b;font-weight:700;">* REQUIRED</span><?php else: ?><span style="color:#6b7291;font-size:11px;font-weight:500;">(Optional)</span><?php endif; ?>
-                                    <?php if (!empty($idf['path'])): ?>
-                                        <span style="margin-left:auto;font-weight:500;font-size:12px;color:#3a8f61;">
-                                            <i class="fas fa-check-circle"></i>
-                                            Existing on file
-                                            <a href="/<?= esc($idf['path']) ?>" target="_blank" style="color:#5b6fd6;text-decoration:underline;margin-left:6px;">(View)</a>
-                                        </span>
+                            <div class="pf-check-row">
+                                <span class="pf-check-label">Household belongs to:</span>
+                                <label class="pf-check"><input type="checkbox" name="is_4ps" value="1" id="head_edit_4ps" <?= !empty($head['is_4ps']) ? 'checked' : '' ?> onchange="toggleIdUpload('head_edit_4ps','head_edit_id_4ps_wrap')"> <span>4Ps Beneficiary</span></label>
+                                <label class="pf-check"><input type="checkbox" name="is_senior_citizen" value="1" id="head_edit_senior" <?= !empty($head['is_senior_citizen']) ? 'checked' : '' ?> onchange="toggleIdUpload('head_edit_senior','head_edit_id_senior_wrap')"> <span>Senior Citizen</span></label>
+                                <label class="pf-check"><input type="checkbox" name="is_solo_parent" value="1" id="head_edit_solo" <?= !empty($head['is_solo_parent']) ? 'checked' : '' ?> onchange="toggleIdUpload('head_edit_solo','head_edit_id_solo_wrap')"> <span>Solo Parent</span></label>
+                                <label class="pf-check"><input type="checkbox" name="is_indigenous" value="1" <?= !empty($head['is_indigenous']) ? 'checked' : '' ?>> <span>Indigenous People</span></label>
+                            </div>
+
+                            <?php
+                            $editIdBlocks = [
+                                ['wrap' => 'head_edit_id_4ps_wrap', 'field' => 'id_4ps', 'flag' => 'id_4ps_verified', 'path' => $head['id_4ps_path'] ?? null, 'label' => '4Ps Beneficiary ID', 'checked' => !empty($head['is_4ps']), 'required' => true],
+                                ['wrap' => 'head_edit_id_senior_wrap', 'field' => 'id_senior', 'flag' => 'id_senior_verified', 'path' => $head['id_senior_path'] ?? null, 'label' => 'Senior Citizen ID', 'checked' => !empty($head['is_senior_citizen']), 'required' => false],
+                                ['wrap' => 'head_edit_id_solo_wrap', 'field' => 'id_solo_parent', 'flag' => 'id_solo_parent_verified', 'path' => $head['id_solo_parent_path'] ?? null, 'label' => 'Solo Parent ID', 'checked' => !empty($head['is_solo_parent']), 'required' => true],
+                            ];
+                            foreach ($editIdBlocks as $idf):
+                                $idUrl = $censusDocUrl($idf['path'] ?? null);
+                            ?>
+                                <div id="<?= $idf['wrap'] ?>" class="pf-id-upload" style="display:<?= $idf['checked'] ? 'block' : 'none' ?>;" data-id-block data-id-key="<?= esc($idf['field']) ?>">
+                                    <label class="pf-id-label">
+                                        <i class="fas fa-id-card"></i> <?= esc($idf['label']) ?>
+                                        <?php if ($idf['required']): ?><span class="pf-req">* REQUIRED</span><?php endif; ?>
+                                    </label>
+                                    <div class="pf-id-pair">
+                                        <label class="pf-file-drop">
+                                            <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                                            <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Front of ID</span><span class="pf-file-name"><?= $idUrl !== '' ? 'Existing file on record' : 'No file selected' ?></span></span>
+                                            <input type="file" name="<?= $idf['field'] ?>" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                                        </label>
+                                        <label class="pf-file-drop">
+                                            <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                                            <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Back of ID</span><span class="pf-file-name">No file selected</span></span>
+                                            <input type="file" name="<?= $idf['field'] ?>_back" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-back>
+                                        </label>
+                                    </div>
+                                    <?php if ($idUrl !== ''): ?>
+                                        <div class="pf-file-hint" style="color:#166534;"><i class="fas fa-check-circle"></i> Existing on file. <a href="<?= esc($idUrl) ?>" target="_blank">View</a>. Leave blank to keep it.</div>
+                                    <?php else: ?>
+                                        <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. OCR compares this ID with the name and birthdate above.</div>
                                     <?php endif; ?>
-                                </label>
-                                <input type="file" name="<?= $idf['field'] ?>" accept="image/*,application/pdf" class="pf-file" style="margin-top:4px;width:100%;padding:6px;font-size:13px;">
-                                <div style="font-size:11.5px;color:#6b7291;margin-top:3px;">Upload scanned ID (PDF, JPG, PNG — max 5 MB).<?= !empty($idf['path']) ? ' Leave blank to keep existing file.' : '' ?></div>
-                            </div>
-                        <?php endforeach; ?>
+                                    <input type="hidden" name="<?= $idf['flag'] ?>" value="<?= !empty($head[$idf['flag']]) ? '1' : '0' ?>" data-ocr-flag>
+                                    <div class="pf-ocr-row">
+                                        <div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div>
+                                        <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
 
-                        <div style="margin-top:8px;">
-                            <label class="pf-check"><input type="checkbox" name="is_pwd" value="1" id="head_edit_is_pwd"
-                                    <?= !empty($head['is_pwd']) ? 'checked' : '' ?>
-                                    onchange="togglePwdType(this,'head_edit_pwd_wrap',true);toggleIdUpload('head_edit_is_pwd','head_edit_id_pwd_wrap','checkbox');"> <span>PWD Member</span></label>
-                            <div id="head_edit_pwd_wrap" style="display:<?= !empty($head['is_pwd']) ? 'block' : 'none' ?>;margin-top:6px;margin-left:4px;">
-                                <input type="text" class="pf-input" name="pwd_type" placeholder="Specify disability (e.g. Visual, Hearing, Physical…)" maxlength="120"
-                                    value="<?= esc($head['pwd_type'] ?? '') ?>">
-                            </div>
-                            <div id="head_edit_id_pwd_wrap" class="pf-id-upload" style="display:<?= !empty($head['is_pwd']) ? 'block' : 'none' ?>;margin-top:8px;margin-left:4px;">
-                                <label class="pf-id-label" style="display:flex;align-items:center;gap:6px;font-weight:600;font-size:13px;color:#2a3148;">
-                                    <i class="fas fa-id-card" style="color:#5b6fd6;"></i>
-                                    PWD ID Card
-                                    <span class="pf-req" style="color:#c0392b;font-weight:700;">* REQUIRED</span>
-                                    <?php if (!empty($head['id_pwd_path'])): ?>
-                                        <span style="margin-left:auto;font-weight:500;font-size:12px;color:#3a8f61;">
-                                            <i class="fas fa-check-circle"></i>
-                                            Existing on file
-                                            <a href="/household-files/ids/<?= esc(rawurlencode(basename($head['id_pwd_path']))) ?>" target="_blank" style="color:#5b6fd6;text-decoration:underline;margin-left:6px;">(View)</a>
-                                        </span>
+                            <div style="margin-top:8px;">
+                                <label class="pf-check"><input type="checkbox" name="is_pwd" value="1" id="head_edit_is_pwd" <?= !empty($head['is_pwd']) ? 'checked' : '' ?> onchange="togglePwdType(this,'head_edit_pwd_wrap',true);toggleIdUpload('head_edit_is_pwd','head_edit_id_pwd_wrap','checkbox');"> <span>PWD Member</span></label>
+                                <div id="head_edit_pwd_wrap" style="display:<?= !empty($head['is_pwd']) ? 'block' : 'none' ?>;margin-top:6px;">
+                                    <input type="text" class="pf-ctrl" name="pwd_type" placeholder="Specify disability (e.g. Visual, Hearing, Physical…)" maxlength="120" value="<?= esc($head['pwd_type'] ?? '') ?>">
+                                </div>
+                                <?php $pwdUrl = $censusDocUrl($head['id_pwd_path'] ?? null); ?>
+                                <div id="head_edit_id_pwd_wrap" class="pf-id-upload" style="display:<?= !empty($head['is_pwd']) ? 'block' : 'none' ?>;" data-id-block data-id-key="pwd">
+                                    <label class="pf-id-label"><i class="fas fa-id-card"></i> PWD ID Card <span class="pf-req">* REQUIRED</span></label>
+                                    <div class="pf-id-pair">
+                                        <label class="pf-file-drop">
+                                            <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                                            <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Front of ID</span><span class="pf-file-name"><?= $pwdUrl !== '' ? 'Existing file on record' : 'No file selected' ?></span></span>
+                                            <input type="file" name="id_pwd" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                                        </label>
+                                        <label class="pf-file-drop">
+                                            <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                                            <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Back of ID</span><span class="pf-file-name">No file selected</span></span>
+                                            <input type="file" name="id_pwd_back" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-back>
+                                        </label>
+                                    </div>
+                                    <?php if ($pwdUrl !== ''): ?>
+                                        <div class="pf-file-hint" style="color:#166534;"><i class="fas fa-check-circle"></i> Existing on file. <a href="<?= esc($pwdUrl) ?>" target="_blank">View</a>. Leave blank to keep it.</div>
                                     <?php endif; ?>
-                                </label>
-                                <input type="file" name="id_pwd" accept="image/*,application/pdf" class="pf-file" style="margin-top:4px;width:100%;padding:6px;font-size:13px;">
-                                <div style="font-size:11.5px;color:#6b7291;margin-top:3px;">Upload scanned PWD ID (PDF, JPG, PNG — max 5 MB).<?= !empty($head['id_pwd_path']) ? ' Leave blank to keep existing file.' : '' ?></div>
+                                    <input type="hidden" name="id_pwd_verified" value="<?= !empty($head['id_pwd_verified']) ? '1' : '0' ?>" data-ocr-flag>
+                                    <div class="pf-ocr-row">
+                                        <div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div>
+                                        <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
 
-                        <div class="pf-field-row pf-cols-2" style="margin-top:12px;">
-                            <div class="pf-field">
-                                <div class="pf-field-label">No. of Families in Household</div>
-                                <input type="number" class="pf-input" name="num_families" id="edit_num_families"
-                                    value="<?= esc($head['num_families'] ?? 1) ?>" min="1" max="20"
-                                    style="max-width:120px;">
+                            <div class="pf-row pf-row-2" style="margin-top:12px;">
+                                <div>
+                                    <div class="pf-label">No. of Families in Household</div>
+                                    <input type="number" class="pf-ctrl" name="num_families" id="edit_num_families" value="<?= esc($head['num_families'] ?? 1) ?>" min="1" max="20" style="max-width:120px;">
+                                </div>
+                            </div>
+
+                            <div style="margin-top:14px;padding:14px;background:#f8f9ff;border:1px solid #dde2f5;border-radius:10px;">
+                                <div class="pf-sub-label" style="padding-top:0;"><i class="fas fa-paperclip"></i> Supporting Documents (Optional)</div>
+                                <div class="pf-label">Attach Proof of Ownership / Tenancy</div>
+                                <input type="file" name="ownership_document" class="pf-ctrl" style="padding:6px;" accept=".pdf,.jpg,.jpeg,.png">
+                                <?php if ($ownershipDocumentUrl !== ''): ?>
+                                    <div class="pf-file-hint" style="color:#166534;"><i class="fas fa-file"></i> Current: <a href="<?= esc($ownershipDocumentUrl) ?>" target="_blank">View attached file</a></div>
+                                <?php endif; ?>
+                                <div class="pf-label" style="margin-top:10px;">Notes / Remarks</div>
+                                <textarea class="pf-ctrl" name="ownership_notes" rows="2" placeholder="e.g. Renting from Brgy. Bacolod since 2018, lease renewed annually…"><?= esc($head['ownership_notes'] ?? '') ?></textarea>
                             </div>
                         </div>
                     </div>
@@ -801,39 +823,45 @@
                     $sanitationBasic = (string) ($head['sanitation_basic'] ?? '');
                     $sanitationManaged = (string) ($head['sanitation_managed'] ?? '');
                     ?>
-                    <div class="pf-section">
-                        <div class="pf-section-bar"><i class="fas fa-tint"></i> Access to Safe Water &amp; Sanitation Facility</div>
-                        <div class="pf-field-row pf-cols-2">
-                            <div class="pf-field">
-                                <div class="pf-field-label">Basic Safe Water Source</div>
-                                <div class="pf-radio-row">
-                                    <label class="pf-radio"><input type="radio" name="water_source" value="I" <?= $waterSource === 'I' ? 'checked' : '' ?>> <span>Level I — Point Source (e.g. protected well, spring)</span></label>
-                                    <label class="pf-radio"><input type="radio" name="water_source" value="II" <?= $waterSource === 'II' ? 'checked' : '' ?>> <span>Level II — Communal Faucet / Stand Post</span></label>
-                                    <label class="pf-radio"><input type="radio" name="water_source" value="III" <?= $waterSource === 'III' ? 'checked' : '' ?>> <span>Level III — Individual House Connection (piped water)</span></label>
-                                    <label class="pf-radio"><input type="radio" name="water_source" value="none" <?= $waterSource === 'none' ? 'checked' : '' ?>> <span>No Safe Water Source</span></label>
-                                </div>
-                            </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">Using Safety-Managed Water Service</div>
-                                <div class="pf-radio-row">
-                                    <label class="pf-radio"><input type="radio" name="water_managed" value="yes" <?= ($waterManaged === 1 || $waterManaged === '1') ? 'checked' : '' ?>> <span>Yes — Water is safely managed</span></label>
-                                    <label class="pf-radio"><input type="radio" name="water_managed" value="no" <?= ($waterManaged === 0 || $waterManaged === '0') ? 'checked' : '' ?>> <span>No — Not safely managed</span></label>
-                                </div>
-                            </div>
+                    <div class="pf-page-section">
+                        <div class="pf-page-section-bar">
+                            <i class="fas fa-tint"></i> Access to Safe Water &amp; Sanitation Facility
                         </div>
-                        <div class="pf-field-row pf-cols-2">
-                            <div class="pf-field">
-                                <div class="pf-field-label">Basic Sanitation Facility</div>
-                                <div class="pf-radio-row">
-                                    <label class="pf-radio"><input type="radio" name="sanitation_basic" value="with" <?= $sanitationBasic === 'with' ? 'checked' : '' ?>> <span>With Basic Sanitation Facility</span></label>
-                                    <label class="pf-radio"><input type="radio" name="sanitation_basic" value="without" <?= $sanitationBasic === 'without' ? 'checked' : '' ?>> <span>Without Basic Sanitation Facility</span></label>
+                        <div class="pf-page-section-body">
+                            <div class="pf-sub-label"><i class="fas fa-water"></i> Access to Safe Water</div>
+                            <div class="pf-row pf-row-2">
+                                <div>
+                                    <div class="pf-label">1. Basic Safe Water Source</div>
+                                    <div class="pf-radio-row">
+                                        <label class="pf-radio"><input type="radio" name="water_source" value="I" <?= $waterSource === 'I' ? 'checked' : '' ?>> <span>Level I — Point Source (e.g. protected well, spring)</span></label>
+                                        <label class="pf-radio"><input type="radio" name="water_source" value="II" <?= $waterSource === 'II' ? 'checked' : '' ?>> <span>Level II — Communal Faucet / Stand Post</span></label>
+                                        <label class="pf-radio"><input type="radio" name="water_source" value="III" <?= $waterSource === 'III' ? 'checked' : '' ?>> <span>Level III — Individual House Connection (piped water)</span></label>
+                                        <label class="pf-radio"><input type="radio" name="water_source" value="none" <?= $waterSource === 'none' ? 'checked' : '' ?>> <span>No Safe Water Source</span></label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="pf-label">2. Using Safety-Managed Water Service</div>
+                                    <div class="pf-radio-row">
+                                        <label class="pf-radio"><input type="radio" name="water_managed" value="yes" <?= ($waterManaged === 1 || $waterManaged === '1') ? 'checked' : '' ?>> <span>Yes — Water is safely managed</span></label>
+                                        <label class="pf-radio"><input type="radio" name="water_managed" value="no" <?= ($waterManaged === 0 || $waterManaged === '0') ? 'checked' : '' ?>> <span>No — Not safely managed</span></label>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="pf-field">
-                                <div class="pf-field-label">Safely Managed Sanitation Services</div>
-                                <div class="pf-radio-row">
-                                    <label class="pf-radio"><input type="radio" name="sanitation_managed" value="with" <?= $sanitationManaged === 'with' ? 'checked' : '' ?>> <span>With Safely Managed Sanitation</span></label>
-                                    <label class="pf-radio"><input type="radio" name="sanitation_managed" value="without" <?= $sanitationManaged === 'without' ? 'checked' : '' ?>> <span>Without Safely Managed Sanitation</span></label>
+                            <div class="pf-sub-label" style="border-top:1px solid #f0f2f8;"><i class="fas fa-toilet"></i> Sanitation Facility</div>
+                            <div class="pf-row pf-row-2">
+                                <div>
+                                    <div class="pf-label">1. Basic Sanitation Facility</div>
+                                    <div class="pf-radio-row">
+                                        <label class="pf-radio"><input type="radio" name="sanitation_basic" value="with" <?= $sanitationBasic === 'with' ? 'checked' : '' ?>> <span>With Basic Sanitation Facility</span></label>
+                                        <label class="pf-radio"><input type="radio" name="sanitation_basic" value="without" <?= $sanitationBasic === 'without' ? 'checked' : '' ?>> <span>Without Basic Sanitation Facility</span></label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="pf-label">2. Using Safely Managed Sanitation Services</div>
+                                    <div class="pf-radio-row">
+                                        <label class="pf-radio"><input type="radio" name="sanitation_managed" value="with" <?= $sanitationManaged === 'with' ? 'checked' : '' ?>> <span>With Safely Managed Sanitation</span></label>
+                                        <label class="pf-radio"><input type="radio" name="sanitation_managed" value="without" <?= $sanitationManaged === 'without' ? 'checked' : '' ?>> <span>Without Safely Managed Sanitation</span></label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -842,8 +870,9 @@
 
                 <div class="pf-footer">
                     <div style="flex:1;"></div>
-                    <button type="button" class="pf-btn pf-btn--outline" onclick="closeModal('editHeadModal')">Cancel</button>
-                    <button type="submit" class="pf-btn pf-btn--primary"><i class="fas fa-save"></i> Save Changes</button>
+                    <button type="button" class="pf-page-btn pf-page-btn--outline" onclick="closeModal('editHeadModal')">Cancel</button>
+                    <button type="submit" class="pf-page-btn pf-page-btn--primary" id="editSaveBtn"><i class="fas fa-save"></i> Save Changes</button>
+                    <button type="submit" class="pf-page-btn pf-page-btn--outline" id="editDraftBtn" name="save_mode" value="draft"><i class="fas fa-file-alt"></i> Save as Draft</button>
                 </div>
             </form>
         </div>
@@ -1405,6 +1434,25 @@
             max-height: 92vh;
             overflow: hidden;
             font-family: 'Arial', sans-serif;
+        }
+
+        #editHeadModal .pf-modal {
+            max-width: 1100px;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        #editHeadModal .pf-body {
+            background: #f4f6fb;
+            padding: 16px 18px 8px;
+        }
+
+        #editHeadModal .pf-footer {
+            background: #fff;
+            border-top: 1px solid #eef0f8;
+        }
+
+        #editHeadModal .pf-modal-header {
+            background: linear-gradient(135deg, #1d2448, #2e3a6e);
         }
 
         .pf-modal>form {
@@ -2192,6 +2240,19 @@
             const editHeadForm = document.getElementById('editHeadForm');
             if (editHeadForm) {
                 editHeadForm.addEventListener('submit', function(e) {
+                    const savingDraft = !!(e.submitter && e.submitter.id === 'editDraftBtn');
+                    const modeField = document.getElementById('editSaveModeField');
+                    if (modeField) modeField.value = savingDraft ? 'draft' : 'complete';
+                    if (!savingDraft && window.CensusOcr) {
+                        const ocrIssues = CensusOcr.unverifiedLabels(editHeadForm);
+                        if (ocrIssues.length) {
+                            e.preventDefault();
+                            alert((ocrIssues.length === 1
+                                ? 'The uploaded ' + ocrIssues[0] + ' does not match the required name and birthdate. Please upload the correct document and verify it with OCR.'
+                                : 'These uploaded documents do not match the required information: ' + ocrIssues.join('; ') + '. Please upload the correct files and verify them with OCR.'));
+                            return;
+                        }
+                    }
                     const idChecks = [{
                             cb: 'input[name="is_4ps"]',
                             file: 'input[name="id_4ps"]',
@@ -2212,7 +2273,7 @@
                         },
                     ];
                     let idErrors = [];
-                    idChecks.forEach(cfg => {
+                    if (!savingDraft) idChecks.forEach(cfg => {
                         const cbEl = editHeadForm.querySelector(cfg.cb);
                         if (cbEl && cbEl.checked) {
                             const fileEl = editHeadForm.querySelector(cfg.file);

@@ -184,13 +184,15 @@
 
 <body class="db-body">
     <?php
-    $role      = 'secretary';
+    $role      = $role ?? (session_role() === 'admin' ? 'admin' : 'secretary');
     $active    = 'clearance';
     $pageTitle = 'Edit Template';
     include(APPPATH . 'Views/dashboard/sidebar.php');
 
     $bs     = $barangaySettings ?? [];
     $fields = $template['fields'] ?? [];
+    $content = $template['content'] ?? \App\Models\DocumentTemplateModel::defaultTypeContent($template['template_key'] ?? 'clearance');
+    $templateKey = $template['template_key'] ?? 'clearance';
 
     // Build the list of available {{placeholders}} from field names + barangay vars
     $fieldPlaceholders = array_map(fn($f) => '{{' . $f['name'] . '}}', $fields);
@@ -214,13 +216,13 @@
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
                 <div>
                     <div style="font-size:12px;color:#9aa0b4;margin-bottom:4px;">
-                        <a href="<?= site_url('secretary/clearance') ?>" style="color:#5b6fd6;text-decoration:none;">Clearance</a>
+                        <a href="<?= site_url($role . '/clearance') ?>" style="color:#5b6fd6;text-decoration:none;">Clearance</a>
                         <span style="margin:0 6px;">›</span>
                         <?= esc($template['name']) ?>
                     </div>
                     <h1 style="margin:0;font-size:20px;font-weight:700;color:#1a1d2e;"><?= esc($template['name']) ?></h1>
                 </div>
-                <a href="<?= site_url('secretary/clearance') ?>" class="db-btn db-btn--outline" style="display:inline-flex;align-items:center;gap:8px;">
+                <a href="<?= site_url($role . '/clearance') ?>" class="db-btn db-btn--outline" style="display:inline-flex;align-items:center;gap:8px;">
                     <i class="fas fa-arrow-left"></i> Back
                 </a>
             </div>
@@ -236,11 +238,12 @@
                 </div>
             <?php endif; ?>
 
-            <form method="post" action="<?= site_url('secretary/clearance/templates/update/') ?>" id="templateForm">
+            <form method="post" action="<?= site_url($role . '/clearance/templates/update/' . $templateKey) ?>" id="templateForm">
                 <?= csrf_field() ?>
 
                 <!-- Hidden textarea: holds the template HTML for the live preview -->
                 <textarea id="htmlEditor" name="html" style="display:none;"><?= esc($template['html'] ?? '') ?></textarea>
+                <textarea id="contentBodyHtml" name="content_body_html" style="display:none;"><?= esc($content['body_html'] ?? '') ?></textarea>
 
                 <div class="dte-grid">
 
@@ -248,13 +251,56 @@
                     <div>
                         <!-- Tab bar -->
                         <div class="dte-tabs">
-                            <button type="button" class="dte-tab active" onclick="switchTab('fields',this)">
+                            <button type="button" class="dte-tab active" onclick="switchTab('content',this)">
+                                <i class="fas fa-edit" style="margin-right:5px;"></i> Document Content
+                            </button>
+                            <button type="button" class="dte-tab" onclick="switchTab('fields',this)">
                                 <i class="fas fa-list-ul" style="margin-right:5px;"></i> Default Values
                             </button>
                         </div>
 
+                        <div class="dte-section active" id="tab-content">
+                            <div class="dte-panel">
+                                <p class="dte-panel-title"><i class="fas fa-align-left"></i> Edit this document type</p>
+                                <p style="font-size:12px;color:#9aa0b4;margin:0 0 16px;">Changes apply to generated, printed, and downloaded copies of this document. Use placeholders such as <code>{{recipient_name}}</code> and <code>{{purpose}}</code>.</p>
+                                <div class="dte-field">
+                                    <label class="dte-label" for="content_title">Document title</label>
+                                    <input type="text" id="content_title" name="content_title" class="dte-input" value="<?= esc($content['title'] ?? '') ?>" oninput="refreshPreview()">
+                                </div>
+                                <div class="dte-field">
+                                    <label class="dte-label" for="content_salutation">Salutation</label>
+                                    <input type="text" id="content_salutation" name="content_salutation" class="dte-input" value="<?= esc($content['salutation'] ?? '') ?>" oninput="refreshPreview()">
+                                </div>
+                                <div class="dte-field">
+                                    <label class="dte-label">Document body</label>
+                                    <?php include APPPATH . 'Views/dashboard/partials/document_editor_toolbar.php'; ?>
+                                    <div id="contentBodyEditor" class="doc-editor-area" contenteditable="true"><?= $content['body_html'] ?? '' ?></div>
+                                    <div style="margin-top:10px;">
+                                        <div style="font-size:11px;font-weight:600;color:#9aa0b4;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Insert placeholder</div>
+                                        <?php
+                                        $contentPlaceholders = [
+                                            '{{recipient_name}}', '{{recipient_civil_status}}', '{{recipient_zone}}',
+                                            '{{recipient_address}}', '{{purpose}}', '{{issued_date}}', '{{full_address}}',
+                                            '{{barangay_name}}', '{{captain_name}}', '{{secretary_name}}', '{{captain_title}}',
+                                        ];
+                                        foreach ($contentPlaceholders as $ph): ?>
+                                            <span class="ph-chip" onclick="insertContentPlaceholder('<?= esc($ph) ?>')"><?= esc($ph) ?></span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                                <div class="dte-field">
+                                    <label class="dte-label" for="content_signature_label">Signature label</label>
+                                    <input type="text" id="content_signature_label" name="content_signature_label" class="dte-input" value="<?= esc($content['signature_label'] ?? '') ?>" oninput="refreshPreview()">
+                                </div>
+                                <div class="dte-field">
+                                    <label class="dte-label" for="content_signature_title">Signature title</label>
+                                    <input type="text" id="content_signature_title" name="content_signature_title" class="dte-input" value="<?= esc($content['signature_title'] ?? '') ?>" oninput="refreshPreview()">
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Fields tab -->
-                        <div class="dte-section active" id="tab-fields">
+                        <div class="dte-section" id="tab-fields">
                             <div class="dte-panel">
                                 <p class="dte-panel-title"><i class="fas fa-list-ul"></i> Default Field Values</p>
                                 <p style="font-size:12px;color:#9aa0b4;margin:0 0 16px;">These values pre-fill the document when a request is printed. They can be overridden per-request.</p>
@@ -339,7 +385,7 @@
                             <button type="submit" class="db-btn db-btn--primary" style="display:inline-flex;align-items:center;gap:8px;">
                                 <i class="fas fa-save"></i> Save Template
                             </button>
-                            <a href="<?= site_url('secretary/clearance') ?>" class="db-btn db-btn--outline">Cancel</a>
+                            <a href="<?= site_url($role . '/clearance') ?>" class="db-btn db-btn--outline">Cancel</a>
                         </div>
                     </div>
 
@@ -369,10 +415,12 @@
                             <span><?= esc($bs['barangay_name'] ?? 'BARANGAY BACOLOD') ?></span><br>
                             <span><?= esc($bs['municipality'] ?? '') ?>, <?= esc($bs['province'] ?? '') ?></span><br>
                             <span><?= esc($bs['region'] ?? '') ?></span><br>
+                            <?php if (trim((string) ($bs['captain_name'] ?? '')) !== ''): ?>
                             <span style="margin-top:4px;display:block;">
-                                <strong>Captain:</strong> <?= esc($bs['captain_name'] ?? '—') ?>
+                                <strong>Captain:</strong> <?= esc($bs['captain_name']) ?>
                             </span>
-                            <a href="<?= site_url('secretary/barangay-settings') ?>"
+                            <?php endif; ?>
+                            <a href="<?= site_url($role . '/barangay-settings') ?>"
                                 style="color:#5b6fd6;font-size:11.5px;margin-top:6px;display:inline-flex;align-items:center;gap:5px;">
                                 <i class="fas fa-pen"></i> Edit Barangay Info
                             </a>
@@ -385,8 +433,11 @@
         </div>
     </div>
 
+    <script src="/js/doc-templates.js"></script>
+    <script src="/js/document-editor.js"></script>
     <!-- ── Barangay settings injected for JS preview replacement ── -->
     <script>
+        const templateKey = <?= json_encode($templateKey) ?>;
         const _bs = <?= json_encode([
                         'barangay_name'  => $bs['barangay_name']  ?? 'BARANGAY BACOLOD',
                         'municipality'   => $bs['municipality']   ?? 'Municipality of Bato',
@@ -395,9 +446,13 @@
                         'country'        => $bs['country']        ?? 'Republic of the Philippines',
                         'full_address'   => $bs['full_address']   ?? 'Barangay Bacolod, Bato, Camarines Sur',
                         'office_header'  => $bs['office_header']  ?? 'OFFICE OF THE PUNONG BARANGAY',
-                        'captain_name'   => $bs['captain_name']   ?? 'PUNONG BARANGAY',
+                        'captain_name'   => official_display_name($bs['captain_name'] ?? ''),
+                        'secretary_name' => official_display_name($bs['secretary_name'] ?? ''),
                         'captain_title'  => $bs['captain_title']  ?? 'Punong Barangay',
                     ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+        BisDoc.setBarangay(_bs);
+        BisDoc.setCaptain(_bs.captain_name || '');
+        BisDoc.setCensus({ name: 'Juan Dela Cruz', civil: 'Single', zone: 'Zone 1' });
 
         // ── Tab switching ─────────────────────────────────────────────────────────
         function switchTab(tab, btn) {
@@ -407,16 +462,30 @@
             btn.classList.add('active');
         }
 
-        // ── Insert placeholder at cursor in HTML editor ───────────────────────────
         function insertPlaceholder(ph) {
-            const ta = document.getElementById('htmlEditor');
-            if (!ta) return;
-            const start = ta.selectionStart,
-                end = ta.selectionEnd;
-            ta.value = ta.value.substring(0, start) + ph + ta.value.substring(end);
-            ta.selectionStart = ta.selectionEnd = start + ph.length;
-            ta.focus();
+            insertContentPlaceholder(ph);
+        }
+
+        function insertContentPlaceholder(ph) {
+            const editor = document.getElementById('contentBodyEditor');
+            DocumentEditor.insertText(editor, ph);
+            syncBodyHtml();
             refreshPreview();
+        }
+
+        function currentTypeContent() {
+            return {
+                title: document.getElementById('content_title').value,
+                salutation: document.getElementById('content_salutation').value,
+                body_html: DocumentEditor.html(document.getElementById('contentBodyEditor')),
+                signature_label: document.getElementById('content_signature_label').value,
+                signature_title: document.getElementById('content_signature_title').value,
+            };
+        }
+
+        function syncBodyHtml() {
+            const hidden = document.getElementById('contentBodyHtml');
+            if (hidden) hidden.value = DocumentEditor.html(document.getElementById('contentBodyEditor'));
         }
 
 
@@ -532,18 +601,12 @@
 
         // ── Refresh the live preview ──────────────────────────────────────────────
         function refreshPreview() {
-            const ta = document.getElementById('htmlEditor');
-            if (!ta) return;
-
-            // Normalise literal \n sequences that may be stored in the DB
-            const raw = ta.value.trim().replace(/\\\\n/g, '\n').replace(/\\\\t/g, '  ');
-            if (!raw) {
-                document.getElementById('previewContent').style.display = 'none';
-                document.getElementById('previewPlaceholder').style.display = 'flex';
-                return;
-            }
-
-            const rendered = applyTokens(raw) + BC_SCREEN_CSS;
+            syncBodyHtml();
+            const map = {};
+            map[templateKey] = currentTypeContent();
+            BisDoc.setTypeContents(map);
+            BisDoc.setContent(null);
+            const rendered = BisDoc.build(templateKey, 'Juan Dela Cruz', 'Employment');
             document.getElementById('previewPlaceholder').style.display = 'none';
             const content = document.getElementById('previewContent');
             content.style.display = 'block';
@@ -552,13 +615,13 @@
 
         // ── Print the rendered preview ────────────────────────────────────────────
         function printPreview() {
-            const ta = document.getElementById('htmlEditor');
-            if (!ta || !ta.value.trim()) {
-                alert('No HTML to print.');
-                return;
-            }
-
-            const rendered = applyTokens(ta.value);
+            syncBodyHtml();
+            const map = {};
+            map[templateKey] = currentTypeContent();
+            BisDoc.setTypeContents(map);
+            BisDoc.print(templateKey, 'Juan Dela Cruz', 'Employment');
+            return;
+            const rendered = applyTokens(document.getElementById('htmlEditor').value);
             const win = window.open('', '_blank', 'width=900,height=900');
             win.document.write(`<!DOCTYPE html><html><head>
 <title>${<?= json_encode(esc($template['name'])) ?>}</title>
@@ -632,6 +695,12 @@
 
         // ── Initial render on page load ───────────────────────────────────────────
         document.addEventListener('DOMContentLoaded', () => {
+            const editor = document.getElementById('contentBodyEditor');
+            const toolbar = document.querySelector('.doc-editor-toolbar');
+            DocumentEditor.bindToolbar(toolbar, editor);
+            DocumentEditor.setHtml(editor, <?= json_encode($content['body_html'] ?? '') ?>);
+            editor.addEventListener('input', refreshPreview);
+            document.getElementById('templateForm').addEventListener('submit', syncBodyHtml);
             refreshPreview();
         });
     </script>

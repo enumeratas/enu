@@ -60,12 +60,7 @@ class SkYouthModel extends Model
      */
     public static function calcAge(?string $dob): ?int
     {
-        if (empty($dob)) return null;
-        try {
-            return (int) date_diff(date_create($dob), date_create('today'))->y;
-        } catch (\Throwable $e) {
-            return null;
-        }
+        return person_age_from_dob($dob);
     }
 
     /**

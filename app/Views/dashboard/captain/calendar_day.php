@@ -538,7 +538,7 @@
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
                     <div>
                         <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">Date <span style="color:#c0392b;">*</span></label>
-                        <input type="date" name="event_date" id="addDate" required
+                        <input type="text" name="event_date" id="addDate" required autocomplete="off" placeholder="YYYY-MM-DD"
                             style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;">
                     </div>
                     <div>
@@ -556,15 +556,20 @@
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
                     <div>
                         <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">Start Time</label>
-                        <input type="time" name="start_time"
-                            style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;">
+                        <select name="start_time" id="addStartTime"
+                            style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;background:#fff;" disabled>
+                            <option value="">Select a date first</option>
+                        </select>
                     </div>
                     <div>
                         <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">End Time</label>
-                        <input type="time" name="end_time"
-                            style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;">
+                        <select name="end_time" id="addEndTime"
+                            style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;background:#fff;" disabled>
+                            <option value="">Select a start time</option>
+                        </select>
                     </div>
                 </div>
+                <p id="addSlotNote" style="margin:-6px 0 14px;font-size:12px;color:#9aa0b4;"></p>
                 <div style="margin-bottom:14px;">
                     <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">Location</label>
                     <input type="text" name="location" placeholder="e.g. Barangay Hall"
@@ -604,8 +609,14 @@
 
     <script>
         function openAddModal(dateStr) {
-            document.getElementById('addDate').value = dateStr;
+            const dateInput = document.getElementById('addDate');
             document.getElementById('addTitle').value = '';
+            if (dateInput._flatpickr) {
+                dateInput._flatpickr.setDate(dateStr, true);
+            } else {
+                dateInput.value = dateStr;
+                dateInput.dispatchEvent(new Event('change'));
+            }
             document.getElementById('addModal').style.display = 'flex';
         }
 
@@ -620,6 +631,19 @@
         document.querySelectorAll('.db-nav-item').forEach(i =>
             i.addEventListener('click', () => document.getElementById('sidebar').classList.remove('open'))
         );
+    </script>
+    <script src="/js/appointment-slots.js?v=3"></script>
+    <script>
+        if (window.BISAppointmentSlots) {
+            window.BISAppointmentSlots.bind(
+                document.getElementById('addDate'),
+                document.getElementById('addStartTime'),
+                {
+                    message: document.getElementById('addSlotNote'),
+                    endTimeSelect: document.getElementById('addEndTime')
+                }
+            );
+        }
     </script>
 </body>
 

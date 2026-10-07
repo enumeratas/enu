@@ -194,11 +194,24 @@ class HouseholdMoveController extends BaseController
 
         // Secretary filings stay pending. Captain and admin apply the move immediately.
         if (! in_array($role, ['captain', 'admin'], true)) {
-            $this->moveModel->insert($payload + ['status' => 'pending']);
-            $this->notifyCaptains('Household move request', 'A new household move request needs your approval.');
+            $moveId = (int) $this->moveModel->insert($payload + ['status' => 'pending']);
+            $this->notifyCaptainsOfMove(
+                $payload,
+                $sourceHousehold,
+                'Household move submitted',
+                'A household move from #' . $source . ' needs Captain or Secretary approval.',
+                '/captain/moves?status=pending'
+            );
+            NotificationModel::pushToRole(
+                'secretary',
+                'household_move',
+                'Household move submitted',
+                'A household move from #' . $source . ' needs Captain or Secretary approval.',
+                '/secretary/moves?status=pending'
+            );
 
             return redirect()->to('/' . $role . '/moves')
-                ->with('success', 'Move filed as pending. The barangay captain still needs to approve it.');
+                ->with('success', 'Move filed as pending. The Captain or Secretary still needs to approve it.');
         }
 
         $moveId = $this->moveModel->insert($payload, true);
@@ -213,8 +226,8 @@ class HouseholdMoveController extends BaseController
     public function approve(int $id)
     {
         $role = $this->currentRole();
-        if (! in_array($role, ['captain', 'admin'], true)) {
-            return redirect()->to('/' . $role . '/moves')->with('error', 'Only the barangay captain can approve a move.');
+        if (! in_array($role, ['captain', 'admin', 'secretary'], true)) {
+            return redirect()->to('/' . $role . '/moves')->with('error', 'Only the Captain or Secretary can approve a move.');
         }
 
         $move = $this->moveModel->find($id);
@@ -233,8 +246,8 @@ class HouseholdMoveController extends BaseController
     public function reject(int $id)
     {
         $role = $this->currentRole();
-        if (! in_array($role, ['captain', 'admin'], true)) {
-            return redirect()->to('/' . $role . '/moves')->with('error', 'Only the barangay captain can reject a move.');
+        if (! in_array($role, ['captain', 'admin', 'secretary'], true)) {
+            return redirect()->to('/' . $role . '/moves')->with('error', 'Only the Captain or Secretary can reject a move.');
         }
 
         $move = $this->moveModel->find($id);
@@ -252,12 +265,17 @@ class HouseholdMoveController extends BaseController
         ]);
 
         if (! empty($move['requested_by'])) {
+            $requester = (new \App\Models\UserModel())->select('role')->find((int) $move['requested_by']);
+            $requesterRole = strtolower((string) ($requester['role'] ?? 'secretary'));
+            if (! in_array($requesterRole, ['admin', 'secretary', 'captain', 'council'], true)) {
+                $requesterRole = 'secretary';
+            }
             NotificationModel::push(
                 (int) $move['requested_by'],
                 'household_move',
                 'Household move rejected',
                 'Your household move request was rejected' . ($reason !== '' ? ': ' . $reason : '.'),
-                '/' . $role . '/moves'
+                '/' . $requesterRole . '/moves'
             );
         }
 
@@ -318,16 +336,31 @@ class HouseholdMoveController extends BaseController
         }
 
         $summary = $this->composeSummary($move, $source, $destinationNo);
+        $actorId = (int) session()->get('user_id');
 
-        if (! empty($move['requested_by']) && (int) $move['requested_by'] !== (int) session()->get('user_id')) {
+        if (! empty($move['requested_by']) && (int) $move['requested_by'] !== $actorId) {
+            $requester = (new \App\Models\UserModel())->select('role')->find((int) $move['requested_by']);
+            $requesterRole = strtolower((string) ($requester['role'] ?? 'secretary'));
+            if (! in_array($requesterRole, ['admin', 'secretary', 'captain', 'council'], true)) {
+                $requesterRole = 'secretary';
+            }
             NotificationModel::push(
                 (int) $move['requested_by'],
                 'household_move',
                 'Household move approved',
                 $summary,
-                '/' . $this->currentRole() . '/moves'
+                '/' . $requesterRole . '/moves'
             );
         }
+
+        $this->notifyCaptainsOfMove(
+            $move,
+            $source,
+            'Household move recorded',
+            $summary,
+            '/captain/moves',
+            $actorId
+        );
 
         return ['ok' => true, 'message' => $summary];
     }
@@ -683,24 +716,31 @@ class HouseholdMoveController extends BaseController
         return $line;
     }
 
-    private function notifyCaptains(string $title, string $body): void
-    {
-        $db = Database::connect();
-        $rows = $db->table('users')
-            ->select('id')
-            ->where('role', 'captain')
-            ->where('status', 'active')
-            ->get()
-            ->getResultArray();
-        foreach ($rows as $row) {
-            NotificationModel::push(
-                (int) $row['id'],
-                'household_move',
-                $title,
-                $body,
-                '/captain/moves?status=pending'
-            );
+    private function notifyCaptainsOfMove(
+        array $move,
+        array $source,
+        string $title,
+        string $body,
+        string $link = '/captain/moves',
+        ?int $exceptUserId = null
+    ): void {
+        $headName = trim(($source['first_name'] ?? '') . ' ' . ($source['last_name'] ?? ''));
+        $sourceNo = (string) ($move['source_household_no'] ?? $source['household_no'] ?? '');
+        $detail = trim($body);
+        if ($sourceNo !== '' && ! str_contains($detail, '#' . $sourceNo)) {
+            $detail = 'Household #' . $sourceNo
+                . ($headName !== '' ? ' (' . $headName . ')' : '')
+                . ': ' . $detail;
         }
+
+        NotificationModel::pushToRole(
+            'captain',
+            'household_move',
+            $title,
+            $detail,
+            $link,
+            $exceptUserId
+        );
     }
 
     private function currentRole(): string

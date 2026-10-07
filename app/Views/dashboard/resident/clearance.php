@@ -883,6 +883,14 @@
                             </optgroup>
                             <option value="Other">Other</option>
                         </select>
+                        <div id="purposeOtherWrap" hidden style="margin-top:10px;">
+                            <label for="purposeOther" class="clr-section-label" style="margin-bottom:6px;">
+                                Specify purpose <span style="color:#c0392b;">*</span>
+                            </label>
+                            <input type="text" name="purpose_other" id="purposeOther" class="clr-select" maxlength="255"
+                                placeholder="Type the exact purpose of this request"
+                                value="<?= esc(old('purpose_other') ?? '') ?>">
+                        </div>
                     </div>
 
                     <!-- Step 4: Notes -->
@@ -999,13 +1007,28 @@
 
         applyDocumentRules(document.querySelector('.clr-member-pill.selected')?.dataset.minor === '1');
 
+        const purposeSelect = document.querySelector('#clearanceForm [name="purpose"]');
+        const purposeOtherWrap = document.getElementById('purposeOtherWrap');
+        const purposeOther = document.getElementById('purposeOther');
+
+        function togglePurposeOther() {
+            const isOther = purposeSelect && purposeSelect.value === 'Other';
+            if (purposeOtherWrap) purposeOtherWrap.hidden = !isOther;
+            if (purposeOther) purposeOther.required = !!isOther;
+        }
+        if (purposeSelect) {
+            purposeSelect.addEventListener('change', togglePurposeOther);
+            togglePurposeOther();
+        }
+
         const clearanceForm = document.getElementById('clearanceForm');
         if (clearanceForm) {
             clearanceForm.addEventListener('submit', function (event) {
                 const note = clearanceForm.querySelector('[data-offline-sync-status]');
                 const chosen = clearanceForm.querySelector('input[name="document_type"]:checked:not(:disabled)');
                 const purpose = clearanceForm.querySelector('[name="purpose"]');
-                if (!chosen || (purpose && purpose.value === '')) {
+                const otherMissing = purpose && purpose.value === 'Other' && purposeOther && purposeOther.value.trim() === '';
+                if (!chosen || (purpose && purpose.value === '') || otherMissing) {
                     event.preventDefault();
                     event.stopImmediatePropagation();
                     clearanceForm.dataset.bisSaving = '';
@@ -1018,9 +1041,11 @@
                         note.style.color = '#b42318';
                         note.textContent = !chosen
                             ? 'Choose a document type before submitting.'
-                            : 'Choose a purpose before submitting.';
+                            : (otherMissing
+                                ? 'Specify the exact purpose of your request.'
+                                : 'Choose a purpose before submitting.');
                     }
-                    const target = !chosen ? document.getElementById('secretaryDocumentType') : purpose;
+                    const target = !chosen ? document.getElementById('secretaryDocumentType') : (otherMissing ? purposeOther : purpose);
                     if (target && typeof target.scrollIntoView === 'function') {
                         target.scrollIntoView({ block: 'center' });
                     }

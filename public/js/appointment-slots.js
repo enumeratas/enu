@@ -41,6 +41,35 @@
         timeSelect.disabled = times.length === 0;
     }
 
+    function fillEndTimes(endSelect, times, startValue, keep) {
+        if (!endSelect) {
+            return;
+        }
+        var keepValue = keep || endSelect.getAttribute('data-current') || endSelect.value || '';
+        endSelect.innerHTML = '';
+        var placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = times.length ? 'Select an end time' : 'Select a date first';
+        endSelect.appendChild(placeholder);
+        var added = 0;
+        times.forEach(function (slot) {
+            if (startValue && slot.value <= startValue) {
+                return;
+            }
+            var option = document.createElement('option');
+            option.value = slot.value;
+            option.textContent = slot.available ? slot.label : slot.label + ' — booked';
+            option.disabled = !slot.available;
+            if (slot.available && slot.value === keepValue) {
+                option.selected = true;
+            }
+            endSelect.appendChild(option);
+            added += 1;
+        });
+        endSelect.disabled = added === 0;
+        endSelect.removeAttribute('data-current');
+    }
+
     function bind(dateInput, timeSelect, options) {
         if (!dateInput || !timeSelect) {
             return;
@@ -50,6 +79,8 @@
         var excludeScheduleId = options.excludeScheduleId || 0;
         var excludeConcernId = options.excludeConcernId || 0;
         var message = options.message || null;
+        var endSelect = options.endTimeSelect || null;
+        var lastTimes = [];
 
         function params(extra) {
             var query = new URLSearchParams(extra || {});
@@ -72,7 +103,9 @@
 
         function loadTimes(date) {
             if (!date) {
+                lastTimes = [];
                 fillTimes(timeSelect, [], '');
+                fillEndTimes(endSelect, [], '', '');
                 setMessage('');
                 return;
             }
@@ -84,9 +117,11 @@
                 .then(function (response) { return response.json(); })
                 .then(function (data) {
                     var times = data.times || [];
+                    lastTimes = times;
                     var keep = timeSelect.getAttribute('data-current') || '';
                     fillTimes(timeSelect, times, keep);
                     timeSelect.removeAttribute('data-current');
+                    fillEndTimes(endSelect, times, timeSelect.value, endSelect ? endSelect.getAttribute('data-current') : '');
                     var open = times.some(function (slot) { return slot.available; });
                     var taken = times.some(function (slot) { return !slot.available; });
                     if (!open) {
@@ -100,6 +135,12 @@
                 .catch(function () {
                     setMessage('Times could not be loaded. Try the date again.', '#c0392b');
                 });
+        }
+
+        if (endSelect) {
+            timeSelect.addEventListener('change', function () {
+                fillEndTimes(endSelect, lastTimes, timeSelect.value, endSelect.value);
+            });
         }
 
         function attachPicker(booked) {
@@ -118,7 +159,7 @@
                 }
                 window.flatpickr(dateInput, {
                     dateFormat: 'Y-m-d',
-                    minDate: options.minDate || 'today',
+                    minDate: Object.prototype.hasOwnProperty.call(options, 'minDate') ? (options.minDate || undefined) : 'today',
                     disableMobile: true,
                     disable: [
                         function (date) { return date.getDay() === 0; }

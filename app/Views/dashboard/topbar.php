@@ -72,6 +72,7 @@ foreach (
     </div>
 
     <?php $searchRole = strtolower((string) (session()->get('role') ?? 'resident')); ?>
+    <?php if (empty($hideGlobalSearch)): ?>
     <div class="db-global-search">
         <i class="fas fa-search" aria-hidden="true"></i>
         <input
@@ -84,6 +85,7 @@ foreach (
             aria-expanded="false">
         <div id="globalSearchResults" class="db-global-search-results" hidden></div>
     </div>
+    <?php endif; ?>
 
 
     <!-- Right Side -->

@@ -309,7 +309,7 @@
                     <?php if (! in_array($role, ['captain', 'admin'], true)): ?>
                         <div class="db-alert" style="margin-bottom:16px;background:#fff8e6;color:#8a5b00;border:1px solid #f1d89d;">
                             <i class="fas fa-hourglass-half"></i>
-                            This move will be saved as <strong>Pending</strong>. The barangay captain must approve it before household numbers change.
+                            This move will be saved as <strong>Pending</strong>. The Captain or Secretary must approve it before household numbers change.
                         </div>
                     <?php endif; ?>
                     <div style="display:flex;gap:10px;justify-content:flex-end;">

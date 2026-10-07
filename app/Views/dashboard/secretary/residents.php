@@ -739,6 +739,7 @@
     $role      = 'secretary';
     $active    = 'residents';
     $pageTitle = 'Residents';
+    $hideGlobalSearch = true;
     include(APPPATH . 'Views/dashboard/sidebar.php');
     ?>
     <div class="db-main">
@@ -957,7 +958,7 @@
                             ?>
                                 <tr>
                                     <td style="text-align:center;">
-                                        <?php if ($isHead && $r['user_id']): ?>
+                                        <?php if (! empty($r['user_id'])): ?>
                                             <input type="checkbox" class="census-auth-select" value="<?= (int) $r['user_id'] ?>" aria-label="Select resident for census update authorization">
                                         <?php else: ?>
                                             <span style="color:#d0d4df;">—</span>

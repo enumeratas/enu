@@ -103,11 +103,12 @@
     $role      = $role ?? (session()->get('role') ?: 'secretary');
     $active    = 'moves';
     $pageTitle = 'Household Moves';
+    $hideGlobalSearch = true;
     $moves     = $moves  ?? [];
     $counts    = $counts ?? ['pending' => 0, 'approved' => 0, 'rejected' => 0];
     $status    = $status ?? '';
     $search    = $search ?? '';
-    $canApprove = in_array($role, ['captain', 'admin'], true);
+    $canApprove = in_array($role, ['captain', 'admin', 'secretary'], true);
     include(APPPATH . 'Views/dashboard/sidebar.php');
     ?>
     <div class="db-main">
@@ -222,7 +223,7 @@
                                             </form>
                                             <button type="button" class="db-btn db-btn--outline db-btn--sm" onclick="openReject(<?= (int) $move['id'] ?>)"><i class="fas fa-times"></i> Reject</button>
                                         <?php elseif ($move['status'] === 'pending'): ?>
-                                            <span style="color:#6b7689;font-size:12px;">Awaiting captain</span>
+                                            <span style="color:#6b7689;font-size:12px;">Awaiting Captain or Secretary</span>
                                         <?php else: ?>
                                             <span style="color:#6b7689;font-size:12px;">—</span>
                                         <?php endif; ?>
