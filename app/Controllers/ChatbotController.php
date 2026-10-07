@@ -572,6 +572,30 @@ class ChatbotController extends ResourceController
             }
 
             // ------------------------------------------------------------
+            // CONVERSATION OUTRO (thanks / okay / goodbye)
+            // ------------------------------------------------------------
+
+            $outroResponse = $this->conversationOutroResponse($message);
+            if ($outroResponse !== null) {
+                $outroResponse = $this->saveConversationExchange(
+                    $conversationId,
+                    $message,
+                    $outroResponse
+                );
+
+                return $this->response->setJSON([
+                    'success' => true,
+                    'response' => $outroResponse,
+                    'source' => 'conversation_outro',
+                    'ai_available' => $this->apiKey !== '',
+                    'retrieved_documents' => 0,
+                    'conversation_id' => $conversationId,
+                    'live_data' => false,
+                    'support_mode' => $supportMode,
+                ]);
+            }
+
+            // ------------------------------------------------------------
             // SIMPLE LOCAL QUESTIONS
             // ------------------------------------------------------------
 
@@ -3702,8 +3726,124 @@ class ChatbotController extends ResourceController
         return false;
     }
 
+    protected function isConversationOutro(string $message): bool
+    {
+        $normalized = $this->normalizeChatText($message);
+        if ($normalized === '') {
+            return false;
+        }
+
+        $words = preg_split('/\s+/u', $normalized, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if (count($words) > 12) {
+            return false;
+        }
+
+        $asksForService = preg_match(
+            '/\b(clearance|blotter|census|indigency|residency|certificate|appointment|concern|document|permit|how|what|when|where|who|paano|ano|saan|pwede|can i|request)\b/u',
+            $normalized
+        ) === 1;
+        $hasThanks = preg_match(
+            '/\b(thanks|thank you|thank u|thx|tnx|salamat)\b/u',
+            $normalized
+        ) === 1;
+        if ($asksForService && ! $hasThanks) {
+            return false;
+        }
+
+        $closers = [
+            'ok',
+            'okay',
+            'ok po',
+            'okay po',
+            'ok lang',
+            'okay lang',
+            'sige',
+            'sige po',
+            'sige sige',
+            'got it',
+            'noted',
+            'alright',
+            'all right',
+            'thanks',
+            'thank',
+            'thank you',
+            'thank you po',
+            'thanks po',
+            'thank u',
+            'ty',
+            'thx',
+            'tnx',
+            'salamat',
+            'salamat po',
+            'maraming salamat',
+            'okay thanks',
+            'ok thanks',
+            'ok thank you',
+            'okay thank you',
+            'thanks a lot',
+            'thank you so much',
+            'salamat sa tulong',
+            'that is all',
+            'thats all',
+            'that is it',
+            'thats it',
+            'bye',
+            'goodbye',
+            'bye bye',
+            'see you',
+            'wala na',
+            'yun lang',
+            'iyon lang',
+            'nothing else',
+            'no more questions',
+            'that will be all',
+            'okay that is all',
+            'ok that is all',
+        ];
+        if (in_array($normalized, $closers, true)) {
+            return true;
+        }
+
+        if ($hasThanks) {
+            return true;
+        }
+
+        return preg_match(
+            '/\b(bye|goodbye|see you|that is all|thats all|that will be all|wala na|yun lang)\b/u',
+            $normalized
+        ) === 1;
+    }
+
+    protected function conversationOutroResponse(string $message): ?string
+    {
+        if (! $this->isConversationOutro($message)) {
+            return null;
+        }
+
+        $normalized = $this->normalizeChatText($message);
+        $tagalog = $this->resolveReplyLanguage($message) === 'tagalog';
+        $isGoodbye = preg_match(
+            '/\b(bye|goodbye|see you)\b/u',
+            $normalized
+        ) === 1;
+
+        if ($isGoodbye) {
+            return $tagalog
+                ? '👋 Ingat! Kung kailangan mo ulit ng tulong sa serbisyo ng barangay, message mo lang ang BIS Assistant.'
+                : '👋 Take care! You can message the BIS Assistant anytime if you need help with barangay services.';
+        }
+
+        return $tagalog
+            ? '😊 Walang anuman! Kung may iba ka pang kailangan tungkol sa Barangay Information System, sige lang, tanong ka lang.'
+            : '😊 You\'re welcome! If you need anything else from the Barangay Information System, just ask.';
+    }
+
     protected function isConversationalWebsitePrompt(string $normalized): bool
     {
+        if ($this->isConversationOutro($normalized)) {
+            return true;
+        }
+
         $prompts = [
             'hi',
             'hello',
@@ -4367,21 +4507,9 @@ PROMPT;
                 'What would you like to know?';
         }
 
-        $thanks = [
-            'thanks',
-            'thank you',
-            'thank',
-            'salamat',
-            'salamat po'
-        ];
-
-        if (in_array($m, $thanks, true)) {
-
-            return $this->resolveReplyLanguage($message) === 'tagalog'
-                ? '😊 Walang anuman! Kung may iba ka pang tanong ' .
-                'tungkol sa Barangay Information System, sige lang, tanong ka lang.'
-                : '😊 You\'re welcome! If you have another question ' .
-                'about the Barangay Information System, feel free to ask.';
+        $outro = $this->conversationOutroResponse($message);
+        if ($outro !== null) {
+            return $outro;
         }
 
         $identity = [
@@ -9150,6 +9278,11 @@ PROMPT;
         string $message,
         array $documents
     ): string {
+
+        $outro = $this->conversationOutroResponse($message);
+        if ($outro !== null) {
+            return $outro;
+        }
 
         $tagalog = $this->resolveReplyLanguage($message) === 'tagalog';
 
