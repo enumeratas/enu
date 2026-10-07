@@ -1553,13 +1553,97 @@ class CensusController extends BaseController
             return redirect()->to($this->censusPortal('dashboard'))->with('error', 'You are not authorized to submit a census update for this household.');
         }
 
+        // The resident update form now mirrors the full secretary census
+        // step-1 fields. We collect every text/select/radio field, keep only
+        // the ones that are allowed for this user's household role, and
+        // store the sanitized payload for the secretary to apply on approve.
+        $post = $this->request->getPost();
+
+        $trim = static fn ($v) => trim((string) ($v ?? ''));
+        $trimOrNull = static function ($v) use ($trim) {
+            $s = $trim($v);
+            return $s === '' ? null : $s;
+        };
+        $boolOrNull = static function ($v) {
+            if ($v === null || $v === '') return null;
+            return in_array((string) $v, ['1', 'yes', 'true', 'on'], true) ? 1 : 0;
+        };
+        $allowedEnum = static function ($v, array $options) {
+            $v = (string) $v;
+            return in_array($v, $options, true) ? $v : null;
+        };
+
+        // Fields the submitter is always allowed to edit (their own personal
+        // details on the household head row). If the submitter is NOT the
+        // head these are stripped below.
         $payload = [
-            'address' => $access['can_edit_household'] ? (trim((string) ($this->request->getPost('address') ?? '')) ?: null) : null,
-            'civil_status' => $this->request->getPost('civil_status') ?: null,
-            'occupation' => trim((string) ($this->request->getPost('occupation') ?? '')) ?: null,
-            'monthly_income' => (float) ($this->request->getPost('monthly_income') ?? 0),
             'household_no' => $householdNo,
+
+            // Head personal info
+            'last_name'              => $trimOrNull($post['last_name']            ?? null),
+            'first_name'             => $trimOrNull($post['first_name']           ?? null),
+            'middle_name'            => $trimOrNull($post['middle_name']          ?? null),
+            'suffix'                 => $trimOrNull($post['suffix']               ?? null),
+            'date_of_birth'          => $trimOrNull($post['date_of_birth']        ?? null),
+            'place_of_birth'         => $trimOrNull($post['place_of_birth']       ?? null),
+            'gender'                 => $allowedEnum($post['gender']       ?? '', ['Male', 'Female']),
+            'civil_status'           => $allowedEnum($post['civil_status'] ?? '', ['Single', 'Married', 'Widowed', 'Separated', 'Annulled']),
+            'nationality'            => $trimOrNull($post['nationality']          ?? null),
+            'religion'               => $trimOrNull($post['religion']             ?? null),
+            'occupation'             => $trimOrNull($post['occupation']           ?? null),
+            'monthly_income'         => isset($post['monthly_income']) ? (float) $post['monthly_income'] : null,
+            'contact_number'         => $trimOrNull($post['contact_number']       ?? null),
+            'educational_attainment' => $trimOrNull($post['educational_attainment'] ?? null),
+            'philhealth_no'          => $trimOrNull($post['philhealth_no']        ?? null),
+            'registered_voter'       => $boolOrNull($post['registered_voter']     ?? null),
+
+            // Household info
+            'address'                => $trimOrNull($post['address']              ?? null),
+            'zone'                   => $trimOrNull($post['zone']                 ?? null),
+            'years_of_residency'     => isset($post['years_of_residency']) ? max(0, (int) $post['years_of_residency']) : null,
+            'house_ownership'        => $allowedEnum($post['house_ownership'] ?? '', ['Owned', 'Rented', 'Shared', 'Informal Settler']),
+            'num_families'           => isset($post['num_families']) ? max(1, (int) $post['num_families']) : null,
+
+            // Household classification
+            'is_4ps'                 => $boolOrNull($post['is_4ps']               ?? null),
+            'is_senior_citizen'      => $boolOrNull($post['is_senior_citizen']    ?? null),
+            'is_solo_parent'         => $boolOrNull($post['is_solo_parent']       ?? null),
+            'is_indigenous'          => $boolOrNull($post['is_indigenous']        ?? null),
+            'is_pwd'                 => $boolOrNull($post['is_pwd']               ?? null),
+            'pwd_type'               => $trimOrNull($post['pwd_type']             ?? null),
+
+            // Water & sanitation
+            'water_source_level'     => $allowedEnum($post['water_source_level']   ?? '', ['I', 'II', 'III', 'none']),
+            'water_safety_managed'   => $boolOrNull($post['water_safety_managed'] ?? null),
+            'sanitation_basic'       => $allowedEnum($post['sanitation_basic']     ?? '', ['with', 'without']),
+            'sanitation_managed'     => $allowedEnum($post['sanitation_managed']   ?? '', ['with', 'without']),
         ];
+
+        // Household-level fields can only be modified by the household head.
+        // Members get their changes stripped so a non-head cannot alter the
+        // address, zone, water/sanitation, or classification flags.
+        if (! $access['can_edit_household']) {
+            $householdOnly = [
+                'address', 'zone', 'years_of_residency', 'house_ownership', 'num_families',
+                'is_4ps', 'is_senior_citizen', 'is_solo_parent', 'is_indigenous', 'is_pwd', 'pwd_type',
+                'water_source_level', 'water_safety_managed', 'sanitation_basic', 'sanitation_managed',
+                // Head identity / personal profile also stays with the head.
+                'last_name', 'first_name', 'middle_name', 'suffix', 'date_of_birth', 'place_of_birth',
+                'gender', 'civil_status', 'nationality', 'religion', 'occupation', 'monthly_income',
+                'contact_number', 'educational_attainment', 'philhealth_no', 'registered_voter',
+            ];
+            foreach ($householdOnly as $field) {
+                unset($payload[$field]);
+            }
+            $payload['household_no'] = $householdNo;
+        }
+
+        // Drop keys that came back null so the diff on approval is clean.
+        $payload = array_filter(
+            $payload,
+            static fn ($v) => ! ($v === null || $v === '')
+        );
+        $payload['household_no'] = $householdNo; // always keep the FK
 
         $authModel->update($auth['id'], [
             'status' => 'submitted',
@@ -1586,12 +1670,32 @@ class CensusController extends BaseController
 
         $payload = json_decode((string) $auth['notes'], true);
         if (is_array($payload) && ! empty($payload['household_no'])) {
-            $this->householdModel->update($payload['household_no'], array_filter([
-                'address' => $payload['address'] ?? null,
-                'civil_status' => $payload['civil_status'] ?? null,
-                'occupation' => $payload['occupation'] ?? null,
-                'monthly_income' => $payload['monthly_income'] ?? null,
-            ], static fn($value) => $value !== null));
+            // Whitelist of columns the households table has. Anything else
+            // in the payload is ignored so a stray JSON key cannot write to
+            // an unexpected column.
+            $allowedColumns = [
+                'last_name', 'first_name', 'middle_name', 'suffix',
+                'date_of_birth', 'place_of_birth', 'gender', 'civil_status',
+                'nationality', 'religion', 'occupation', 'monthly_income',
+                'contact_number', 'educational_attainment', 'philhealth_no',
+                'registered_voter', 'address', 'zone', 'years_of_residency',
+                'house_ownership', 'num_families',
+                'is_4ps', 'is_senior_citizen', 'is_solo_parent',
+                'is_indigenous', 'is_pwd', 'pwd_type',
+                'water_source_level', 'water_safety_managed',
+                'sanitation_basic', 'sanitation_managed',
+            ];
+
+            $updates = [];
+            foreach ($allowedColumns as $col) {
+                if (array_key_exists($col, $payload) && $payload[$col] !== null && $payload[$col] !== '') {
+                    $updates[$col] = $payload[$col];
+                }
+            }
+
+            if ($updates !== []) {
+                $this->householdModel->update($payload['household_no'], $updates);
+            }
         }
 
         $authModel->update($id, [

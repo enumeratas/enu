@@ -2096,9 +2096,13 @@
             const nameEl = e.target.closest('.pf-file-drop')?.querySelector('.pf-file-name');
             if (nameEl) nameEl.textContent = name;
 
-            // Any change to an ID upload invalidates the previous OCR result.
+            // Any change to an ID upload invalidates the previous OCR result,
+            // BUT only if the file actually changed. Some browser/extension
+            // combinations re-dispatch `change` events on file inputs even
+            // when the user did not pick a different file; skipping in that
+            // case keeps a verified status from flipping back to "not match".
             const block = e.target.closest('[data-id-block]');
-            if (block) {
+            if (block && hasOcrInputsChanged(block)) {
                 resetOcrStatus(block);
                 maybeRunOcr(block);
             }
@@ -2134,6 +2138,9 @@
         function resetOcrStatus(block) {
             const flag = block.querySelector('[data-ocr-flag]');
             if (flag) flag.value = '0';
+            // Clearing the cached signature means the next auto-run will
+            // treat the block as "fresh" and go through to the OCR service.
+            ocrLastSig.delete(block);
             const single = block.dataset.ocrMode === 'single';
             setOcrStatus(
                 block,
@@ -2144,7 +2151,44 @@
             );
         }
 
+        // Per-block signature of the inputs that affect an OCR result. When
+        // the signature matches the one captured during the last successful
+        // verification, there is no reason to re-run OCR - skipping protects
+        // the previously verified status from being clobbered by a flaky
+        // retry from the free OCR service.
+        const ocrLastSig = new WeakMap();
+        // In-flight guard: a second OCR call on the same block is never
+        // started while the first is still pending, so a late response from
+        // the previous call cannot overwrite a newer result.
+        const ocrInFlight = new WeakSet();
+
+        function computeOcrSignature(block) {
+            const first = (document.querySelector('input[name="first_name"]')?.value || '').trim();
+            const middle = (document.querySelector('input[name="middle_name"]')?.value || '').trim();
+            const last = (document.querySelector('input[name="last_name"]')?.value || '').trim();
+            const dob = (document.querySelector('input[name="date_of_birth"]')?.value || '').trim();
+            const front = block.querySelector('[data-ocr-front]');
+            const back = block.querySelector('[data-ocr-back]');
+            const fileSig = function (input) {
+                const f = input && input.files && input.files[0];
+                return f ? (f.name + '|' + f.size + '|' + (f.lastModified || 0)) : '';
+            };
+            return [first, middle, last, dob, fileSig(front), fileSig(back)].join('::');
+        }
+
+        function hasOcrInputsChanged(block) {
+            const prev = ocrLastSig.get(block);
+            if (!prev) return true;             // no prior verification -> allow a run
+            return prev !== computeOcrSignature(block);
+        }
+
         async function runOcr(block) {
+            // Never run two OCR calls for the same block in parallel. A late
+            // response from the previous call could otherwise overwrite the
+            // newer result - which was the main reason verified IDs flipped
+            // back to "not match" after a few seconds.
+            if (ocrInFlight.has(block)) return;
+
             const front = block.querySelector('[data-ocr-front]');
             const back = block.querySelector('[data-ocr-back]');
             const runBtn = block.querySelector('[data-ocr-run]');
@@ -2161,6 +2205,8 @@
                 setOcrStatus(block, 'is-fail', 'Type the full name in personal information first.');
                 return;
             }
+
+            ocrInFlight.add(block);
 
             const form = new FormData();
             form.append('id_front', front.files[0]);
@@ -2210,11 +2256,21 @@
                 }
                 if (flag) flag.value = data.verified ? '1' : '0';
                 setOcrStatus(block, data.verified ? 'is-ok' : 'is-fail', data.reason || (data.verified ? 'Verified.' : 'Could not verify.'));
+                if (data.verified) {
+                    // Snapshot the inputs that produced this success so later
+                    // `change` events on the same inputs do NOT trigger a
+                    // redundant OCR call that could flip the result back.
+                    ocrLastSig.set(block, computeOcrSignature(block));
+                } else {
+                    ocrLastSig.delete(block);
+                }
             } catch (err) {
                 if (flag) flag.value = '0';
                 setOcrStatus(block, 'is-fail', 'Network error while verifying the ID: ' + (err && err.message ? err.message : err));
+                ocrLastSig.delete(block);
             } finally {
                 if (runBtn) runBtn.disabled = false;
+                ocrInFlight.delete(block);
             }
         }
 
@@ -2238,12 +2294,17 @@
             if (block) runOcr(block);
         });
 
-        // Re-verify when the head name or DOB changes and a file is already picked.
+        // Re-verify when the head name or DOB changes and a file is already
+        // picked. We only reset / re-run when something that affects the OCR
+        // result actually changed since the last verification - this stops a
+        // stray `change` event (e.g. tabbing in and out of a field without
+        // editing it) from blowing away a previously verified status.
         ['first_name', 'middle_name', 'last_name', 'date_of_birth'].forEach(function(field) {
             const el = document.querySelector('input[name="' + field + '"]');
             if (!el) return;
             el.addEventListener('change', function() {
                 document.querySelectorAll('[data-id-block]').forEach(function(block) {
+                    if (!hasOcrInputsChanged(block)) return;   // keep the current green status
                     resetOcrStatus(block);
                     maybeRunOcr(block);
                 });

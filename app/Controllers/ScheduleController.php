@@ -326,6 +326,26 @@ class ScheduleController extends BaseController
 
     public function publicCalendar()
     {
+        return $this->renderCalendarPage('public_events', '/events');
+    }
+
+    /**
+     * Same calendar as `publicCalendar()` but rendered inside the resident
+     * dashboard shell so clicking an "Upcoming Event" notification does not
+     * drop the resident back onto the public landing page.
+     */
+    public function residentCalendar()
+    {
+        return $this->renderCalendarPage('dashboard/resident/events', '/resident/events');
+    }
+
+    /**
+     * Shared data-prep used by both the public and resident event pages. The
+     * only differences are the view template rendered and the base URL used
+     * for the prev/next month navigation links.
+     */
+    private function renderCalendarPage(string $viewName, string $baseUrl)
+    {
         $year  = (int) ($this->request->getGet('year') ?? date('Y'));
         $month = (int) ($this->request->getGet('month') ?? date('n'));
 
@@ -363,7 +383,7 @@ class ScheduleController extends BaseController
             $nextYear++;
         }
 
-        return view('public_events', [
+        return view($viewName, [
             'year'      => $year,
             'month'     => $month,
             'monthName' => date('F Y', strtotime($start)),
@@ -374,8 +394,8 @@ class ScheduleController extends BaseController
                 date('Y-m-d', strtotime('+90 days')),
                 8
             ),
-            'prevUrl'   => '/events?year=' . $prevYear . '&month=' . $prevMonth,
-            'nextUrl'   => '/events?year=' . $nextYear . '&month=' . $nextMonth,
+            'prevUrl'   => $baseUrl . '?year=' . $prevYear . '&month=' . $prevMonth,
+            'nextUrl'   => $baseUrl . '?year=' . $nextYear . '&month=' . $nextMonth,
             'isLoggedIn' => (bool) session()->get('user_id'),
         ]);
     }

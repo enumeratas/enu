@@ -118,9 +118,23 @@ if (! function_exists('notification_page_for_role')) {
         } elseif ($type === 'census_update') {
             $subject = '/' . $role . '/census-update';
         } elseif ($type === 'event_reminder') {
-            $subject = notification_events_url($body);
+            $subject = notification_events_url($body, $role);
         } elseif ($type === 'household_approved' || $type === 'household_rejected') {
             $subject = $role === 'council' ? '/council/census' : '/resident/profile';
+        }
+
+        // Rewrite any legacy stored `/events...` link on an event-reminder
+        // notification so residents are kept inside the authenticated area
+        // instead of being bounced to the public landing page (where they
+        // appear to be "logged out"). The href has already been normalized
+        // by `notification_href_for_role` above, so we only need the first
+        // path segment check.
+        if ($type === 'event_reminder' && $role === 'resident') {
+            $storedPath = (string) (parse_url($stored, PHP_URL_PATH) ?? $stored);
+            if ($storedPath === '/events') {
+                $query = (string) (parse_url($stored, PHP_URL_QUERY) ?? '');
+                $stored = '/resident/events' . ($query !== '' ? '?' . $query : '');
+            }
         }
 
         if (! notification_path_is_generic($stored, $role) && notification_path_is_open_to_role($stored, $role)) {
@@ -136,17 +150,23 @@ if (! function_exists('notification_page_for_role')) {
 }
 
 if (! function_exists('notification_events_url')) {
-    function notification_events_url(string $body): string
+    /**
+     * URL for an "Upcoming Event" notification click. Residents are routed
+     * to the role-scoped page (`/resident/events`) so the dashboard shell
+     * is preserved; everyone else keeps the public `/events` landing page.
+     */
+    function notification_events_url(string $body, string $role = ''): string
     {
+        $base = $role === 'resident' ? '/resident/events' : '/events';
         $body = preg_replace('/\s*\[event_id:\d+\]/', '', $body) ?? $body;
         if (preg_match('/\b([A-Z][a-z]{2,9} \d{1,2}, \d{4})\b/', $body, $match) === 1) {
             $timestamp = strtotime($match[1]);
             if ($timestamp !== false) {
-                return '/events?year=' . date('Y', $timestamp) . '&month=' . (int) date('n', $timestamp);
+                return $base . '?year=' . date('Y', $timestamp) . '&month=' . (int) date('n', $timestamp);
             }
         }
 
-        return '/events';
+        return $base;
     }
 }
 
@@ -174,7 +194,7 @@ if (! function_exists('notification_path_is_open_to_role')) {
         }
 
         $pages = [
-            'resident' => ['clearance', 'profile', 'chatbot', 'support-ticket', 'concerns', 'activities', 'sk-activities', 'sk-profiling', 'census-update'],
+            'resident' => ['clearance', 'profile', 'chatbot', 'support-ticket', 'concerns', 'activities', 'events', 'sk-activities', 'sk-profiling', 'census-update'],
             'council'  => ['clearance', 'activities', 'programs', 'sk-profiling', 'settings', 'census', 'household', 'household-finder', 'census-update'],
         ];
 

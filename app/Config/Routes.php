@@ -665,6 +665,10 @@ $routes->group('/resident', ['filter' => ['auth', 'role:resident']], function ($
     $routes->post('activities/join/(:num)',           'BarangayActivityController::join/$1');
     $routes->post('activities/unjoin/(:num)',         'BarangayActivityController::unjoin/$1');
 
+    // Public events calendar rendered inside the resident dashboard shell
+    // (so clicking an "Upcoming Event" notification keeps the session).
+    $routes->get('events',                            'ScheduleController::residentCalendar');
+
     // SK Activities — residents can view and join
     $routes->get('sk-activities',                     'SkController::residentActivities');
     $routes->post('sk-activities/join/(:num)',         'SkController::joinProgram/$1');
