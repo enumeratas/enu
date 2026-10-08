@@ -23,5 +23,6 @@ class ConcernModel extends Model
         'schedule_id',
         'status',
         'notes',
+        'proof_path',
     ];
 }
