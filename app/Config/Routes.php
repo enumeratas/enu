@@ -149,6 +149,7 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
     $routes->post('census-updates/store', 'CensusUpdateDriveController::store');
     $routes->post('resident/approve-census-update/(:num)', 'CensusController::approveResidentUpdate/$1');
     $routes->post('resident/reject-census-update/(:num)', 'CensusController::rejectResidentUpdate/$1');
+    $routes->get('resident/census-update-diff/(:num)', 'CensusController::getCensusUpdateDiff/$1');
     $routes->post('member-request/approve/(:num)', 'CensusController::approveMemberRequest/$1');
     $routes->post('member-request/reject/(:num)', 'CensusController::rejectMemberRequest/$1');
 
@@ -372,6 +373,7 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
     $routes->post('resident/send-census-update', 'CensusController::sendResidentUpdateAuthorization');
     $routes->post('resident/approve-census-update/(:num)', 'CensusController::approveResidentUpdate/$1');
     $routes->post('resident/reject-census-update/(:num)', 'CensusController::rejectResidentUpdate/$1');
+    $routes->get('resident/census-update-diff/(:num)', 'CensusController::getCensusUpdateDiff/$1');
     $routes->post('member-request/approve/(:num)', 'CensusController::approveMemberRequest/$1');
     $routes->post('member-request/reject/(:num)', 'CensusController::rejectMemberRequest/$1');
 
@@ -540,6 +542,7 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('resident/send-census-update', 'CensusController::sendResidentUpdateAuthorization');
     $routes->post('resident/approve-census-update/(:num)', 'CensusController::approveResidentUpdate/$1');
     $routes->post('resident/reject-census-update/(:num)', 'CensusController::rejectResidentUpdate/$1');
+    $routes->get('resident/census-update-diff/(:num)', 'CensusController::getCensusUpdateDiff/$1');
     $routes->post('member-request/approve/(:num)', 'CensusController::approveMemberRequest/$1');
     $routes->post('member-request/reject/(:num)', 'CensusController::rejectMemberRequest/$1');
     $routes->post('settings/profile',          'SettingsController::updateProfile');
@@ -607,6 +610,7 @@ $routes->group('/council', ['filter' => ['auth', 'role:council']], function ($ro
     $routes->post('activities/unjoin/(:num)', 'BarangayActivityController::unjoin/$1');
     $routes->get('census-update', 'CensusController::residentCensusUpdateForm');
     $routes->post('census-update', 'CensusController::saveResidentCensusUpdate');
+    $routes->get('resident/census-update-diff/(:num)', 'CensusController::getCensusUpdateDiff/$1');
     $routes->get('sk-profiling', 'SkController::residentProfilingForm');
     $routes->post('sk-profiling/store', 'SkController::storeResidentProfiling');
     $routes->post('sk-profiling/update/(:num)', 'SkController::update/$1');
