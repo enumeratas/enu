@@ -902,12 +902,30 @@ class UIController extends BaseController
     {
         $term = trim($raw);
         $months = [
-            'jan' => 1, 'january' => 1, 'feb' => 2, 'february' => 2,
-            'mar' => 3, 'march' => 3, 'apr' => 4, 'april' => 4,
-            'may' => 5, 'jun' => 6, 'june' => 6, 'jul' => 7, 'july' => 7,
-            'aug' => 8, 'august' => 8, 'sep' => 9, 'sept' => 9, 'september' => 9,
-            'oct' => 10, 'october' => 10, 'nov' => 11, 'november' => 11,
-            'dec' => 12, 'december' => 12,
+            'jan' => 1,
+            'january' => 1,
+            'feb' => 2,
+            'february' => 2,
+            'mar' => 3,
+            'march' => 3,
+            'apr' => 4,
+            'april' => 4,
+            'may' => 5,
+            'jun' => 6,
+            'june' => 6,
+            'jul' => 7,
+            'july' => 7,
+            'aug' => 8,
+            'august' => 8,
+            'sep' => 9,
+            'sept' => 9,
+            'september' => 9,
+            'oct' => 10,
+            'october' => 10,
+            'nov' => 11,
+            'november' => 11,
+            'dec' => 12,
+            'december' => 12,
         ];
         $clauses = [];
         if (preg_match('/^(19|20)\d{2}$/', $term) === 1) {
@@ -1043,7 +1061,7 @@ class UIController extends BaseController
         // De-duplicate the display by the person's identifying census fields so the
         // Residents page represents people, not duplicate rows.
         $allResidents = $this->attachCensusAccounts($db->query($unionSql)->getResultArray());
-        
+
         // ── Also include resident accounts that have no matching census record ──
         // Get all resident accounts and find which ones weren't matched
         $allResidentAccounts = $db->table('users')
@@ -1051,14 +1069,14 @@ class UIController extends BaseController
             ->where('role', 'resident')
             ->where('status !=', 'deleted')
             ->get()->getResultArray();
-        
+
         $matchedUserIds = array_filter(array_column($allResidents, 'user_id'));
-        
+
         foreach ($allResidentAccounts as $account) {
             if (in_array((int) $account['id'], $matchedUserIds, true)) {
                 continue; // Already matched to a census record
             }
-            
+
             // Get zone from household if available
             $zone = '';
             $householdNo = trim((string) ($account['household_no'] ?? ''));
@@ -1066,7 +1084,7 @@ class UIController extends BaseController
                 $household = $db->table('households')->where('household_no', $householdNo)->get()->getRowArray();
                 $zone = $household['zone'] ?? '';
             }
-            
+
             // Add this account as a resident without census record
             $allResidents[] = [
                 'household_no'    => $householdNo,
@@ -1085,7 +1103,7 @@ class UIController extends BaseController
                 'account_role'    => $account['role'] ?? null,
             ];
         }
-        
+
         if ($filterAcct === 'active') {
             $allResidents = array_values(array_filter(
                 $allResidents,
@@ -1112,7 +1130,7 @@ class UIController extends BaseController
 
             return $byLast !== 0 ? $byLast : strcasecmp((string) $a['first_name'], (string) $b['first_name']);
         });
-        
+
         // De-duplicate by user_id first (prefer entries with user accounts)
         $seenUserIds = [];
         $uniqueResidents = [];
@@ -1124,7 +1142,7 @@ class UIController extends BaseController
                 }
                 $seenUserIds[$userId] = true;
             }
-            
+
             $identity = implode('|', [
                 strtoupper(trim((string) ($resident['last_name'] ?? ''))),
                 strtoupper(trim((string) ($resident['first_name'] ?? ''))),
@@ -1185,6 +1203,9 @@ class UIController extends BaseController
             'totalMinors'  => $totalMinors,
             // pending approvals
             'pendingUsers' => $pendingUsers,
+            // census update approvals
+            'submittedCensusUpdates' => (new \App\Models\CensusUpdateAuthorizationModel())->listForReview(['submitted', 'sent']),
+            'rolePrefix'             => session()->get('role') ?? 'secretary',
         ]);
     }
 
@@ -1967,12 +1988,12 @@ class UIController extends BaseController
     {
         $query = \Config\Database::connect()->table('users')
             ->select('id, first_name, middle_name, last_name, username, email, status, role, household_no');
-        
+
         // On the Residents page, only match resident accounts (not admin, secretary, etc.)
         if ($residentsOnly) {
             $query->where('role', 'resident');
         }
-        
+
         $users = $query->get()->getResultArray();
         $users = array_values(array_filter(
             $users,

@@ -23,10 +23,21 @@
             background: linear-gradient(135deg, #eff4ff, #f9fbff);
         }
 
-        .census-header h1 { margin: 0; font-size: 24px; color: #1d2448; }
-        .census-header p { margin: 8px 0 0; color: #6b7280; font-size: 14px; }
+        .census-header h1 {
+            margin: 0;
+            font-size: 24px;
+            color: #1d2448;
+        }
 
-        .census-body { padding: 28px; }
+        .census-header p {
+            margin: 8px 0 0;
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .census-body {
+            padding: 28px;
+        }
 
         .cu-section {
             margin-bottom: 22px;
@@ -58,10 +69,21 @@
             gap: 18px;
         }
 
-        .cu-grid-2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-        .cu-grid-3 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-        .cu-grid-4 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
-        .cu-span-all { grid-column: 1 / -1; }
+        .cu-grid-2 {
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        }
+
+        .cu-grid-3 {
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        }
+
+        .cu-grid-4 {
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        }
+
+        .cu-span-all {
+            grid-column: 1 / -1;
+        }
 
         .form-group {
             display: flex;
@@ -117,7 +139,9 @@
             cursor: pointer;
         }
 
-        .cu-radio input { accent-color: #1d2448; }
+        .cu-radio input {
+            accent-color: #1d2448;
+        }
 
         .cu-check-row {
             display: flex;
@@ -139,8 +163,13 @@
             cursor: pointer;
         }
 
-        .cu-check input { accent-color: #16c79a; }
-        .cu-check:hover { border-color: #c9d4ea; }
+        .cu-check input {
+            accent-color: #16c79a;
+        }
+
+        .cu-check:hover {
+            border-color: #c9d4ea;
+        }
 
         .cu-sub-label {
             margin: 0 0 10px;
@@ -155,7 +184,9 @@
             gap: 6px;
         }
 
-        .cu-sub-label i { color: #1d2448; }
+        .cu-sub-label i {
+            color: #1d2448;
+        }
 
         .census-actions {
             margin-top: 24px;
@@ -165,7 +196,10 @@
             flex-wrap: wrap;
         }
 
-        .db-btn--confirm { background: #16c79a; color: #fff; }
+        .db-btn--confirm {
+            background: #16c79a;
+            color: #fff;
+        }
 
         .census-note {
             margin-top: 18px;
@@ -311,7 +345,7 @@
                         </div>
                     <?php endif; ?>
 
-                    <form method="post" action="/<?= esc($portalRole) ?>/census-update">
+                    <form method="post" action="/<?= esc($portalRole) ?>/census-update" enctype="multipart/form-data">
                         <?= csrf_field() ?>
                         <input type="hidden" name="token" value="<?= esc($token ?? '') ?>">
 
@@ -692,6 +726,28 @@
                             <div class="census-note">
                                 <strong>Note:</strong> Household and personal changes are reviewed by the Captain or Secretary before they are applied. Add, move, and remove requests are filed separately and also need official approval.
                             </div>
+                            <!-- ── Proof of identity change (head branch) ── -->
+                            <div class="cu-section" id="proofUploadSection" style="display:none;" aria-live="polite">
+                                <div class="cu-section-bar">
+                                    <i class="fas fa-id-card"></i> Proof of Identity Change Required
+                                </div>
+                                <div class="cu-section-body">
+                                    <p style="margin:0 0 12px;color:#7a4200;font-size:13px;">
+                                        You changed personal identity information. Please upload a valid ID or supporting document
+                                        (PSA birth certificate, government-issued ID, etc.) as proof.
+                                        <strong>Accepted: JPG, PNG, PDF. Max 5 MB.</strong>
+                                    </p>
+                                    <div class="form-group">
+                                        <label for="proof_document">Upload Proof Document</label>
+                                        <input id="proof_document" name="proof_document" type="file"
+                                            accept=".jpg,.jpeg,.png,.pdf"
+                                            aria-describedby="proofDocumentHint">
+                                        <span id="proofDocumentHint" style="font-size:11.5px;color:#9aa0b4;">
+                                            JPG, PNG, or PDF — maximum 5 MB
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="census-actions">
                                 <a href="/<?= esc($portalRole) ?>/dashboard" class="db-btn db-btn--outline"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
                                 <button type="submit" name="submit_action" value="update" class="db-btn db-btn--primary" <?= $canEditPersonal ? '' : 'disabled' ?>>
@@ -789,6 +845,28 @@
                             <div class="census-note">
                                 <strong>Note:</strong> Your personal update is reviewed by the Captain or Secretary. If your information is already correct, use <em>Confirm information is correct</em> instead of submitting changes.
                             </div>
+                            <!-- ── Proof of identity change (member branch) ── -->
+                            <div class="cu-section" id="proofUploadSection" style="display:none;" aria-live="polite">
+                                <div class="cu-section-bar">
+                                    <i class="fas fa-id-card"></i> Proof of Identity Change Required
+                                </div>
+                                <div class="cu-section-body">
+                                    <p style="margin:0 0 12px;color:#7a4200;font-size:13px;">
+                                        You changed personal identity information. Please upload a valid ID or supporting document
+                                        (PSA birth certificate, government-issued ID, etc.) as proof.
+                                        <strong>Accepted: JPG, PNG, PDF. Max 5 MB.</strong>
+                                    </p>
+                                    <div class="form-group">
+                                        <label for="proof_document">Upload Proof Document</label>
+                                        <input id="proof_document" name="proof_document" type="file"
+                                            accept=".jpg,.jpeg,.png,.pdf"
+                                            aria-describedby="proofDocumentHint">
+                                        <span id="proofDocumentHint" style="font-size:11.5px;color:#9aa0b4;">
+                                            JPG, PNG, or PDF — maximum 5 MB
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="census-actions">
                                 <a href="/<?= esc($portalRole) ?>/dashboard" class="db-btn db-btn--outline"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
                                 <button type="submit" name="submit_action" value="confirm" class="db-btn db-btn--confirm" <?= $canEditPersonal ? '' : 'disabled' ?>>
@@ -804,6 +882,110 @@
             </div>
         </div>
     </div>
+    <script>
+        (function() {
+            // PHP-echoed original DB values for comparison
+            <?php if ($canEditHousehold): ?>
+                var originalValues = {
+                    last_name: '<?= esc($household['last_name'] ?? '', 'js') ?>',
+                    first_name: '<?= esc($household['first_name'] ?? '', 'js') ?>',
+                    middle_name: '<?= esc($household['middle_name'] ?? '', 'js') ?>',
+                    suffix: '<?= esc($household['suffix'] ?? '', 'js') ?>',
+                    date_of_birth: '<?= esc($household['date_of_birth'] ?? '', 'js') ?>',
+                };
+                var watchedFields = [{
+                        id: 'last_name',
+                        key: 'last_name'
+                    },
+                    {
+                        id: 'first_name',
+                        key: 'first_name'
+                    },
+                    {
+                        id: 'middle_name',
+                        key: 'middle_name'
+                    },
+                    {
+                        id: 'suffix',
+                        key: 'suffix'
+                    },
+                    {
+                        id: 'date_of_birth',
+                        key: 'date_of_birth'
+                    },
+                ];
+            <?php else: ?>
+                var originalValues = {
+                    last_name: '<?= esc($ownLast ?? '', 'js') ?>',
+                    first_name: '<?= esc($ownFirst ?? '', 'js') ?>',
+                    middle_name: '<?= esc($ownMiddle ?? '', 'js') ?>',
+                    date_of_birth: '<?= esc($ownDob ?? '', 'js') ?>',
+                };
+                var watchedFields = [{
+                        id: 'member_last_name',
+                        key: 'last_name'
+                    },
+                    {
+                        id: 'member_first_name',
+                        key: 'first_name'
+                    },
+                    {
+                        id: 'member_middle_name',
+                        key: 'middle_name'
+                    },
+                    {
+                        id: 'member_date_of_birth',
+                        key: 'date_of_birth'
+                    },
+                ];
+            <?php endif; ?>
+
+            var proofSection = document.getElementById('proofUploadSection');
+            if (!proofSection) {
+                return;
+            }
+
+            function normalise(val) {
+                return (val || '').trim().toLowerCase();
+            }
+
+            function checkProofRequired() {
+                var needsProof = false;
+                for (var i = 0; i < watchedFields.length; i++) {
+                    var el = document.getElementById(watchedFields[i].id);
+                    if (!el) {
+                        continue;
+                    }
+                    var current = normalise(el.value);
+                    var original = normalise(originalValues[watchedFields[i].key] || '');
+                    if (current !== original) {
+                        needsProof = true;
+                        break;
+                    }
+                }
+                proofSection.style.display = needsProof ? '' : 'none';
+                if (!needsProof) {
+                    var fileInput = document.getElementById('proof_document');
+                    if (fileInput) {
+                        fileInput.value = '';
+                    }
+                }
+            }
+
+            for (var i = 0; i < watchedFields.length; i++) {
+                (function(fieldDef) {
+                    var el = document.getElementById(fieldDef.id);
+                    if (el) {
+                        el.addEventListener('input', checkProofRequired);
+                        el.addEventListener('change', checkProofRequired);
+                    }
+                })(watchedFields[i]);
+            }
+
+            // Run once on load
+            checkProofRequired();
+        })();
+    </script>
 </body>
 
 </html>

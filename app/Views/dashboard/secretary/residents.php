@@ -916,117 +916,128 @@
             </form>
 
             <div id="liveResults">
-            <!-- ── Residents table ───────────────────────────────────────── -->
-            <div class="db-table-wrap">
-                <table class="db-table rl-table">
-                    <thead>
-                        <tr>
-                            <th style="width:38px;"><input type="checkbox" id="authSelectAll" title="Select all" onclick="toggleAllCensusAuth(this.checked)"></th>
-                            <th>Name</th>
-                            <th>Household #</th>
-                            <th>Relationship</th>
-                            <th>Zone</th>
-                            <th>Minor</th>
-                            <th>Account Status</th>
-                            <th>Username</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($residents ?? [])): ?>
+                <!-- ── Residents table ───────────────────────────────────────── -->
+                <div class="db-table-wrap">
+                    <table class="db-table rl-table">
+                        <thead>
                             <tr>
-                                <td colspan="9" class="rl-empty">
-                                    <i class="fas fa-search"></i>
-                                    No residents match the current filters.
-                                </td>
+                                <th style="width:38px;"><input type="checkbox" id="authSelectAll" title="Select all" onclick="toggleAllCensusAuth(this.checked)"></th>
+                                <th>Name</th>
+                                <th>Household #</th>
+                                <th>Relationship</th>
+                                <th>Zone</th>
+                                <th>Minor</th>
+                                <th>Account Status</th>
+                                <th>Username</th>
+                                <th>Actions</th>
                             </tr>
-                        <?php else: ?>
-                            <?php
-                            $cutoff = (new DateTime('today'))->modify('-18 years');
-
-                            foreach ($residents as $r):
-                                $fullName = esc(strtoupper($r['last_name'])) . ', ' . esc(ucwords(strtolower($r['first_name'])));
-                                if (! empty($r['middle_name'])) $fullName .= ' ' . esc(strtoupper($r['middle_name'][0])) . '.';
-                                if (! empty($r['suffix']))      $fullName .= ' ' . esc($r['suffix']);
-                                $initial = strtoupper($r['first_name'][0] ?? '?');
-
-                                $dob     = ! empty($r['date_of_birth']) ? new DateTime($r['date_of_birth']) : null;
-                                $isMinor = $dob ? ($dob > $cutoff) : null;
-
-                                $acctStatus = $r['account_status'] ?? null;
-                                $isHead     = ($r['relationship'] === 'Household Head');
-                            ?>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($residents ?? [])): ?>
                                 <tr>
-                                    <td style="text-align:center;">
-                                        <?php if (! empty($r['user_id'])): ?>
-                                            <input type="checkbox" class="census-auth-select" value="<?= (int) $r['user_id'] ?>" aria-label="Select resident for census update authorization">
-                                        <?php else: ?>
-                                            <span style="color:#d0d4df;">—</span>
-                                        <?php endif; ?>
+                                    <td colspan="9" class="rl-empty">
+                                        <i class="fas fa-search"></i>
+                                        No residents match the current filters.
                                     </td>
-                                    <td>
-                                        <div class="db-resident-name">
-                                            <div class="db-avatar-sm" style="<?= $isHead ? '' : 'background:#6b7280;width:28px;height:28px;font-size:11px;' ?>">
-                                                <?= $initial ?>
+                                </tr>
+                            <?php else: ?>
+                                <?php
+                                // Build lookup: user_id => auth_id for submitted/sent census updates
+                                $submittedCensusUpdates = $submittedCensusUpdates ?? [];
+                                $submittedUpdatesByUser = [];
+                                foreach ($submittedCensusUpdates as $_cu) {
+                                    $uid = (int) ($_cu['user_id'] ?? 0);
+                                    if ($uid > 0) {
+                                        $submittedUpdatesByUser[$uid] = (int) $_cu['id'];
+                                    }
+                                }
+                                ?>
+                                <?php
+                                $cutoff = (new DateTime('today'))->modify('-18 years');
+
+                                foreach ($residents as $r):
+                                    $fullName = esc(strtoupper($r['last_name'])) . ', ' . esc(ucwords(strtolower($r['first_name'])));
+                                    if (! empty($r['middle_name'])) $fullName .= ' ' . esc(strtoupper($r['middle_name'][0])) . '.';
+                                    if (! empty($r['suffix']))      $fullName .= ' ' . esc($r['suffix']);
+                                    $initial = strtoupper($r['first_name'][0] ?? '?');
+
+                                    $dob     = ! empty($r['date_of_birth']) ? new DateTime($r['date_of_birth']) : null;
+                                    $isMinor = $dob ? ($dob > $cutoff) : null;
+
+                                    $acctStatus = $r['account_status'] ?? null;
+                                    $isHead     = ($r['relationship'] === 'Household Head');
+                                ?>
+                                    <tr>
+                                        <td style="text-align:center;">
+                                            <?php if (! empty($r['user_id'])): ?>
+                                                <input type="checkbox" class="census-auth-select" value="<?= (int) $r['user_id'] ?>" aria-label="Select resident for census update authorization">
+                                            <?php else: ?>
+                                                <span style="color:#d0d4df;">—</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <div class="db-resident-name">
+                                                <div class="db-avatar-sm" style="<?= $isHead ? '' : 'background:#6b7280;width:28px;height:28px;font-size:11px;' ?>">
+                                                    <?= $initial ?>
+                                                </div>
+                                                <span style="font-weight:<?= $isHead ? '600' : '400' ?>;"><?= $fullName ?></span>
                                             </div>
-                                            <span style="font-weight:<?= $isHead ? '600' : '400' ?>;"><?= $fullName ?></span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <?php if ($isHead): ?>
-                                            <a href="/secretary/household/<?= esc($r['household_no']) ?>"
-                                                style="font-weight:700;color:#1d2448;text-decoration:none;">
-                                                <?= esc($r['household_no']) ?>
-                                            </a>
-                                        <?php else: ?>
-                                            <span style="color:#9aa0b4;font-size:12px;padding-left:6px;">
-                                                └ <?= esc($r['household_no']) ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($isHead): ?>
+                                                <a href="/secretary/household/<?= esc($r['household_no']) ?>"
+                                                    style="font-weight:700;color:#1d2448;text-decoration:none;">
+                                                    <?= esc($r['household_no']) ?>
+                                                </a>
+                                            <?php else: ?>
+                                                <span style="color:#9aa0b4;font-size:12px;padding-left:6px;">
+                                                    └ <?= esc($r['household_no']) ?>
+                                                </span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <span class="rl-badge <?= $isHead ? 'rl-badge--head' : 'rl-badge--member' ?>">
+                                                <?= $isHead
+                                                    ? '<i class="fas fa-home"></i> Head'
+                                                    : '<i class="fas fa-user"></i> ' . esc(ucfirst($r['relationship'])) ?>
                                             </span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <span class="rl-badge <?= $isHead ? 'rl-badge--head' : 'rl-badge--member' ?>">
-                                            <?= $isHead
-                                                ? '<i class="fas fa-home"></i> Head'
-                                                : '<i class="fas fa-user"></i> ' . esc(ucfirst($r['relationship'])) ?>
-                                        </span>
-                                    </td>
-                                    <td><?= esc($r['zone'] ?? '—') ?></td>
-                                    <td>
-                                        <?php if ($isMinor === null): ?>
-                                            <span style="color:#9aa0b4;font-size:12px;">—</span>
-                                        <?php elseif ($isMinor): ?>
-                                            <span class="rl-badge rl-badge--minor"><i class="fas fa-child"></i> Minor</span>
-                                        <?php else: ?>
-                                            <span style="color:#9aa0b4;font-size:12px;">—</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if ($acctStatus === 'active'): ?>
-                                            <span class="rl-badge rl-badge--active"><i class="fas fa-check-circle"></i> Active</span>
-                                        <?php elseif ($acctStatus === 'pending'): ?>
-                                            <span class="rl-badge rl-badge--pending"><i class="fas fa-hourglass-half"></i> Pending</span>
-                                        <?php elseif ($acctStatus === 'unverified'): ?>
-                                            <span class="rl-badge rl-badge--pending"><i class="fas fa-envelope"></i> Unverified</span>
-                                        <?php elseif ($acctStatus === 'rejected'): ?>
-                                            <span class="rl-badge" style="background:#fde8e8;color:#c0392b;border:1px solid #f5c6cb;"><i class="fas fa-times-circle"></i> Rejected</span>
-                                        <?php else: ?>
-                                            <span class="rl-badge rl-badge--none"><i class="fas fa-user-slash"></i> No Account</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td style="color:#6b7280;font-size:12.5px;">
-                                        <?= $r['username'] ? esc($r['username']) : '<span style="color:#d0d4df;">—</span>' ?>
-                                    </td>
-                                    <td>
-                                        <?php if ($r['user_id']): ?>
-                                            <div class="db-action-group" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-                                                <button type="button" class="db-btn db-btn--sm db-btn--outline" style="padding:7px 9px;" title="Send authorization email" onclick="queueSingleCensusAuth(<?= (int)$r['user_id'] ?>)">
-                                                    <i class="fas fa-envelope"></i>
-                                                </button>
-                                                <button type="button"
-                                                    class="rl-gear-btn"
-                                                    title="Manage Account"
-                                                    onclick="openDrawer(
+                                        </td>
+                                        <td><?= esc($r['zone'] ?? '—') ?></td>
+                                        <td>
+                                            <?php if ($isMinor === null): ?>
+                                                <span style="color:#9aa0b4;font-size:12px;">—</span>
+                                            <?php elseif ($isMinor): ?>
+                                                <span class="rl-badge rl-badge--minor"><i class="fas fa-child"></i> Minor</span>
+                                            <?php else: ?>
+                                                <span style="color:#9aa0b4;font-size:12px;">—</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($acctStatus === 'active'): ?>
+                                                <span class="rl-badge rl-badge--active"><i class="fas fa-check-circle"></i> Active</span>
+                                            <?php elseif ($acctStatus === 'pending'): ?>
+                                                <span class="rl-badge rl-badge--pending"><i class="fas fa-hourglass-half"></i> Pending</span>
+                                            <?php elseif ($acctStatus === 'unverified'): ?>
+                                                <span class="rl-badge rl-badge--pending"><i class="fas fa-envelope"></i> Unverified</span>
+                                            <?php elseif ($acctStatus === 'rejected'): ?>
+                                                <span class="rl-badge" style="background:#fde8e8;color:#c0392b;border:1px solid #f5c6cb;"><i class="fas fa-times-circle"></i> Rejected</span>
+                                            <?php else: ?>
+                                                <span class="rl-badge rl-badge--none"><i class="fas fa-user-slash"></i> No Account</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td style="color:#6b7280;font-size:12.5px;">
+                                            <?= $r['username'] ? esc($r['username']) : '<span style="color:#d0d4df;">—</span>' ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($r['user_id']): ?>
+                                                <div class="db-action-group" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+                                                    <button type="button" class="db-btn db-btn--sm db-btn--outline" style="padding:7px 9px;" title="Send authorization email" onclick="queueSingleCensusAuth(<?= (int)$r['user_id'] ?>)">
+                                                        <i class="fas fa-envelope"></i>
+                                                    </button>
+                                                    <button type="button"
+                                                        class="rl-gear-btn"
+                                                        title="Manage Account"
+                                                        onclick="openDrawer(
                                                         <?= (int)$r['user_id'] ?>,
                                                         '<?= esc($fullName, 'js') ?>',
                                                         '<?= esc($r['username'] ?? '', 'js') ?>',
@@ -1035,66 +1046,75 @@
                                                         '<?= esc($r['zone'] ?? '', 'js') ?>',
                                                         '<?= esc($r['household_no'] ?? '', 'js') ?>'
                                                     )">
-                                                    <i class="fas fa-cog"></i>
-                                                </button>
-                                            </div>
-                                        <?php else: ?>
-                                            <span style="color:#d0d4df;font-size:12px;">—</span>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- ── Pagination ─────────────────────────────────────────────── -->
-            <?php
-            $totalPages = (int) ceil($total / $perPage);
-            $start      = $total > 0 ? ($currentPage - 1) * $perPage + 1 : 0;
-            $end        = min($currentPage * $perPage, $total);
-            $qs = http_build_query(array_filter([
-                'search'    => $search     ?? '',
-                'household_no' => $householdNo ?? '',
-                'zone'      => $filterZone ?? '',
-                'account'   => $filterAcct ?? '',
-                'age_group' => $filterAge  ?? '',
-            ], fn($v) => $v !== ''));
-            $qs = $qs ? '&' . $qs : '';
-            ?>
-            <?php if ($total > 0): ?>
-                <div class="db-pagination">
-                    <span class="db-page-info">
-                        Showing <?= $start ?>–<?= $end ?> of <?= number_format($total) ?> resident<?= $total !== 1 ? 's' : '' ?>
-                    </span>
-                    <div class="db-page-btns">
-                        <a href="?page=<?= max(1, $currentPage - 1) ?><?= $qs ?>"
-                            class="db-page-btn <?= $currentPage <= 1 ? 'disabled' : '' ?>">
-                            <i class="fas fa-chevron-left"></i>
-                        </a>
-                        <?php
-                        $rangeStart = max(1, $currentPage - 3);
-                        $rangeEnd   = min($totalPages, $currentPage + 3);
-                        if ($rangeStart > 1): ?>
-                            <a href="?page=1<?= $qs ?>" class="db-page-btn">1</a>
-                            <?php if ($rangeStart > 2): ?><span class="db-page-btn" style="cursor:default;">…</span><?php endif; ?>
-                        <?php endif; ?>
-                        <?php for ($p = $rangeStart; $p <= $rangeEnd; $p++): ?>
-                            <a href="?page=<?= $p ?><?= $qs ?>"
-                                class="db-page-btn <?= $p === $currentPage ? 'active' : '' ?>"><?= $p ?></a>
-                        <?php endfor; ?>
-                        <?php if ($rangeEnd < $totalPages): ?>
-                            <?php if ($rangeEnd < $totalPages - 1): ?><span class="db-page-btn" style="cursor:default;">…</span><?php endif; ?>
-                            <a href="?page=<?= $totalPages ?><?= $qs ?>" class="db-page-btn"><?= $totalPages ?></a>
-                        <?php endif; ?>
-                        <a href="?page=<?= min($totalPages, $currentPage + 1) ?><?= $qs ?>"
-                            class="db-page-btn <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
-                            <i class="fas fa-chevron-right"></i>
-                        </a>
-                    </div>
+                                                        <i class="fas fa-cog"></i>
+                                                    </button>
+                                                    <?php if (isset($submittedUpdatesByUser[(int) $r['user_id']])): ?>
+                                                        <button type="button"
+                                                            class="db-btn db-btn--sm"
+                                                            style="background:#fff8e6;color:#b07a00;border:1.5px solid #ffe08a;white-space:nowrap;"
+                                                            title="Review submitted census update"
+                                                            onclick="openCensusUpdateDiff(<?= (int) $r['user_id'] ?>, <?= (int) $submittedUpdatesByUser[(int) $r['user_id']] ?>)">
+                                                            <i class="fas fa-eye"></i> Review Changes
+                                                        </button>
+                                                    <?php endif; ?>
+                                                </div>
+                                            <?php else: ?>
+                                                <span style="color:#d0d4df;font-size:12px;">—</span>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
-            <?php endif; ?>
+
+                <!-- ── Pagination ─────────────────────────────────────────────── -->
+                <?php
+                $totalPages = (int) ceil($total / $perPage);
+                $start      = $total > 0 ? ($currentPage - 1) * $perPage + 1 : 0;
+                $end        = min($currentPage * $perPage, $total);
+                $qs = http_build_query(array_filter([
+                    'search'    => $search     ?? '',
+                    'household_no' => $householdNo ?? '',
+                    'zone'      => $filterZone ?? '',
+                    'account'   => $filterAcct ?? '',
+                    'age_group' => $filterAge  ?? '',
+                ], fn($v) => $v !== ''));
+                $qs = $qs ? '&' . $qs : '';
+                ?>
+                <?php if ($total > 0): ?>
+                    <div class="db-pagination">
+                        <span class="db-page-info">
+                            Showing <?= $start ?>–<?= $end ?> of <?= number_format($total) ?> resident<?= $total !== 1 ? 's' : '' ?>
+                        </span>
+                        <div class="db-page-btns">
+                            <a href="?page=<?= max(1, $currentPage - 1) ?><?= $qs ?>"
+                                class="db-page-btn <?= $currentPage <= 1 ? 'disabled' : '' ?>">
+                                <i class="fas fa-chevron-left"></i>
+                            </a>
+                            <?php
+                            $rangeStart = max(1, $currentPage - 3);
+                            $rangeEnd   = min($totalPages, $currentPage + 3);
+                            if ($rangeStart > 1): ?>
+                                <a href="?page=1<?= $qs ?>" class="db-page-btn">1</a>
+                                <?php if ($rangeStart > 2): ?><span class="db-page-btn" style="cursor:default;">…</span><?php endif; ?>
+                            <?php endif; ?>
+                            <?php for ($p = $rangeStart; $p <= $rangeEnd; $p++): ?>
+                                <a href="?page=<?= $p ?><?= $qs ?>"
+                                    class="db-page-btn <?= $p === $currentPage ? 'active' : '' ?>"><?= $p ?></a>
+                            <?php endfor; ?>
+                            <?php if ($rangeEnd < $totalPages): ?>
+                                <?php if ($rangeEnd < $totalPages - 1): ?><span class="db-page-btn" style="cursor:default;">…</span><?php endif; ?>
+                                <a href="?page=<?= $totalPages ?><?= $qs ?>" class="db-page-btn"><?= $totalPages ?></a>
+                            <?php endif; ?>
+                            <a href="?page=<?= min($totalPages, $currentPage + 1) ?><?= $qs ?>"
+                                class="db-page-btn <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
+                                <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                <?php endif; ?>
             </div>
 
         </div><!-- /.db-content -->
@@ -1166,6 +1186,78 @@
                         <i class="fas fa-times"></i> Yes, Reject
                     </button>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Census update diff modal ──────────────────────────────────── -->
+    <div class="pa-overlay" id="censusUpdateDiffModal">
+        <div class="pa-modal" style="max-width:680px;width:95%;">
+            <div class="pa-modal-header">
+                <div class="pa-modal-icon" style="background:rgba(255,193,7,0.15);color:#b07a00;">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <div>
+                    <div class="pa-modal-title">Review Census Update</div>
+                    <p class="pa-modal-sub">Compare the current record to the resident's proposed changes.</p>
+                </div>
+            </div>
+            <div class="pa-modal-body" id="cuDiffBody">
+                <div id="cuDiffLoading" style="text-align:center;padding:32px;color:#6b7280;">
+                    <i class="fas fa-spinner fa-spin"></i> Loading changes&hellip;
+                </div>
+                <div id="cuDiffContent" style="display:none;">
+                    <div style="margin-bottom:12px;">
+                        <strong id="cuDiffResidentName"></strong>
+                        <span id="cuDiffSubmittedAt" style="font-size:12px;color:#9aa0b4;margin-left:8px;"></span>
+                    </div>
+                    <!-- Proof document section -->
+                    <div id="cuDiffProofWrap" style="display:none;margin-bottom:14px;padding:12px 14px;background:#eef5ff;border:1px solid #cfe0ff;border-radius:10px;">
+                        <strong style="font-size:12.5px;color:#21446f;">
+                            <i class="fas fa-id-card"></i> Proof Document:
+                        </strong>
+                        <a id="cuDiffProofLink" href="#" target="_blank" rel="noopener" style="margin-left:8px;font-size:13px;word-break:break-all;"></a>
+                        <div id="cuDiffProofImgWrap" style="margin-top:8px;display:none;">
+                            <img id="cuDiffProofImg" src="" alt="Proof document preview"
+                                style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid #cfe0ff;">
+                        </div>
+                    </div>
+                    <!-- Diff table -->
+                    <div class="db-table-wrap" style="margin:0 0 14px;border-radius:10px;">
+                        <table class="db-table" style="font-size:13px;">
+                            <thead>
+                                <tr>
+                                    <th style="width:30%;">Field</th>
+                                    <th style="width:35%;">Current Value</th>
+                                    <th style="width:35%;">Proposed Change</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cuDiffTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Rejection reason -->
+                    <div class="form-group" id="cuDiffRejectGroup" style="display:none;">
+                        <label for="cuDiffRejectReason">Rejection reason (optional)</label>
+                        <textarea id="cuDiffRejectReason" name="remarks"
+                            style="width:100%;border:1.5px solid #dde4f0;border-radius:10px;padding:10px 12px;font-size:13px;font-family:Poppins,sans-serif;min-height:70px;resize:vertical;box-sizing:border-box;"
+                            placeholder="Explain why the update is being rejected&hellip;"></textarea>
+                    </div>
+                </div>
+                <div id="cuDiffError" style="display:none;padding:14px;background:#fde8e8;border-radius:10px;color:#c0392b;font-size:13px;"></div>
+            </div>
+            <div class="pa-modal-footer">
+                <button class="pa-btn pa-btn--cancel" onclick="closeModal('censusUpdateDiffModal')">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button id="cuDiffRejectBtn" class="pa-btn pa-btn--reject" style="display:none;"
+                    onclick="submitCensusUpdateAction('reject')">
+                    <i class="fas fa-times"></i> Reject
+                </button>
+                <button id="cuDiffApproveBtn" class="pa-btn pa-btn--approve" style="display:none;"
+                    onclick="submitCensusUpdateAction('approve')">
+                    <i class="fas fa-check"></i> Approve &amp; Apply
+                </button>
             </div>
         </div>
     </div>
@@ -1474,6 +1566,148 @@
                 form.appendChild(input);
             });
             form.submit();
+        }
+
+        // ── Census update diff modal ──────────────────────────────────────
+        var _cuDiffCurrentAuthId = 0;
+        var ROLE_PREFIX = '<?= esc(session()->get('role') ?? 'secretary', 'js') ?>';
+
+        function escHtml(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function openCensusUpdateDiff(userId, authId) {
+            _cuDiffCurrentAuthId = authId;
+
+            // Reset modal state
+            document.getElementById('cuDiffLoading').style.display = '';
+            document.getElementById('cuDiffContent').style.display = 'none';
+            document.getElementById('cuDiffError').style.display = 'none';
+            document.getElementById('cuDiffApproveBtn').style.display = 'none';
+            document.getElementById('cuDiffRejectBtn').style.display = 'none';
+            document.getElementById('cuDiffRejectGroup').style.display = 'none';
+            document.getElementById('cuDiffRejectReason').value = '';
+            document.getElementById('cuDiffProofWrap').style.display = 'none';
+            document.getElementById('cuDiffProofImgWrap').style.display = 'none';
+            document.getElementById('cuDiffTableBody').innerHTML = '';
+            document.getElementById('censusUpdateDiffModal').classList.add('active');
+
+            fetch('/' + ROLE_PREFIX + '/resident/census-update-diff/' + authId, {
+                    credentials: 'same-origin'
+                })
+                .then(function(res) {
+                    return res.json();
+                })
+                .then(function(data) {
+                    document.getElementById('cuDiffLoading').style.display = 'none';
+
+                    if (!data.ok) {
+                        var errEl = document.getElementById('cuDiffError');
+                        errEl.textContent = data.message || 'Failed to load changes.';
+                        errEl.style.display = '';
+                        return;
+                    }
+
+                    // Resident name + submitted time
+                    document.getElementById('cuDiffResidentName').textContent = data.resident_name || 'Resident';
+                    document.getElementById('cuDiffSubmittedAt').textContent = data.submitted_at ?
+                        'Submitted ' + new Date(data.submitted_at).toLocaleString('en-PH', {
+                            dateStyle: 'medium',
+                            timeStyle: 'short'
+                        }) :
+                        '';
+
+                    // Proof document
+                    if (data.proof_url) {
+                        var proofLink = document.getElementById('cuDiffProofLink');
+                        proofLink.href = data.proof_url;
+                        proofLink.textContent = 'View proof document';
+                        var imgWrap = document.getElementById('cuDiffProofImgWrap');
+                        var img = document.getElementById('cuDiffProofImg');
+                        var lowerUrl = data.proof_url.toLowerCase();
+                        if (lowerUrl.endsWith('.jpg') || lowerUrl.endsWith('.jpeg') || lowerUrl.endsWith('.png')) {
+                            img.src = data.proof_url;
+                            imgWrap.style.display = '';
+                        } else {
+                            imgWrap.style.display = 'none';
+                        }
+                        document.getElementById('cuDiffProofWrap').style.display = '';
+                    }
+
+                    // Diff table
+                    var tbody = document.getElementById('cuDiffTableBody');
+                    if (data.confirm_only && (!data.diff || data.diff.length === 0)) {
+                        tbody.innerHTML = '<tr><td colspan="3" style="color:#6b7280;font-style:italic;text-align:center;">Resident confirmed information is correct, no changes.</td></tr>';
+                    } else if (data.diff && data.diff.length > 0) {
+                        data.diff.forEach(function(row) {
+                            var tr = document.createElement('tr');
+                            tr.innerHTML = '<td style="font-weight:600;">' + escHtml(row.label) + '</td>' +
+                                '<td style="color:#6b7280;">' + escHtml(row.old) + '</td>' +
+                                '<td style="color:#0e9464;font-weight:600;">' + escHtml(row.new) + '</td>';
+                            tbody.appendChild(tr);
+                        });
+                    } else {
+                        tbody.innerHTML = '<tr><td colspan="3" style="color:#6b7280;font-style:italic;text-align:center;">No field changes detected.</td></tr>';
+                    }
+
+                    document.getElementById('cuDiffContent').style.display = '';
+                    document.getElementById('cuDiffApproveBtn').style.display = '';
+                    document.getElementById('cuDiffRejectBtn').style.display = '';
+                    document.getElementById('cuDiffRejectGroup').style.display = '';
+                })
+                .catch(function(err) {
+                    document.getElementById('cuDiffLoading').style.display = 'none';
+                    var errEl = document.getElementById('cuDiffError');
+                    errEl.textContent = 'Network error. Please try again.';
+                    errEl.style.display = '';
+                });
+        }
+
+        function submitCensusUpdateAction(action) {
+            var authId = _cuDiffCurrentAuthId;
+            if (!authId) {
+                return;
+            }
+
+            var csrfToken = document.querySelector('input[name^="csrf_"]');
+            var csrfName = csrfToken ? csrfToken.name : 'csrf_test_name';
+            var csrfVal = csrfToken ? csrfToken.value : '';
+
+            var fd = new FormData();
+            fd.append(csrfName, csrfVal);
+
+            if (action === 'reject') {
+                var reason = document.getElementById('cuDiffRejectReason').value;
+                fd.append('remarks', reason);
+            }
+
+            var url = '/' + ROLE_PREFIX + '/resident/' + (action === 'approve' ? 'approve' : 'reject') + '-census-update/' + authId;
+
+            fetch(url, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: fd
+                })
+                .then(function(res) {
+                    if (res.ok || res.redirected) {
+                        closeModal('censusUpdateDiffModal');
+                        window.location.reload();
+                    } else {
+                        return res.json().then(function(data) {
+                            alert(data.message || 'Action failed. Please try again.');
+                        }).catch(function() {
+                            alert('Action failed. Please try again.');
+                        });
+                    }
+                })
+                .catch(function() {
+                    alert('Network error. Please try again.');
+                });
         }
 
         // Escape key closes drawer too
