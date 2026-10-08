@@ -188,6 +188,90 @@
             border: 1px solid #e2e5ef;
         }
 
+        .cr-status--processing {
+            background: #eef4ff;
+            color: #1d5fb0;
+            border: 1px solid #c3d7f7;
+        }
+
+        .cr-status--ongoing {
+            background: #f0f9ff;
+            color: #0369a1;
+            border: 1px solid #bae6fd;
+        }
+
+        /* ── Progress Timeline ── */
+        .cr-timeline {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .cr-timeline-item {
+            display: flex;
+            gap: 14px;
+            padding-bottom: 20px;
+            position: relative;
+        }
+
+        .cr-timeline-item:not(:last-child)::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 32px;
+            bottom: 0;
+            width: 2px;
+            background: #e8ecf4;
+        }
+
+        .cr-timeline-dot {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #f0f2f8;
+            color: #1d2448;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        .cr-timeline-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .cr-timeline-date {
+            font-size: 11px;
+            color: #9aa0b4;
+            margin-bottom: 4px;
+        }
+
+        .cr-timeline-note {
+            font-size: 13px;
+            color: #4a5068;
+            line-height: 1.65;
+            margin: 6px 0 0;
+            word-break: break-word;
+        }
+
+        .cr-timeline-proof {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin-top: 6px;
+            font-size: 12px;
+            color: #1d5fb0;
+            text-decoration: none;
+        }
+
+        .cr-timeline-proof:hover {
+            text-decoration: underline;
+        }
+
         .cr-slot-unavailable {
             border-color: #c0392b !important;
             background: #fff5f4 !important;
@@ -393,10 +477,12 @@
     }
 
     $statusMap = [
-        'pending'   => ['label' => 'Pending',   'class' => 'cr-status--pending',   'icon' => 'fa-hourglass-half'],
-        'approved'  => ['label' => 'Approved',  'class' => 'cr-status--approved',  'icon' => 'fa-check-circle'],
-        'resolved'  => ['label' => 'Resolved',  'class' => 'cr-status--approved',  'icon' => 'fa-check-circle'],
-        'dismissed' => ['label' => 'Dismissed', 'class' => 'cr-status--dismissed', 'icon' => 'fa-times-circle'],
+        'pending'    => ['label' => 'Pending',    'class' => 'cr-status--pending',    'icon' => 'fa-hourglass-half'],
+        'approved'   => ['label' => 'Approved',   'class' => 'cr-status--approved',   'icon' => 'fa-check-circle'],
+        'resolved'   => ['label' => 'Resolved',   'class' => 'cr-status--approved',   'icon' => 'fa-check-circle'],
+        'dismissed'  => ['label' => 'Dismissed',  'class' => 'cr-status--dismissed',  'icon' => 'fa-times-circle'],
+        'processing' => ['label' => 'Processing', 'class' => 'cr-status--processing', 'icon' => 'fa-spinner'],
+        'ongoing'    => ['label' => 'Ongoing',    'class' => 'cr-status--ongoing',    'icon' => 'fa-sync-alt'],
     ];
     $statusInfo = $statusMap[$c['status']] ?? $statusMap['pending'];
     ?>
@@ -492,47 +578,101 @@
                     </div>
                 </div>
 
-                <!-- ── RIGHT: Action sidebar ── -->
-                <div>
-                    <div class="cr-card">
-                        <div class="cr-card-header">
-                            <div class="cr-card-header-icon" style="background:rgba(29,36,72,.08);color:#1d2448;">
-                                <i class="fas fa-reply"></i>
-                            </div>
-                            <div>
-                                <p class="cr-card-header-title">Official Response</p>
-                                <p class="cr-card-header-sub">Your reply will be sent to the submitter's email.</p>
-                            </div>
+                <!-- ── Progress Timeline card ── -->
+                <div class="cr-card" style="margin-top:24px;">
+                    <div class="cr-card-header">
+                        <div class="cr-card-header-icon" style="background:rgba(29,36,72,.08);color:#1d2448;">
+                            <i class="fas fa-history"></i>
                         </div>
-                        <div class="cr-card-body">
+                        <div>
+                            <p class="cr-card-header-title">Progress Timeline</p>
+                            <p class="cr-card-header-sub">Status updates recorded for this concern.</p>
+                        </div>
+                    </div>
+                    <div class="cr-card-body">
+                        <?php
+                        $progress = isset($progress) && is_array($progress) ? $progress : [];
+                        if ($progress === []):
+                        ?>
+                            <p style="font-size:13px;color:#9aa0b4;margin:0;">No progress updates yet.</p>
+                        <?php else: ?>
+                            <ul class="cr-timeline">
+                                <?php foreach ($progress as $entry):
+                                    $entryStatus = is_string($entry['status'] ?? null) ? $entry['status'] : 'pending';
+                                    $entryInfo   = $statusMap[$entryStatus] ?? $statusMap['pending'];
+                                    $entryDate   = ! empty($entry['created_at'])
+                                        ? date('M d, Y \a\t g:i A', strtotime((string) $entry['created_at']))
+                                        : '—';
+                                    $entryNote   = is_string($entry['note'] ?? null) ? trim($entry['note']) : '';
+                                    $entryProof  = is_string($entry['proof_path'] ?? null) && $entry['proof_path'] !== '' ? $entry['proof_path'] : '';
+                                ?>
+                                    <li class="cr-timeline-item">
+                                        <div class="cr-timeline-dot">
+                                            <i class="fas <?= esc($entryInfo['icon']) ?>"></i>
+                                        </div>
+                                        <div class="cr-timeline-body">
+                                            <div class="cr-timeline-date"><?= esc($entryDate) ?></div>
+                                            <span class="cr-status <?= esc($entryInfo['class']) ?>" style="font-size:11px;padding:3px 10px;">
+                                                <i class="fas <?= esc($entryInfo['icon']) ?>"></i>
+                                                <?= esc($entryInfo['label']) ?>
+                                            </span>
+                                            <?php if ($entryNote !== ''): ?>
+                                                <p class="cr-timeline-note"><?= esc($entryNote) ?></p>
+                                            <?php endif; ?>
+                                            <?php if ($entryProof !== ''): ?>
+                                                <a href="/<?= esc($entryProof) ?>" target="_blank" rel="noopener" class="cr-timeline-proof">
+                                                    <i class="fas fa-paperclip"></i> View Proof
+                                                </a>
+                                            <?php endif; ?>
+                                        </div>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+                    </div>
+                </div>
 
-                            <?php if (session()->getFlashdata('concern_form_error')): ?>
-                                <div class="cr-alert cr-alert--error">
-                                    <i class="fas fa-exclamation-circle"></i>
-                                    <?= session()->getFlashdata('concern_form_error') ?>
-                                </div>
-                            <?php endif; ?>
+            </div><!-- /.cr-wrap left column -->
+            <div>
+                <div class="cr-card">
+                    <div class="cr-card-header">
+                        <div class="cr-card-header-icon" style="background:rgba(29,36,72,.08);color:#1d2448;">
+                            <i class="fas fa-reply"></i>
+                        </div>
+                        <div>
+                            <p class="cr-card-header-title">Official Response</p>
+                            <p class="cr-card-header-sub">Your reply will be sent to the submitter's email.</p>
+                        </div>
+                    </div>
+                    <div class="cr-card-body">
 
-                            <?php if ($isPending): ?>
+                        <?php if (session()->getFlashdata('concern_form_error')): ?>
+                            <div class="cr-alert cr-alert--error">
+                                <i class="fas fa-exclamation-circle"></i>
+                                <?= session()->getFlashdata('concern_form_error') ?>
+                            </div>
+                        <?php endif; ?>
 
-                                <!-- Shared textarea used by both forms via JS -->
-                                <div class="cr-action-section">
-                                    <p class="cr-action-label">Response Message</p>
-                                    <textarea
-                                        id="sharedResponse"
-                                        class="cr-textarea"
-                                        placeholder="Write your official response here. This message will be emailed to <?= esc($c['full_name']) ?> at <?= esc($c['email']) ?>…"
-                                        oninput="syncResponse(this.value)"><?= old('response', $c['notes'] ?? '') ?></textarea>
-                                    <p class="cr-hint">
-                                        <i class="fas fa-envelope" style="font-size:10px;"></i>
-                                        Will be sent to <strong><?= esc($c['email']) ?></strong>
-                                    </p>
-                                </div>
+                        <?php if ($isPending): ?>
 
-                                <div style="margin-top:16px;padding-top:16px;border-top:1px solid #f0f2f8;">
-                                    <button type="button" id="scheduleConcernToggle"
-                                        onclick="toggleConcernSchedule()"
-                                        style="
+                            <!-- Shared textarea used by both forms via JS -->
+                            <div class="cr-action-section">
+                                <p class="cr-action-label">Response Message</p>
+                                <textarea
+                                    id="sharedResponse"
+                                    class="cr-textarea"
+                                    placeholder="Write your official response here. This message will be emailed to <?= esc($c['full_name']) ?> at <?= esc($c['email']) ?>…"
+                                    oninput="syncResponse(this.value)"><?= old('response', $c['notes'] ?? '') ?></textarea>
+                                <p class="cr-hint">
+                                    <i class="fas fa-envelope" style="font-size:10px;"></i>
+                                    Will be sent to <strong><?= esc($c['email']) ?></strong>
+                                </p>
+                            </div>
+
+                            <div style="margin-top:16px;padding-top:16px;border-top:1px solid #f0f2f8;">
+                                <button type="button" id="scheduleConcernToggle"
+                                    onclick="toggleConcernSchedule()"
+                                    style="
                                             width:100%;padding:11px 14px;
                                             background:#fff;color:#1d2448;
                                             border:1.5px solid #1d2448;border-radius:10px;
@@ -540,24 +680,131 @@
                                             cursor:pointer;display:flex;align-items:center;justify-content:center;
                                             gap:8px;transition:background .15s,color .15s;
                                         "
-                                        onmouseover="this.style.background='#1d2448';this.style.color='#fff';"
-                                        onmouseout="this.style.background='#fff';this.style.color='#1d2448';">
-                                        <i class="fas <?= ! empty($c['appointment_date']) ? 'fa-calendar-edit' : 'fa-calendar-plus' ?>"></i>
-                                        <?= ! empty($c['appointment_date']) ? 'Reschedule Appointment' : 'Create Appointment Schedule' ?>
-                                    </button>
+                                    onmouseover="this.style.background='#1d2448';this.style.color='#fff';"
+                                    onmouseout="this.style.background='#fff';this.style.color='#1d2448';">
+                                    <i class="fas <?= ! empty($c['appointment_date']) ? 'fa-calendar-edit' : 'fa-calendar-plus' ?>"></i>
+                                    <?= ! empty($c['appointment_date']) ? 'Reschedule Appointment' : 'Create Appointment Schedule' ?>
+                                </button>
 
-                                    <div id="scheduleConcernForm" style="display:none;margin-top:14px;">
-                                        <form action="/<?= esc($role) ?>/concern/schedule/<?= (int)$c['id'] ?>" method="post">
-                                            <?= csrf_field() ?>
+                                <div id="scheduleConcernForm" style="display:none;margin-top:14px;">
+                                    <form action="/<?= esc($role) ?>/concern/schedule/<?= (int)$c['id'] ?>" method="post">
+                                        <?= csrf_field() ?>
 
-                                            <p class="cr-action-label" style="margin-bottom:10px;">
-                                                Set the appointment date and time for this concern. It will be recorded on the calendar and emailed to the submitter.
-                                            </p>
+                                        <p class="cr-action-label" style="margin-bottom:10px;">
+                                            Set the appointment date and time for this concern. It will be recorded on the calendar and emailed to the submitter.
+                                        </p>
 
-                                            <div class="rl-drawer-field-wrap" style="margin-bottom:12px;">
-                                                <label class="cr-action-label">Appointment Date <span style="color:#c0392b;">*</span></label>
+                                        <div class="rl-drawer-field-wrap" style="margin-bottom:12px;">
+                                            <label class="cr-action-label">Appointment Date <span style="color:#c0392b;">*</span></label>
+                                            <input type="text" name="appointment_date"
+                                                id="scheduleAppointmentDate"
+                                                class="cr-textarea"
+                                                style="min-height:unset;padding:10px 12px;resize:none;font-size:13px;"
+                                                placeholder="YYYY-MM-DD"
+                                                autocomplete="off"
+                                                value="<?= esc($c['appointment_date'] ?? '') ?>"
+                                                required>
+                                        </div>
+
+                                        <div class="rl-drawer-field-wrap" style="margin-bottom:12px;">
+                                            <label class="cr-action-label">Appointment Time <span style="color:#c0392b;">*</span></label>
+                                            <select name="appointment_time"
+                                                id="scheduleAppointmentTime"
+                                                class="cr-textarea"
+                                                data-current="<?= ! empty($c['appointment_time']) ? esc(date('H:i', strtotime((string) $c['appointment_time']))) : '' ?>"
+                                                style="min-height:unset;padding:10px 12px;font-size:13px;"
+                                                disabled>
+                                                <option value="">Select a date first</option>
+                                            </select>
+                                            <p id="scheduleAvailability" class="cr-hint" style="margin-top:6px;"></p>
+                                        </div>
+
+                                        <button type="submit"
+                                            style="
+                                                    width:100%;padding:11px 14px;
+                                                    background:linear-gradient(135deg,#1d2448,#2e3a6e);
+                                                    color:#fff;border:none;border-radius:10px;
+                                                    font-size:13.5px;font-weight:600;font-family:'Poppins',sans-serif;
+                                                    cursor:pointer;display:flex;align-items:center;
+                                                    justify-content:center;gap:8px;
+                                                    transition:opacity .15s;
+                                                "
+                                            onmouseover="this.style.opacity='.88'"
+                                            onmouseout="this.style.opacity='1'">
+                                            <i class="fas fa-calendar-check"></i> Save Appointment
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <!-- Approve form -->
+                            <form id="approveForm"
+                                action="/<?= esc($role) ?>/concern/approve/<?= (int)$c['id'] ?>"
+                                method="post">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="response" id="approveResponse"
+                                    value="<?= old('response') ?>">
+                                <button type="button" class="cr-btn cr-btn--approve"
+                                    onclick="submitWithConfirm('approve')">
+                                    <i class="fas fa-check-circle"></i> Approve &amp; Send Response
+                                </button>
+                            </form>
+
+                            <!-- Dismiss form -->
+                            <form id="dismissForm"
+                                action="/<?= esc($role) ?>/concern/dismiss/<?= (int)$c['id'] ?>"
+                                method="post">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="response" id="dismissResponse"
+                                    value="<?= old('response') ?>">
+                                <button type="button" class="cr-btn cr-btn--dismiss"
+                                    onclick="submitWithConfirm('dismiss')">
+                                    <i class="fas fa-times-circle"></i> Dismiss
+                                </button>
+                            </form>
+
+                        <?php else: ?>
+
+                            <!-- Already actioned — show recorded response -->
+                            <div class="cr-approved-notice">
+                                <strong>This concern has already been <?= esc($c['status']) ?>.</strong>
+                                <?php if (! empty($c['notes'])): ?>
+                                    <p style="margin:4px 0 0;font-size:12.5px;color:#9aa0b4;">Recorded response:</p>
+                                    <div class="cr-notes-box"><?= esc($c['notes']) ?></div>
+                                <?php endif; ?>
+                            </div>
+
+                            <!-- ── Reschedule section ── -->
+                            <div style="margin-top:16px;padding-top:16px;border-top:1px solid #f0f2f8;">
+                                <button type="button" id="rescheduleToggle"
+                                    onclick="toggleReschedule()"
+                                    style="
+                                            width:100%;padding:11px 14px;
+                                            background:#fff;color:#1d2448;
+                                            border:1.5px solid #1d2448;border-radius:10px;
+                                            font-size:13px;font-weight:600;font-family:'Poppins',sans-serif;
+                                            cursor:pointer;display:flex;align-items:center;justify-content:center;
+                                            gap:8px;transition:background .15s,color .15s;
+                                        "
+                                    onmouseover="this.style.background='#1d2448';this.style.color='#fff';"
+                                    onmouseout="this.style.background='#fff';this.style.color='#1d2448';">
+                                    <i class="fas fa-calendar-edit"></i> Reschedule Appointment
+                                </button>
+
+                                <div id="rescheduleForm" style="display:none;margin-top:14px;">
+                                    <form action="/<?= esc($role) ?>/concern/reschedule/<?= (int)$c['id'] ?>" method="post">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="response" id="rescheduleResponse" value="<?= esc(old('response', $c['notes'] ?? '')) ?>">
+
+                                        <p class="cr-action-label" style="margin-bottom:10px;">
+                                            Set a new appointment date and time. The submitter will be notified by email.
+                                        </p>
+
+                                        <div class="rl-drawer-field-wrap" style="margin-bottom:12px;">
+                                            <label class="cr-action-label">New Appointment Date <span style="color:#c0392b;">*</span></label>
+                                            <div style="position:relative;">
                                                 <input type="text" name="appointment_date"
-                                                    id="scheduleAppointmentDate"
+                                                    id="rescheduleAppointmentDate"
                                                     class="cr-textarea"
                                                     style="min-height:unset;padding:10px 12px;resize:none;font-size:13px;"
                                                     placeholder="YYYY-MM-DD"
@@ -565,22 +812,23 @@
                                                     value="<?= esc($c['appointment_date'] ?? '') ?>"
                                                     required>
                                             </div>
+                                        </div>
 
-                                            <div class="rl-drawer-field-wrap" style="margin-bottom:12px;">
-                                                <label class="cr-action-label">Appointment Time <span style="color:#c0392b;">*</span></label>
-                                                <select name="appointment_time"
-                                                    id="scheduleAppointmentTime"
-                                                    class="cr-textarea"
-                                                    data-current="<?= ! empty($c['appointment_time']) ? esc(date('H:i', strtotime((string) $c['appointment_time']))) : '' ?>"
-                                                    style="min-height:unset;padding:10px 12px;font-size:13px;"
-                                                    disabled>
-                                                    <option value="">Select a date first</option>
-                                                </select>
-                                                <p id="scheduleAvailability" class="cr-hint" style="margin-top:6px;"></p>
-                                            </div>
+                                        <div class="rl-drawer-field-wrap" style="margin-bottom:12px;">
+                                            <label class="cr-action-label">New Appointment Time <span style="color:#c0392b;">*</span></label>
+                                            <select name="appointment_time"
+                                                id="rescheduleAppointmentTime"
+                                                class="cr-textarea"
+                                                data-current="<?= ! empty($c['appointment_time']) ? esc(date('H:i', strtotime((string) $c['appointment_time']))) : '' ?>"
+                                                style="min-height:unset;padding:10px 12px;font-size:13px;"
+                                                disabled>
+                                                <option value="">Select a date first</option>
+                                            </select>
+                                            <p id="rescheduleAvailability" class="cr-hint" style="margin-top:6px;"></p>
+                                        </div>
 
-                                            <button type="submit"
-                                                style="
+                                        <button type="submit"
+                                            style="
                                                     width:100%;padding:11px 14px;
                                                     background:linear-gradient(135deg,#1d2448,#2e3a6e);
                                                     color:#fff;border:none;border-radius:10px;
@@ -589,131 +837,107 @@
                                                     justify-content:center;gap:8px;
                                                     transition:opacity .15s;
                                                 "
-                                                onmouseover="this.style.opacity='.88'"
-                                                onmouseout="this.style.opacity='1'">
-                                                <i class="fas fa-calendar-check"></i> Save Appointment
-                                            </button>
-                                        </form>
-                                    </div>
+                                            onmouseover="this.style.opacity='.88'"
+                                            onmouseout="this.style.opacity='1'">
+                                            <i class="fas fa-paper-plane"></i> Save &amp; Notify Submitter
+                                        </button>
+                                    </form>
                                 </div>
+                            </div>
 
-                                <!-- Approve form -->
-                                <form id="approveForm"
-                                    action="/<?= esc($role) ?>/concern/approve/<?= (int)$c['id'] ?>"
-                                    method="post">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="response" id="approveResponse"
-                                        value="<?= old('response') ?>">
-                                    <button type="button" class="cr-btn cr-btn--approve"
-                                        onclick="submitWithConfirm('approve')">
-                                        <i class="fas fa-check-circle"></i> Approve &amp; Send Response
-                                    </button>
-                                </form>
+                        <?php endif; ?>
 
-                                <!-- Dismiss form -->
-                                <form id="dismissForm"
-                                    action="/<?= esc($role) ?>/concern/dismiss/<?= (int)$c['id'] ?>"
-                                    method="post">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="response" id="dismissResponse"
-                                        value="<?= old('response') ?>">
-                                    <button type="button" class="cr-btn cr-btn--dismiss"
-                                        onclick="submitWithConfirm('dismiss')">
-                                        <i class="fas fa-times-circle"></i> Dismiss
-                                    </button>
-                                </form>
-
-                            <?php else: ?>
-
-                                <!-- Already actioned — show recorded response -->
-                                <div class="cr-approved-notice">
-                                    <strong>This concern has already been <?= esc($c['status']) ?>.</strong>
-                                    <?php if (! empty($c['notes'])): ?>
-                                        <p style="margin:4px 0 0;font-size:12.5px;color:#9aa0b4;">Recorded response:</p>
-                                        <div class="cr-notes-box"><?= esc($c['notes']) ?></div>
-                                    <?php endif; ?>
-                                </div>
-
-                                <!-- ── Reschedule section ── -->
-                                <div style="margin-top:16px;padding-top:16px;border-top:1px solid #f0f2f8;">
-                                    <button type="button" id="rescheduleToggle"
-                                        onclick="toggleReschedule()"
-                                        style="
-                                            width:100%;padding:11px 14px;
-                                            background:#fff;color:#1d2448;
-                                            border:1.5px solid #1d2448;border-radius:10px;
-                                            font-size:13px;font-weight:600;font-family:'Poppins',sans-serif;
-                                            cursor:pointer;display:flex;align-items:center;justify-content:center;
-                                            gap:8px;transition:background .15s,color .15s;
-                                        "
-                                        onmouseover="this.style.background='#1d2448';this.style.color='#fff';"
-                                        onmouseout="this.style.background='#fff';this.style.color='#1d2448';">
-                                        <i class="fas fa-calendar-edit"></i> Reschedule Appointment
-                                    </button>
-
-                                    <div id="rescheduleForm" style="display:none;margin-top:14px;">
-                                        <form action="/<?= esc($role) ?>/concern/reschedule/<?= (int)$c['id'] ?>" method="post">
-                                            <?= csrf_field() ?>
-                                            <input type="hidden" name="response" id="rescheduleResponse" value="<?= esc(old('response', $c['notes'] ?? '')) ?>">
-
-                                            <p class="cr-action-label" style="margin-bottom:10px;">
-                                                Set a new appointment date and time. The submitter will be notified by email.
-                                            </p>
-
-                                            <div class="rl-drawer-field-wrap" style="margin-bottom:12px;">
-                                                <label class="cr-action-label">New Appointment Date <span style="color:#c0392b;">*</span></label>
-                                                <div style="position:relative;">
-                                                    <input type="text" name="appointment_date"
-                                                        id="rescheduleAppointmentDate"
-                                                        class="cr-textarea"
-                                                        style="min-height:unset;padding:10px 12px;resize:none;font-size:13px;"
-                                                        placeholder="YYYY-MM-DD"
-                                                        autocomplete="off"
-                                                        value="<?= esc($c['appointment_date'] ?? '') ?>"
-                                                        required>
-                                                </div>
-                                            </div>
-
-                                            <div class="rl-drawer-field-wrap" style="margin-bottom:12px;">
-                                                <label class="cr-action-label">New Appointment Time <span style="color:#c0392b;">*</span></label>
-                                                <select name="appointment_time"
-                                                    id="rescheduleAppointmentTime"
-                                                    class="cr-textarea"
-                                                    data-current="<?= ! empty($c['appointment_time']) ? esc(date('H:i', strtotime((string) $c['appointment_time']))) : '' ?>"
-                                                    style="min-height:unset;padding:10px 12px;font-size:13px;"
-                                                    disabled>
-                                                    <option value="">Select a date first</option>
-                                                </select>
-                                                <p id="rescheduleAvailability" class="cr-hint" style="margin-top:6px;"></p>
-                                            </div>
-
-                                            <button type="submit"
-                                                style="
-                                                    width:100%;padding:11px 14px;
-                                                    background:linear-gradient(135deg,#1d2448,#2e3a6e);
-                                                    color:#fff;border:none;border-radius:10px;
-                                                    font-size:13.5px;font-weight:600;font-family:'Poppins',sans-serif;
-                                                    cursor:pointer;display:flex;align-items:center;
-                                                    justify-content:center;gap:8px;
-                                                    transition:opacity .15s;
-                                                "
-                                                onmouseover="this.style.opacity='.88'"
-                                                onmouseout="this.style.opacity='1'">
-                                                <i class="fas fa-paper-plane"></i> Save &amp; Notify Submitter
-                                            </button>
-                                        </form>
-                                    </div>
-                                </div>
-
-                            <?php endif; ?>
-
-                        </div>
                     </div>
                 </div>
+            </div>
 
-            </div><!-- /.cr-wrap -->
+            <?php if ($c['status'] !== 'dismissed' && $c['status'] !== 'resolved'): ?>
+                <!-- ── Update Status card ── -->
+                <div class="cr-card" style="margin-top:24px;">
+                    <div class="cr-card-header">
+                        <div class="cr-card-header-icon" style="background:rgba(29,36,72,.08);color:#1d2448;">
+                            <i class="fas fa-tasks"></i>
+                        </div>
+                        <div>
+                            <p class="cr-card-header-title">Update Status</p>
+                            <p class="cr-card-header-sub">Record a progress update for this concern.</p>
+                        </div>
+                    </div>
+                    <div class="cr-card-body">
+                        <?php if (session()->getFlashdata('success')): ?>
+                            <div class="cr-alert" style="background:#e6f9f1;color:#0e9464;border:1px solid #b2e8d2;margin-bottom:14px;">
+                                <i class="fas fa-check-circle"></i>
+                                <?= esc(session()->getFlashdata('success')) ?>
+                            </div>
+                        <?php endif; ?>
+                        <form action="/<?= esc($role) ?>/concern/update-status/<?= (int)$c['id'] ?>"
+                            method="post"
+                            enctype="multipart/form-data">
+                            <?= csrf_field() ?>
 
-        </div><!-- /.db-content -->
+                            <div class="cr-action-section">
+                                <p class="cr-action-label">New Status <span style="color:#c0392b;">*</span></p>
+                                <select name="status"
+                                    style="width:100%;padding:10px 12px;border:1.5px solid #e2e5ef;border-radius:11px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;background:#fff;outline:none;"
+                                    required>
+                                    <option value="">— Select Status —</option>
+                                    <?php
+                                    $updateStatusOptions = [
+                                        'approved'   => 'Approved',
+                                        'processing' => 'Processing',
+                                        'ongoing'    => 'Ongoing',
+                                        'resolved'   => 'Resolved',
+                                        'dismissed'  => 'Dismissed',
+                                    ];
+                                    foreach ($updateStatusOptions as $optVal => $optLabel):
+                                        if ($optVal === $c['status']) continue;
+                                    ?>
+                                        <option value="<?= esc($optVal) ?>"><?= esc($optLabel) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div class="cr-action-section" style="margin-top:14px;">
+                                <p class="cr-action-label">Note <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#9aa0b4;">(optional)</span></p>
+                                <textarea name="note"
+                                    class="cr-textarea"
+                                    style="min-height:90px;"
+                                    placeholder="Describe what action was taken or any relevant details…"></textarea>
+                            </div>
+
+                            <div class="cr-action-section" style="margin-top:14px;">
+                                <p class="cr-action-label">Proof / Attachment <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#9aa0b4;">(optional)</span></p>
+                                <input type="file" name="proof" accept="image/*,application/pdf"
+                                    style="font-size:12.5px;color:#4a5068;">
+                                <p class="cr-hint" style="margin-top:6px;">Accepted: JPG, PNG, PDF · Max 5 MB</p>
+                            </div>
+
+                            <div style="margin-top:18px;padding-top:16px;border-top:1px solid #f0f2f8;">
+                                <button type="submit"
+                                    style="
+                                        width:100%;padding:12px 16px;
+                                        background:linear-gradient(135deg,#1d2448,#2e3a6e);
+                                        color:#fff;border:none;border-radius:10px;
+                                        font-size:13.5px;font-weight:600;font-family:'Poppins',sans-serif;
+                                        cursor:pointer;display:flex;align-items:center;
+                                        justify-content:center;gap:8px;
+                                        transition:opacity .15s;
+                                    "
+                                    onmouseover="this.style.opacity='.88'"
+                                    onmouseout="this.style.opacity='1'">
+                                    <i class="fas fa-save"></i> Update Status
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+        </div><!-- /.right column -->
+
+    </div><!-- /.cr-wrap -->
+
+    </div><!-- /.db-content -->
     </div><!-- /.db-main -->
 
     <!-- ── Confirm modal ── -->
