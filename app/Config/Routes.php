@@ -140,6 +140,7 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
     $routes->post('moves/store',               'HouseholdMoveController::store');
     $routes->post('moves/approve/(:num)',      'HouseholdMoveController::approve/$1');
     $routes->post('moves/reject/(:num)',       'HouseholdMoveController::reject/$1');
+    $routes->post('moves/transfer-resend/(:num)', 'HouseholdMoveController::sendTransferConfirmation/$1');
 
     $routes->get('deceased-accounts',                 'DeceasedAccountController::index');
     $routes->post('deceased-accounts/policy',         'DeceasedAccountController::savePolicy');
@@ -309,6 +310,7 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
     $routes->post('moves/store',               'HouseholdMoveController::store');
     $routes->post('moves/approve/(:num)',      'HouseholdMoveController::approve/$1');
     $routes->post('moves/reject/(:num)',       'HouseholdMoveController::reject/$1');
+    $routes->post('moves/transfer-resend/(:num)', 'HouseholdMoveController::sendTransferConfirmation/$1');
 
     $routes->get('deceased-accounts',                 'DeceasedAccountController::index');
     $routes->post('deceased-accounts/policy',         'DeceasedAccountController::savePolicy');
@@ -506,6 +508,7 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('moves/store',               'HouseholdMoveController::store');
     $routes->post('moves/approve/(:num)',      'HouseholdMoveController::approve/$1');
     $routes->post('moves/reject/(:num)',       'HouseholdMoveController::reject/$1');
+    $routes->post('moves/transfer-resend/(:num)', 'HouseholdMoveController::sendTransferConfirmation/$1');
     $routes->get('deceased-accounts',                 'DeceasedAccountController::index');
     $routes->post('deceased-accounts/policy',         'DeceasedAccountController::savePolicy');
     $routes->post('deceased-accounts/account/(:num)', 'DeceasedAccountController::setAccount/$1');

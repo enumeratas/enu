@@ -147,93 +147,121 @@
             </div>
 
             <div id="liveResults">
-            <?php if ($moves === []): ?>
-                <div class="mv-empty">
-                    <i class="fas fa-exchange-alt" style="font-size:36px;color:#c5cdd8;display:block;margin-bottom:12px;"></i>
-                    <p style="margin:0;font-weight:600;color:#1c2b45;"><?= $search !== '' ? 'No household moves match your search.' : 'No household moves yet' ?></p>
-                    <p style="margin:6px 0 0;font-size:13px;">Use <strong>File a Move</strong> when a family or member moves to another house.</p>
-                </div>
-            <?php else: ?>
-                <div class="db-table-wrap">
-                    <table class="db-table">
-                        <thead>
-                            <tr>
-                                <th>Move</th>
-                                <th>Reason</th>
-                                <th>Requested by</th>
-                                <th>Filed</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($moves as $move): ?>
-                                <?php
-                                $srcHead = trim(($move['src_first_name'] ?? '') . ' ' . ($move['src_last_name'] ?? '')) ?: '—';
-                                $dstHead = trim(($move['dst_first_name'] ?? '') . ' ' . ($move['dst_last_name'] ?? ''));
-                                $reqBy   = trim(($move['req_first'] ?? '') . ' ' . ($move['req_last'] ?? '')) ?: '—';
-                                $procBy  = trim(($move['proc_first'] ?? '') . ' ' . ($move['proc_last'] ?? ''));
-                                $mids    = json_decode((string) ($move['member_ids'] ?? '[]'), true);
-                                $mCount  = is_array($mids) ? count($mids) : 0;
-                                $badge   = match ($move['status']) {
-                                    'approved' => 'dbadge--approved',
-                                    'rejected' => 'dbadge--rejected',
-                                    default    => 'dbadge--pending',
-                                };
-                                ?>
+                <?php if ($moves === []): ?>
+                    <div class="mv-empty">
+                        <i class="fas fa-exchange-alt" style="font-size:36px;color:#c5cdd8;display:block;margin-bottom:12px;"></i>
+                        <p style="margin:0;font-weight:600;color:#1c2b45;"><?= $search !== '' ? 'No household moves match your search.' : 'No household moves yet' ?></p>
+                        <p style="margin:6px 0 0;font-size:13px;">Use <strong>File a Move</strong> when a family or member moves to another house.</p>
+                    </div>
+                <?php else: ?>
+                    <div class="db-table-wrap">
+                        <table class="db-table">
+                            <thead>
                                 <tr>
-                                    <td>
-                                        <strong>#<?= esc($move['source_household_no']) ?> <?= esc($srcHead) ?></strong>
-                                        <div class="mv-summary" style="margin-top:2px;color:#6b7689;">
-                                            → <?= $move['destination_type'] === 'new' ? 'New household' : ('Household #' . esc($move['destination_household_no'] ?? '—') . ($dstHead !== '' ? ' (' . esc($dstHead) . ')' : '')) ?>
-                                        </div>
-                                        <div class="mv-summary" style="margin-top:2px;">
-                                            <?= (int) $move['includes_head'] === 1 ? '<span class="dbadge dbadge--approved" style="margin-right:4px;">Head moves</span>' : '' ?>
-                                            <?php if (! empty($move['designated_head_name'])): ?>
-                                                <span class="dbadge dbadge--pending">Head: <?= esc($move['designated_head_name']) ?></span>
-                                            <?php endif; ?>
-                                            <?= $mCount > 0 ? ($mCount . ' member' . ($mCount === 1 ? '' : 's')) : ((int) $move['includes_head'] === 1 ? '' : 'No members selected') ?>
-                                        </div>
-                                        <?php if (! empty($move['summary'])): ?>
-                                            <div class="mv-summary" style="margin-top:4px;color:#485062;"><?= esc($move['summary']) ?></div>
-                                        <?php endif; ?>
-                                        <?php if (! empty($move['rejection_reason'])): ?>
-                                            <div class="mv-summary" style="margin-top:4px;color:#b5321a;">Rejected: <?= esc($move['rejection_reason']) ?></div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?= esc($move['move_reason'] ?: '—') ?>
-                                        <?php if (! empty($move['notes'])): ?>
-                                            <div class="mv-summary" style="color:#6b7689;margin-top:2px;"><?= esc($move['notes']) ?></div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td><?= esc($reqBy) ?></td>
-                                    <td style="white-space:nowrap;font-size:12px;color:#6b7689;">
-                                        <?= ! empty($move['created_at']) ? esc(date('M j, Y g:i A', strtotime($move['created_at']))) : '—' ?>
-                                        <?php if (! empty($move['processed_at'])): ?>
-                                            <div style="margin-top:4px;">Processed <?= esc(date('M j, Y g:i A', strtotime($move['processed_at']))) ?><?= $procBy !== '' ? ' by ' . esc($procBy) : '' ?></div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td><span class="dbadge <?= $badge ?>"><?= esc(ucfirst($move['status'])) ?></span></td>
-                                    <td class="mv-actions" style="white-space:nowrap;">
-                                        <?php if ($move['status'] === 'pending' && $canApprove): ?>
-                                            <form method="post" action="/<?= esc($role) ?>/moves/approve/<?= (int) $move['id'] ?>" onsubmit="return confirm('Apply this move now?');">
-                                                <?= csrf_field() ?>
-                                                <button type="submit" class="db-btn db-btn--primary db-btn--sm"><i class="fas fa-check"></i> Approve</button>
-                                            </form>
-                                            <button type="button" class="db-btn db-btn--outline db-btn--sm" onclick="openReject(<?= (int) $move['id'] ?>)"><i class="fas fa-times"></i> Reject</button>
-                                        <?php elseif ($move['status'] === 'pending'): ?>
-                                            <span style="color:#6b7689;font-size:12px;">Awaiting Captain or Secretary</span>
-                                        <?php else: ?>
-                                            <span style="color:#6b7689;font-size:12px;">—</span>
-                                        <?php endif; ?>
-                                    </td>
+                                    <th>Move</th>
+                                    <th>Reason</th>
+                                    <th>Requested by</th>
+                                    <th>Filed</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
                                 </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($moves as $move): ?>
+                                    <?php
+                                    $srcHead = trim(($move['src_first_name'] ?? '') . ' ' . ($move['src_last_name'] ?? '')) ?: '—';
+                                    $dstHead = trim(($move['dst_first_name'] ?? '') . ' ' . ($move['dst_last_name'] ?? ''));
+                                    $reqBy   = trim(($move['req_first'] ?? '') . ' ' . ($move['req_last'] ?? '')) ?: '—';
+                                    $procBy  = trim(($move['proc_first'] ?? '') . ' ' . ($move['proc_last'] ?? ''));
+                                    $mids    = json_decode((string) ($move['member_ids'] ?? '[]'), true);
+                                    $mCount  = is_array($mids) ? count($mids) : 0;
+                                    $badge   = match ($move['status']) {
+                                        'approved' => 'dbadge--approved',
+                                        'rejected' => 'dbadge--rejected',
+                                        default    => 'dbadge--pending',
+                                    };
+                                    ?>
+                                    <tr>
+                                        <td>
+                                            <strong>#<?= esc($move['source_household_no']) ?> <?= esc($srcHead) ?></strong>
+                                            <div class="mv-summary" style="margin-top:2px;color:#6b7689;">
+                                                → <?= $move['destination_type'] === 'new' ? 'New household' : ('Household #' . esc($move['destination_household_no'] ?? '—') . ($dstHead !== '' ? ' (' . esc($dstHead) . ')' : '')) ?>
+                                            </div>
+                                            <div class="mv-summary" style="margin-top:2px;">
+                                                <?= (int) $move['includes_head'] === 1 ? '<span class="dbadge dbadge--approved" style="margin-right:4px;">Head moves</span>' : '' ?>
+                                                <?php if (! empty($move['designated_head_name'])): ?>
+                                                    <span class="dbadge dbadge--pending">Head: <?= esc($move['designated_head_name']) ?></span>
+                                                <?php endif; ?>
+                                                <?= $mCount > 0 ? ($mCount . ' member' . ($mCount === 1 ? '' : 's')) : ((int) $move['includes_head'] === 1 ? '' : 'No members selected') ?>
+                                            </div>
+                                            <?php if (! empty($move['summary'])): ?>
+                                                <div class="mv-summary" style="margin-top:4px;color:#485062;"><?= esc($move['summary']) ?></div>
+                                            <?php endif; ?>
+                                            <?php if (! empty($move['rejection_reason'])): ?>
+                                                <div class="mv-summary" style="margin-top:4px;color:#b5321a;">Rejected: <?= esc($move['rejection_reason']) ?></div>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if ((int) ($move['is_barangay_transfer'] ?? 0) === 1): ?>
+                                                <?= esc($move['move_reason'] ?: 'Transfer to Another Barangay') ?>
+                                                <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;
+                                                         font-weight:700;background:#dbeafe;color:#1d4ed8;border-radius:999px;">
+                                                    Transfer
+                                                </span>
+                                                <?php if (! empty($move['destination_barangay'])): ?>
+                                                    <div class="mv-summary" style="color:#1d6fa5;margin-top:2px;font-size:11.5px;">
+                                                        → <?= esc($move['destination_barangay']) ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                                <?php if (! empty($move['transfer_confirmation_sent_at'])): ?>
+                                                    <div class="mv-summary" style="color:#6b7689;margin-top:2px;font-size:11px;">
+                                                        <i class="fas fa-envelope" style="font-size:10px;"></i> Notice sent
+                                                        <?= esc(date('M j, Y', strtotime($move['transfer_confirmation_sent_at']))) ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            <?php else: ?>
+                                                <?= esc($move['move_reason'] ?: '—') ?>
+                                                <?php if (! empty($move['notes'])): ?>
+                                                    <div class="mv-summary" style="color:#6b7689;margin-top:2px;"><?= esc($move['notes']) ?></div>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td><?= esc($reqBy) ?></td>
+                                        <td style="white-space:nowrap;font-size:12px;color:#6b7689;">
+                                            <?= ! empty($move['created_at']) ? esc(date('M j, Y g:i A', strtotime($move['created_at']))) : '—' ?>
+                                            <?php if (! empty($move['processed_at'])): ?>
+                                                <div style="margin-top:4px;">Processed <?= esc(date('M j, Y g:i A', strtotime($move['processed_at']))) ?><?= $procBy !== '' ? ' by ' . esc($procBy) : '' ?></div>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td><span class="dbadge <?= $badge ?>"><?= esc(ucfirst($move['status'])) ?></span></td>
+                                        <td class="mv-actions" style="white-space:nowrap;">
+                                            <?php if ($move['status'] === 'pending' && $canApprove): ?>
+                                                <form method="post" action="/<?= esc($role) ?>/moves/approve/<?= (int) $move['id'] ?>" onsubmit="return confirm('Apply this move now?');">
+                                                    <?= csrf_field() ?>
+                                                    <button type="submit" class="db-btn db-btn--primary db-btn--sm"><i class="fas fa-check"></i> Approve</button>
+                                                </form>
+                                                <button type="button" class="db-btn db-btn--outline db-btn--sm" onclick="openReject(<?= (int) $move['id'] ?>)"><i class="fas fa-times"></i> Reject</button>
+                                                <?php if ((int) ($move['is_barangay_transfer'] ?? 0) === 1): ?>
+                                                    <form method="post" action="/<?= esc($role) ?>/moves/transfer-resend/<?= (int) $move['id'] ?>">
+                                                        <?= csrf_field() ?>
+                                                        <button type="submit" class="db-btn db-btn--outline db-btn--sm"
+                                                            title="Resend transfer notice email">
+                                                            <i class="fas fa-paper-plane"></i> Resend
+                                                        </button>
+                                                    </form>
+                                                <?php endif; ?>
+                                            <?php elseif ($move['status'] === 'pending'): ?>
+                                                <span style="color:#6b7689;font-size:12px;">Awaiting Captain or Secretary</span>
+                                            <?php else: ?>
+                                                <span style="color:#6b7689;font-size:12px;">—</span>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
