@@ -116,64 +116,81 @@ class HouseholdMoveController extends BaseController
             }
         }
 
-        $destinationType = ($post['destination_type'] ?? 'new') === 'existing' ? 'existing' : 'new';
-        $destinationNo   = trim((string) ($post['destination_household_no'] ?? ''));
-        $newZone         = trim((string) ($post['new_zone'] ?? ''));
-        $newAddress      = trim((string) ($post['new_address'] ?? ''));
+        // Detect transfer early so we can bypass destination/head validation that does not apply.
+        $isTransferEarlyCheck = (trim((string) ($post['move_reason'] ?? '')) === 'Transfer to Another Barangay');
 
-        if ($destinationType === 'existing') {
-            if ($destinationNo === '' || $destinationNo === $source) {
-                return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
-                    ->with('error', 'Pick a different existing household as the destination.');
-            }
-            $destinationHousehold = $this->householdModel->find($destinationNo);
-            if (! $destinationHousehold) {
-                return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
-                    ->with('error', 'The destination household number does not exist.');
-            }
-        } else {
-            $destinationNo = null;
-            if ($newAddress === '' || $newZone === '') {
-                return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
-                    ->with('error', 'Fill in the new zone and address for the new household.');
+        $destinationType = 'new';
+        $destinationNo   = null;
+        $newZone         = '';
+        $newAddress      = '';
+
+        if (! $isTransferEarlyCheck) {
+            $destinationType = ($post['destination_type'] ?? 'new') === 'existing' ? 'existing' : 'new';
+            $destinationNo   = trim((string) ($post['destination_household_no'] ?? ''));
+            $newZone         = trim((string) ($post['new_zone'] ?? ''));
+            $newAddress      = trim((string) ($post['new_address'] ?? ''));
+
+            if ($destinationType === 'existing') {
+                if ($destinationNo === '' || $destinationNo === $source) {
+                    return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
+                        ->with('error', 'Pick a different existing household as the destination.');
+                }
+                $destinationHousehold = $this->householdModel->find($destinationNo);
+                if (! $destinationHousehold) {
+                    return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
+                        ->with('error', 'The destination household number does not exist.');
+                }
+            } else {
+                $destinationNo = null;
+                if ($newAddress === '' || $newZone === '') {
+                    return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
+                        ->with('error', 'Fill in the new zone and address for the new household.');
+                }
             }
         }
 
         // If the head is moving, the source keeps existing members with no head unless the operator picks a replacement.
-        $replacementHead = (int) ($post['replacement_head_member_id'] ?? 0);
-        $remainingMembers = $this->remainingMembers($source, $memberIds);
-        if ($includeHead && $remainingMembers !== [] && $replacementHead <= 0) {
-            return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
-                ->with('error', 'The head is moving. Choose a replacement head from the members who stay.');
-        }
-        if ($replacementHead > 0) {
-            $isRemaining = false;
-            foreach ($remainingMembers as $r) {
-                if ((int) $r['id'] === $replacementHead) {
-                    $isRemaining = true;
-                    break;
-                }
-            }
-            if (! $isRemaining) {
+        // (Not applicable for transfers — the transfer logic handles the source household separately.)
+        $replacementHead = null;
+        if (! $isTransferEarlyCheck) {
+            $replacementHead = (int) ($post['replacement_head_member_id'] ?? 0);
+            $remainingMembers = $this->remainingMembers($source, $memberIds);
+            if ($includeHead && $remainingMembers !== [] && $replacementHead <= 0) {
                 return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
-                    ->with('error', 'The replacement head must be a member who stays in the source household.');
+                    ->with('error', 'The head is moving. Choose a replacement head from the members who stay.');
             }
-        } else {
-            $replacementHead = null;
+            if ($replacementHead > 0) {
+                $isRemaining = false;
+                foreach ($remainingMembers as $r) {
+                    if ((int) $r['id'] === $replacementHead) {
+                        $isRemaining = true;
+                        break;
+                    }
+                }
+                if (! $isRemaining) {
+                    return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
+                        ->with('error', 'The replacement head must be a member who stays in the source household.');
+                }
+            } else {
+                $replacementHead = null;
+            }
         }
 
-        $designated = $this->resolveDesignatedHead(
-            trim((string) ($post['designated_head'] ?? '')),
-            $includeHead,
-            $memberIds,
-            $destinationType,
-            $sourceHousehold,
-            $memberIds === [] ? [] : $this->memberModel->whereIn('id', $memberIds)->where('household_no', $source)->findAll(),
-            $destinationType === 'existing' ? $this->householdModel->find($destinationNo) : null
-        );
-        if (is_string($designated)) {
-            return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
-                ->with('error', $designated);
+        $designated = ['type' => null, 'member_id' => null, 'name' => null];
+        if (! $isTransferEarlyCheck) {
+            $designated = $this->resolveDesignatedHead(
+                trim((string) ($post['designated_head'] ?? '')),
+                $includeHead,
+                $memberIds,
+                $destinationType,
+                $sourceHousehold,
+                $memberIds === [] ? [] : $this->memberModel->whereIn('id', $memberIds)->where('household_no', $source)->findAll(),
+                $destinationType === 'existing' ? $this->householdModel->find($destinationNo) : null
+            );
+            if (is_string($designated)) {
+                return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
+                    ->with('error', $designated);
+            }
         }
 
         $payload = [
@@ -195,7 +212,7 @@ class HouseholdMoveController extends BaseController
         ];
 
         // ── Transfer to Another Barangay ──────────────────────────────────────
-        $isTransfer = (trim((string) ($post['move_reason'] ?? '')) === 'Transfer to Another Barangay');
+        $isTransfer = $isTransferEarlyCheck;
         if ($isTransfer) {
             $destBarangay      = trim((string) ($post['destination_barangay'] ?? ''));
             $destBarangayEmail = trim((string) ($post['destination_barangay_email'] ?? ''));

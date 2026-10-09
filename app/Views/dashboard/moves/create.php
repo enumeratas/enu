@@ -465,6 +465,8 @@
             const moveForm = designatedOptions ? designatedOptions.closest('form') : null;
             if (moveForm) {
                 moveForm.addEventListener('submit', function(event) {
+                    // Skip the designated-head guard for barangay transfers.
+                    if (moveForm.dataset.isBarangayTransfer === '1') return;
                     refreshDesignatedHead();
                     if (!moveForm.querySelector('input[name="designated_head"]:checked')) {
                         event.preventDefault();
@@ -554,6 +556,9 @@
             (function() {
                 const reasonSelect = document.querySelector('select[name="move_reason"]');
                 const transferPanel = document.getElementById('barangayTransferFields');
+                const destCard = document.querySelector('.mv-card:has(#destinationRadios)') || document.getElementById('destinationRadios')?.closest('.mv-card');
+                const designatedCard = document.getElementById('designatedHeadCard');
+                const replacementCard = document.getElementById('replacementCard');
                 if (!reasonSelect || !transferPanel) return;
 
                 function toggleTransfer() {
@@ -562,6 +567,14 @@
                     transferPanel.querySelectorAll('input').forEach(function(el) {
                         el.required = isTransfer;
                     });
+                    // Hide destination and designated-head sections for transfers —
+                    // they are irrelevant and their validation guards must not fire.
+                    if (destCard) destCard.style.display = isTransfer ? 'none' : '';
+                    if (designatedCard) designatedCard.style.display = isTransfer ? 'none' : '';
+                    if (replacementCard) replacementCard.style.display = isTransfer ? 'none' : (document.getElementById('includeHead')?.checked ? 'block' : 'none');
+                    // Mark the form so the designated-head submit guard knows to skip.
+                    const form = reasonSelect.closest('form');
+                    if (form) form.dataset.isBarangayTransfer = isTransfer ? '1' : '0';
                 }
                 reasonSelect.addEventListener('change', toggleTransfer);
                 toggleTransfer();
