@@ -30,6 +30,10 @@ class HouseholdMoveModel extends Model
         'processed_by',
         'processed_at',
         'rejection_reason',
+        'destination_barangay',
+        'destination_barangay_email',
+        'transfer_confirmation_sent_at',
+        'is_barangay_transfer',
     ];
 
     /** Every move with requester and processor names, newest first. */
