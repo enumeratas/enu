@@ -242,12 +242,42 @@
                                     <option value="Family Separation">Family Separation</option>
                                     <option value="Own House Now">Own House Now</option>
                                     <option value="Merged with another household">Merged with another household</option>
+                                    <option value="Transfer to Another Barangay">Transfer to Another Barangay</option>
                                     <option value="Other">Other</option>
                                 </select>
                             </div>
                             <div class="mv-field">
                                 <label>Notes (optional)</label>
                                 <input type="text" name="notes" maxlength="255" placeholder="Anything else the captain should know">
+                            </div>
+                        </div>
+
+                        <div id="barangayTransferFields" style="display:none;margin-top:14px;">
+                            <div style="background:#eff6ff;border:1px solid #bfdbfe;border-left:4px solid #1d6fa5;
+                                        border-radius:0 6px 6px 0;padding:12px 16px;margin-bottom:14px;font-size:12.5px;color:#1e3a8a;">
+                                <i class="fas fa-info-circle"></i>
+                                <strong>Barangay Transfer:</strong> The resident will be removed from this barangay's census
+                                and their account will be deactivated upon approval. The destination barangay will receive
+                                an email notice to verify there is no duplicate record.
+                            </div>
+                            <div class="mv-grid">
+                                <div class="mv-field">
+                                    <label>Destination barangay name <span style="color:#b5321a;">*</span></label>
+                                    <input type="text" name="destination_barangay" maxlength="120"
+                                        placeholder="e.g. Barangay San Jose" autocomplete="off">
+                                </div>
+                                <div class="mv-field">
+                                    <label>Destination barangay email <span style="color:#b5321a;">*</span></label>
+                                    <input type="email" name="destination_barangay_email" maxlength="160"
+                                        placeholder="e.g. brgy.sanjose@lgu.gov.ph">
+                                </div>
+                            </div>
+                            <div class="mv-field" style="margin-top:10px;">
+                                <label>Message to destination barangay <span style="color:#6b7689;font-weight:400;">(optional)</span></label>
+                                <textarea name="transfer_message" rows="4" maxlength="1000"
+                                    style="width:100%;padding:10px 12px;border:1.5px solid #dde4f0;border-radius:8px;font-family:inherit;font-size:13px;resize:vertical;"
+                                    placeholder="e.g. Please verify if this resident has any existing record. They are relocating due to marriage. Contact us at 09XX-XXX-XXXX for coordination."></textarea>
+                                <small style="color:#6b7689;display:block;margin-top:4px;">This message will be included in the email sent to the destination barangay.</small>
                             </div>
                         </div>
                     </div>
@@ -325,7 +355,7 @@
     </div>
 
     <script>
-        (function () {
+        (function() {
             const includeHead = document.getElementById('includeHead');
             const replacementCard = document.getElementById('replacementCard');
             const replacementSelect = document.getElementById('replacementSelect');
@@ -362,11 +392,19 @@
                 const previous = (designatedOptions.querySelector('input[name="designated_head"]:checked') || {}).value || '';
                 const people = [];
                 if (includeHead && includeHead.checked) {
-                    people.push({ value: 'source_head', tag: 'Moving head', name: includeHead.dataset.name || 'Current household head' });
+                    people.push({
+                        value: 'source_head',
+                        tag: 'Moving head',
+                        name: includeHead.dataset.name || 'Current household head'
+                    });
                 }
                 document.querySelectorAll('.member-check').forEach(el => {
                     if (!el.checked) return;
-                    people.push({ value: 'member-' + el.dataset.id, tag: 'Moving member', name: el.dataset.name || 'Member' });
+                    people.push({
+                        value: 'member-' + el.dataset.id,
+                        tag: 'Moving member',
+                        name: el.dataset.name || 'Member'
+                    });
                 });
                 const existing = destinationKind() === 'existing';
                 designatedOptions.innerHTML = '';
@@ -405,9 +443,9 @@
                     }
                 });
                 if (!chosen && radios.length) {
-                    const preferred = existing
-                        ? 'keep'
-                        : (people.some(person => person.value === 'source_head') ? 'source_head' : people[0] && people[0].value);
+                    const preferred = existing ?
+                        'keep' :
+                        (people.some(person => person.value === 'source_head') ? 'source_head' : people[0] && people[0].value);
                     radios.forEach(radio => {
                         if (radio.value === preferred) radio.checked = true;
                     });
@@ -416,18 +454,26 @@
                     }
                 }
                 if (designatedHint) {
-                    designatedHint.textContent = existing
-                        ? 'Keep the destination household\'s current head, or choose one of the people who are moving to take that place.'
-                        : 'Choose which moving person will be recorded as the head of the new household.';
+                    designatedHint.textContent = existing ?
+                        'Keep the destination household\'s current head, or choose one of the people who are moving to take that place.' :
+                        'Choose which moving person will be recorded as the head of the new household.';
                 }
             }
 
-            if (includeHead) includeHead.addEventListener('change', () => { refreshReplacement(); refreshDesignatedHead(); });
-            document.querySelectorAll('.member-check').forEach(el => el.addEventListener('change', () => { refreshReplacement(); refreshDesignatedHead(); }));
+            if (includeHead) includeHead.addEventListener('change', () => {
+                refreshReplacement();
+                refreshDesignatedHead();
+            });
+            document.querySelectorAll('.member-check').forEach(el => el.addEventListener('change', () => {
+                refreshReplacement();
+                refreshDesignatedHead();
+            }));
             refreshDesignatedHead();
             const moveForm = designatedOptions ? designatedOptions.closest('form') : null;
             if (moveForm) {
-                moveForm.addEventListener('submit', function (event) {
+                moveForm.addEventListener('submit', function(event) {
+                    // Skip the designated-head guard for barangay transfers.
+                    if (moveForm.dataset.isBarangayTransfer === '1') return;
                     refreshDesignatedHead();
                     if (!moveForm.querySelector('input[name="designated_head"]:checked')) {
                         event.preventDefault();
@@ -464,11 +510,20 @@
                 input.addEventListener('input', () => {
                     clearTimeout(timer);
                     const q = input.value.trim();
-                    if (!q) { list.style.display = 'none'; list.innerHTML = ''; return; }
+                    if (!q) {
+                        list.style.display = 'none';
+                        list.innerHTML = '';
+                        return;
+                    }
                     timer = setTimeout(async () => {
                         try {
                             const rolePrefix = (location.pathname.match(/^\/(admin|secretary|captain|council)(?=\/)/) || [null, 'secretary'])[1];
-                            const response = await fetch('/' + rolePrefix + '/moves/search?q=' + encodeURIComponent(q), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                            const response = await fetch('/' + rolePrefix + '/moves/search?q=' + encodeURIComponent(q), {
+                                credentials: 'same-origin',
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                }
+                            });
                             if (!response.ok) return;
                             const rows = await response.json();
                             list.innerHTML = '';
@@ -487,7 +542,9 @@
                                 list.appendChild(item);
                             });
                             list.style.display = 'block';
-                        } catch (e) { /* silent */ }
+                        } catch (e) {
+                            /* silent */
+                        }
                     }, 250);
                 });
                 document.addEventListener('click', ev => {
@@ -501,6 +558,34 @@
             attachAutocomplete('destInput', 'destSuggest', row => {
                 document.getElementById('destInput').value = row.household_no;
             });
+
+            // Show/hide barangay transfer fields based on move_reason selection.
+            (function() {
+                const reasonSelect = document.querySelector('select[name="move_reason"]');
+                const transferPanel = document.getElementById('barangayTransferFields');
+                const destCard = document.querySelector('.mv-card:has(#destinationRadios)') || document.getElementById('destinationRadios')?.closest('.mv-card');
+                const designatedCard = document.getElementById('designatedHeadCard');
+                const replacementCard = document.getElementById('replacementCard');
+                if (!reasonSelect || !transferPanel) return;
+
+                function toggleTransfer() {
+                    const isTransfer = reasonSelect.value === 'Transfer to Another Barangay';
+                    transferPanel.style.display = isTransfer ? 'block' : 'none';
+                    transferPanel.querySelectorAll('input').forEach(function(el) {
+                        el.required = isTransfer;
+                    });
+                    // Hide destination and designated-head sections for transfers —
+                    // they are irrelevant and their validation guards must not fire.
+                    if (destCard) destCard.style.display = isTransfer ? 'none' : '';
+                    if (designatedCard) designatedCard.style.display = isTransfer ? 'none' : '';
+                    if (replacementCard) replacementCard.style.display = isTransfer ? 'none' : (document.getElementById('includeHead')?.checked ? 'block' : 'none');
+                    // Mark the form so the designated-head submit guard knows to skip.
+                    const form = reasonSelect.closest('form');
+                    if (form) form.dataset.isBarangayTransfer = isTransfer ? '1' : '0';
+                }
+                reasonSelect.addEventListener('change', toggleTransfer);
+                toggleTransfer();
+            })();
         })();
     </script>
 </body>

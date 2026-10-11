@@ -6,6 +6,8 @@ use App\Models\HouseholdMemberModel;
 use App\Models\HouseholdModel;
 use App\Models\HouseholdMoveModel;
 use App\Models\NotificationModel;
+use App\Libraries\EmailService;
+use App\Models\BarangaySettingsModel;
 use Config\Database;
 
 class HouseholdMoveController extends BaseController
@@ -67,9 +69,9 @@ class HouseholdMoveController extends BaseController
         $rows = $this->householdModel
             ->select('household_no, last_name, first_name, address, zone')
             ->groupStart()
-                ->like('household_no', $q)
-                ->orLike('last_name', $q)
-                ->orLike('first_name', $q)
+            ->like('household_no', $q)
+            ->orLike('last_name', $q)
+            ->orLike('first_name', $q)
             ->groupEnd()
             ->orderBy('household_no', 'ASC')
             ->limit(20)
@@ -114,64 +116,81 @@ class HouseholdMoveController extends BaseController
             }
         }
 
-        $destinationType = ($post['destination_type'] ?? 'new') === 'existing' ? 'existing' : 'new';
-        $destinationNo   = trim((string) ($post['destination_household_no'] ?? ''));
-        $newZone         = trim((string) ($post['new_zone'] ?? ''));
-        $newAddress      = trim((string) ($post['new_address'] ?? ''));
+        // Detect transfer early so we can bypass destination/head validation that does not apply.
+        $isTransferEarlyCheck = (trim((string) ($post['move_reason'] ?? '')) === 'Transfer to Another Barangay');
 
-        if ($destinationType === 'existing') {
-            if ($destinationNo === '' || $destinationNo === $source) {
-                return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
-                    ->with('error', 'Pick a different existing household as the destination.');
-            }
-            $destinationHousehold = $this->householdModel->find($destinationNo);
-            if (! $destinationHousehold) {
-                return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
-                    ->with('error', 'The destination household number does not exist.');
-            }
-        } else {
-            $destinationNo = null;
-            if ($newAddress === '' || $newZone === '') {
-                return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
-                    ->with('error', 'Fill in the new zone and address for the new household.');
+        $destinationType = 'new';
+        $destinationNo   = null;
+        $newZone         = '';
+        $newAddress      = '';
+
+        if (! $isTransferEarlyCheck) {
+            $destinationType = ($post['destination_type'] ?? 'new') === 'existing' ? 'existing' : 'new';
+            $destinationNo   = trim((string) ($post['destination_household_no'] ?? ''));
+            $newZone         = trim((string) ($post['new_zone'] ?? ''));
+            $newAddress      = trim((string) ($post['new_address'] ?? ''));
+
+            if ($destinationType === 'existing') {
+                if ($destinationNo === '' || $destinationNo === $source) {
+                    return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
+                        ->with('error', 'Pick a different existing household as the destination.');
+                }
+                $destinationHousehold = $this->householdModel->find($destinationNo);
+                if (! $destinationHousehold) {
+                    return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
+                        ->with('error', 'The destination household number does not exist.');
+                }
+            } else {
+                $destinationNo = null;
+                if ($newAddress === '' || $newZone === '') {
+                    return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
+                        ->with('error', 'Fill in the new zone and address for the new household.');
+                }
             }
         }
 
         // If the head is moving, the source keeps existing members with no head unless the operator picks a replacement.
-        $replacementHead = (int) ($post['replacement_head_member_id'] ?? 0);
-        $remainingMembers = $this->remainingMembers($source, $memberIds);
-        if ($includeHead && $remainingMembers !== [] && $replacementHead <= 0) {
-            return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
-                ->with('error', 'The head is moving. Choose a replacement head from the members who stay.');
-        }
-        if ($replacementHead > 0) {
-            $isRemaining = false;
-            foreach ($remainingMembers as $r) {
-                if ((int) $r['id'] === $replacementHead) {
-                    $isRemaining = true;
-                    break;
-                }
-            }
-            if (! $isRemaining) {
+        // (Not applicable for transfers — the transfer logic handles the source household separately.)
+        $replacementHead = null;
+        if (! $isTransferEarlyCheck) {
+            $replacementHead = (int) ($post['replacement_head_member_id'] ?? 0);
+            $remainingMembers = $this->remainingMembers($source, $memberIds);
+            if ($includeHead && $remainingMembers !== [] && $replacementHead <= 0) {
                 return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
-                    ->with('error', 'The replacement head must be a member who stays in the source household.');
+                    ->with('error', 'The head is moving. Choose a replacement head from the members who stay.');
             }
-        } else {
-            $replacementHead = null;
+            if ($replacementHead > 0) {
+                $isRemaining = false;
+                foreach ($remainingMembers as $r) {
+                    if ((int) $r['id'] === $replacementHead) {
+                        $isRemaining = true;
+                        break;
+                    }
+                }
+                if (! $isRemaining) {
+                    return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
+                        ->with('error', 'The replacement head must be a member who stays in the source household.');
+                }
+            } else {
+                $replacementHead = null;
+            }
         }
 
-        $designated = $this->resolveDesignatedHead(
-            trim((string) ($post['designated_head'] ?? '')),
-            $includeHead,
-            $memberIds,
-            $destinationType,
-            $sourceHousehold,
-            $memberIds === [] ? [] : $this->memberModel->whereIn('id', $memberIds)->where('household_no', $source)->findAll(),
-            $destinationType === 'existing' ? $this->householdModel->find($destinationNo) : null
-        );
-        if (is_string($designated)) {
-            return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
-                ->with('error', $designated);
+        $designated = ['type' => null, 'member_id' => null, 'name' => null];
+        if (! $isTransferEarlyCheck) {
+            $designated = $this->resolveDesignatedHead(
+                trim((string) ($post['designated_head'] ?? '')),
+                $includeHead,
+                $memberIds,
+                $destinationType,
+                $sourceHousehold,
+                $memberIds === [] ? [] : $this->memberModel->whereIn('id', $memberIds)->where('household_no', $source)->findAll(),
+                $destinationType === 'existing' ? $this->householdModel->find($destinationNo) : null
+            );
+            if (is_string($designated)) {
+                return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
+                    ->with('error', $designated);
+            }
         }
 
         $payload = [
@@ -191,6 +210,68 @@ class HouseholdMoveController extends BaseController
             'requested_by'               => (int) session()->get('user_id') ?: null,
             'status'                     => 'pending',
         ];
+
+        // ── Transfer to Another Barangay ──────────────────────────────────────
+        $isTransfer = $isTransferEarlyCheck;
+        if ($isTransfer) {
+            $destBarangay      = trim((string) ($post['destination_barangay'] ?? ''));
+            $destBarangayEmail = trim((string) ($post['destination_barangay_email'] ?? ''));
+            if ($destBarangay === '' || strlen($destBarangay) > 120) {
+                return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
+                    ->with('error', 'Enter the destination barangay name (max 120 characters).');
+            }
+            if ($destBarangayEmail === '' || ! filter_var($destBarangayEmail, FILTER_VALIDATE_EMAIL)) {
+                return redirect()->to('/' . $role . '/moves/new?source=' . urlencode($source))
+                    ->with('error', 'Enter a valid email address for the destination barangay.');
+            }
+            $payload['destination_barangay']       = $destBarangay;
+            $payload['destination_barangay_email'] = $destBarangayEmail;
+            $payload['is_barangay_transfer']       = 1;
+            $payload['status']                     = 'pending'; // always pending for transfers
+            $transferMessage = substr(trim((string) ($post['transfer_message'] ?? '')), 0, 1000);
+            if ($transferMessage !== '') {
+                $payload['transfer_message'] = $transferMessage;
+            }
+        }
+
+        // Transfers always go through approval — override any auto-approve below.
+        if ($isTransfer) {
+            $moveId = (int) $this->moveModel->insert($payload);
+            // Stamp the notification-sent timestamp.
+            $fromBarangay  = (new BarangaySettingsModel())->getValue('barangay_name', 'Barangay Bacolod');
+            $residentName  = trim(($sourceHousehold['first_name'] ?? '') . ' ' . ($sourceHousehold['last_name'] ?? ''));
+            $emailSent     = (new EmailService())->sendBarangayTransferNotification(
+                $payload['destination_barangay_email'],
+                $payload['destination_barangay'],
+                $residentName,
+                $fromBarangay,
+                (string) $moveId,
+                $transferMessage ?? ''
+            );
+            if ($emailSent) {
+                $this->moveModel->update($moveId, ['transfer_confirmation_sent_at' => date('Y-m-d H:i:s')]);
+            }
+            $this->notifyCaptainsOfMove(
+                $payload,
+                $sourceHousehold,
+                'Transfer move submitted',
+                'A barangay transfer request from #' . $source . ' needs approval.',
+                '/captain/moves?status=pending'
+            );
+            NotificationModel::pushToRole(
+                'secretary',
+                'household_move',
+                'Transfer move submitted',
+                'A barangay transfer request from #' . $source . ' needs approval.',
+                '/secretary/moves?status=pending'
+            );
+            $msg = 'Transfer request filed. ';
+            $msg .= $emailSent
+                ? 'A confirmation notice was sent to ' . $payload['destination_barangay_email'] . '.'
+                : 'The notice email could not be sent — check SMTP settings.';
+            $msg .= ' The move needs approval before it takes effect.';
+            return redirect()->to('/' . $role . '/moves')->with('success', $msg);
+        }
 
         // Secretary filings stay pending. Captain and admin apply the move immediately.
         if (! in_array($role, ['captain', 'admin'], true)) {
@@ -421,6 +502,91 @@ class HouseholdMoveController extends BaseController
      */
     private function applyMove(array $move, array $source, array $movingRows, bool $includeHead, array $plan): array|string
     {
+        // ── Barangay transfer: remove persons from census and deactivate accounts ──
+        if ((int) ($move['is_barangay_transfer'] ?? 0) === 1) {
+            // Remove moving members from household_members.
+            foreach ($movingRows as $row) {
+                $this->memberModel->delete((int) $row['id']);
+            }
+
+            // Handle the source household head if included.
+            if ($includeHead) {
+                $stillThere = $this->memberModel->where('household_no', $source['household_no'])->findAll();
+                if ($stillThere === []) {
+                    // Everyone left — delete the household record entirely.
+                    $this->householdModel->delete($source['household_no']);
+                } else {
+                    // Others remain — settle the head via existing logic.
+                    $settled = $this->settleSourceHead($move, $source);
+                    if (is_string($settled)) {
+                        return $settled;
+                    }
+                }
+            }
+
+            // Deactivate linked resident user accounts.
+            $db = \Config\Database::connect();
+
+            // Match by household_no (resident registered against this household).
+            $linkedUsers = $db->table('users')
+                ->where('household_no', $source['household_no'])
+                ->where('role', 'resident')
+                ->get()->getResultArray();
+
+            // Also match by name from the moving persons (head or members).
+            $movingNames = [];
+            if ($includeHead) {
+                $movingNames[] = [
+                    'first_name' => $source['first_name'],
+                    'last_name'  => $source['last_name'],
+                ];
+            }
+            foreach ($movingRows as $row) {
+                $movingNames[] = [
+                    'first_name' => $row['first_name'],
+                    'last_name'  => $row['last_name'],
+                ];
+            }
+
+            $linkedIds = array_column($linkedUsers, 'id');
+
+            foreach ($movingNames as $namePair) {
+                $fn = trim((string) ($namePair['first_name'] ?? ''));
+                $ln = trim((string) ($namePair['last_name'] ?? ''));
+                if ($fn === '' && $ln === '') {
+                    continue;
+                }
+                $byName = $db->table('users')
+                    ->where('first_name', $fn)
+                    ->where('last_name', $ln)
+                    ->where('role', 'resident')
+                    ->get()->getResultArray();
+                foreach ($byName as $u) {
+                    if (! in_array((int) $u['id'], $linkedIds, true)) {
+                        $linkedIds[] = (int) $u['id'];
+                    }
+                }
+            }
+
+            foreach ($linkedIds as $uid) {
+                $db->table('users')
+                    ->where('id', (int) $uid)
+                    ->where('role', 'resident')
+                    ->update(['status' => 'inactive']);
+            }
+
+            // Mark move as approved.
+            $summary = 'Transfer out to ' . ($move['destination_barangay'] ?? 'another barangay') . '.';
+            $this->moveModel->update((int) $move['id'], [
+                'status'       => 'approved',
+                'processed_by' => (int) session()->get('user_id') ?: null,
+                'processed_at' => date('Y-m-d H:i:s'),
+                'summary'      => $summary,
+            ]);
+
+            return ['destination_no' => 'transfer-out'];
+        }
+
         $promotedMemberId = $plan['type'] === 'member' ? (int) ($plan['member']['id'] ?? 0) : 0;
 
         if ($move['destination_type'] === 'new') {
@@ -690,6 +856,14 @@ class HouseholdMoveController extends BaseController
 
     private function composeSummary(array $move, array $source, ?string $destinationNo): string
     {
+        // Handle barangay-transfer sentinel.
+        if ($destinationNo === 'transfer-out') {
+            $destBarangay = $move['destination_barangay'] ?? 'another barangay';
+            return 'Residents from household #' . $source['household_no']
+                . ' transferred to ' . $destBarangay . '.'
+                . ($move['move_reason'] ? ' (' . $move['move_reason'] . ')' : '');
+        }
+
         $headName = trim(($source['first_name'] ?? '') . ' ' . ($source['last_name'] ?? ''));
         $whoBits  = [];
         if ((int) $move['includes_head'] === 1) {
@@ -747,5 +921,43 @@ class HouseholdMoveController extends BaseController
     {
         $role = strtolower((string) session()->get('role'));
         return in_array($role, ['admin', 'secretary', 'captain', 'council'], true) ? $role : 'secretary';
+    }
+
+    public function sendTransferConfirmation(int $id): \CodeIgniter\HTTP\RedirectResponse
+    {
+        $role = $this->currentRole();
+        if (! in_array($role, ['captain', 'admin', 'secretary'], true)) {
+            return redirect()->to('/' . $role . '/moves')->with('error', 'Not authorised.');
+        }
+
+        $move = $this->moveModel->find($id);
+        if (! $move || (int) ($move['is_barangay_transfer'] ?? 0) !== 1) {
+            return redirect()->to('/' . $role . '/moves')->with('error', 'Move not found or not a barangay transfer.');
+        }
+        if ($move['status'] !== 'pending') {
+            return redirect()->to('/' . $role . '/moves')->with('error', 'Transfer is no longer pending.');
+        }
+
+        $sourceHousehold = $this->householdModel->find($move['source_household_no']);
+        $fromBarangay    = (new BarangaySettingsModel())->getValue('barangay_name', 'Barangay Bacolod');
+        $residentName    = $sourceHousehold
+            ? trim(($sourceHousehold['first_name'] ?? '') . ' ' . ($sourceHousehold['last_name'] ?? ''))
+            : '(unknown)';
+
+        $sent = (new EmailService())->sendBarangayTransferNotification(
+            (string) $move['destination_barangay_email'],
+            (string) $move['destination_barangay'],
+            $residentName,
+            $fromBarangay,
+            (string) $id,
+            (string) ($move['transfer_message'] ?? '')
+        );
+
+        if ($sent) {
+            $this->moveModel->update($id, ['transfer_confirmation_sent_at' => date('Y-m-d H:i:s')]);
+            return redirect()->to('/' . $role . '/moves')->with('success', 'Transfer notice re-sent to ' . $move['destination_barangay_email'] . '.');
+        }
+
+        return redirect()->to('/' . $role . '/moves')->with('error', 'Email could not be sent. Check SMTP settings.');
     }
 }

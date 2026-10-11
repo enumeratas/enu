@@ -24,6 +24,7 @@ class CensusUpdateAuthorizationModel extends Model
         'rejected_at',
         'reviewed_by',
         'notes',
+        'proof_document_path',
     ];
 
     public function generateToken(): string

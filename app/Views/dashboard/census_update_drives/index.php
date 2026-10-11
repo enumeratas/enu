@@ -9,6 +9,113 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="/style.css">
     <style>
+        /* ── Diff modal ── */
+        .pa-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 17, 30, .55);
+            backdrop-filter: blur(3px);
+            z-index: 1050;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pa-overlay.active {
+            display: flex;
+        }
+
+        .pa-modal {
+            background: #fff;
+            border-radius: 14px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .25);
+        }
+
+        .cud-diff-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+
+        .cud-diff-table th {
+            background: #f3f5fb;
+            padding: 9px 12px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+            color: #4a5068;
+            border-bottom: 2px solid #e4e9f2;
+        }
+
+        .cud-diff-table td {
+            padding: 9px 12px;
+            border-bottom: 1px solid #f0f2f8;
+            vertical-align: top;
+        }
+
+        .cud-diff-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .cud-diff-old {
+            color: #6b7280;
+            text-decoration: line-through;
+        }
+
+        .cud-diff-new {
+            color: #1d6f42;
+            font-weight: 600;
+        }
+
+        .cud-diff-unchanged {
+            color: #9ca3af;
+            font-style: italic;
+            font-size: 12px;
+        }
+
+        .cud-proof-box {
+            margin: 14px 0;
+            padding: 12px 14px;
+            background: #f4f6fd;
+            border: 1px solid #ccd5e8;
+            border-radius: 10px;
+        }
+
+        .cud-proof-box p {
+            margin: 0 0 8px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #1d2448;
+            text-transform: uppercase;
+            letter-spacing: .3px;
+        }
+
+        .cud-proof-box a {
+            color: #2563eb;
+            font-size: 13px;
+        }
+
+        .cud-proof-thumb {
+            max-width: 100%;
+            max-height: 220px;
+            border-radius: 8px;
+            display: block;
+            margin-top: 8px;
+            border: 1px solid #dde4f0;
+        }
+
+        .cud-confirm-info {
+            padding: 14px 16px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 10px;
+            color: #166534;
+            font-size: 13px;
+        }
+
         .cud-card {
             background: #fff;
             border: 1px solid #e2e6ee;
@@ -153,15 +260,10 @@
                                             <?= ! empty($update['submitted_at']) ? esc(date('M j, Y g:i A', strtotime((string) $update['submitted_at']))) : '—' ?>
                                         </td>
                                         <td style="white-space:nowrap;">
-                                            <form method="post" action="/<?= esc($role) ?>/resident/approve-census-update/<?= (int) $update['id'] ?>" style="display:inline;" onsubmit="return confirm('Apply this census update now?');">
-                                                <?= csrf_field() ?>
-                                                <button type="submit" class="db-btn db-btn--primary db-btn--sm"><i class="fas fa-check"></i> Approve</button>
-                                            </form>
-                                            <form method="post" action="/<?= esc($role) ?>/resident/reject-census-update/<?= (int) $update['id'] ?>" style="display:inline-flex;gap:6px;align-items:center;margin-left:6px;">
-                                                <?= csrf_field() ?>
-                                                <input type="text" name="remarks" placeholder="Reason (optional)" style="width:160px;padding:6px 8px;border:1px solid #d7dce6;font-size:12px;">
-                                                <button type="submit" class="db-btn db-btn--outline db-btn--sm"><i class="fas fa-times"></i> Reject</button>
-                                            </form>
+                                            <a href="/<?= esc($role) ?>/resident/census-update-review/<?= (int) $update['id'] ?>"
+                                                class="db-btn db-btn--outline db-btn--sm" style="margin-right:6px;">
+                                                <i class="fas fa-eye"></i> View Changes
+                                            </a>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -274,58 +376,216 @@
                 </div>
             </form>
             <div id="liveResults">
-            <div class="db-table-wrap">
-                <table class="db-table">
-                    <thead>
-                        <tr>
-                            <th>Notice</th>
-                            <th>Deadline</th>
-                            <th>Residents notified</th>
-                            <th>Sent by</th>
-                            <th>Filed</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if ($drives === []): ?>
+                <div class="db-table-wrap">
+                    <table class="db-table">
+                        <thead>
                             <tr>
-                                <td colspan="5" style="text-align:center;color:#6b7689;padding:28px 16px;">
-                                    <?= ($search ?? '') !== '' ? 'No notices match your search.' : 'No census update drives have been sent yet.' ?>
-                                </td>
+                                <th>Notice</th>
+                                <th>Deadline</th>
+                                <th>Residents notified</th>
+                                <th>Sent by</th>
+                                <th>Filed</th>
                             </tr>
-                        <?php else: ?>
-                            <?php foreach ($drives as $drive):
-                                $poster = trim(($drive['first_name'] ?? '') . ' ' . ($drive['last_name'] ?? ''));
-                                $isOpen = ($drive['deadline'] ?? '') >= date('Y-m-d');
-                            ?>
+                        </thead>
+                        <tbody>
+                            <?php if ($drives === []): ?>
                                 <tr>
-                                    <td>
-                                        <strong><?= esc($drive['title']) ?></strong>
-                                        <?php if (! empty($drive['message'])): ?>
-                                            <div style="margin-top:4px;color:#6b7689;font-size:12px;"><?= esc($drive['message']) ?></div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?= esc(date('M j, Y', strtotime($drive['deadline']))) ?>
-                                        <div style="margin-top:4px;">
-                                            <span class="dbadge <?= $isOpen ? 'dbadge--pending' : 'dbadge--resolved' ?>">
-                                                <?= $isOpen ? 'Open' : 'Closed' ?>
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td><?= (int) $drive['notified_count'] ?></td>
-                                    <td><?= esc($poster !== '' ? $poster : 'Barangay office') ?></td>
-                                    <td style="font-size:12px;color:#6b7689;white-space:nowrap;">
-                                        <?= ! empty($drive['created_at']) ? esc(date('M j, Y g:i A', strtotime($drive['created_at']))) : '—' ?>
+                                    <td colspan="5" style="text-align:center;color:#6b7689;padding:28px 16px;">
+                                        <?= ($search ?? '') !== '' ? 'No notices match your search.' : 'No census update drives have been sent yet.' ?>
                                     </td>
                                 </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
+                            <?php else: ?>
+                                <?php foreach ($drives as $drive):
+                                    $poster = trim(($drive['first_name'] ?? '') . ' ' . ($drive['last_name'] ?? ''));
+                                    $isOpen = ($drive['deadline'] ?? '') >= date('Y-m-d');
+                                ?>
+                                    <tr>
+                                        <td>
+                                            <strong><?= esc($drive['title']) ?></strong>
+                                            <?php if (! empty($drive['message'])): ?>
+                                                <div style="margin-top:4px;color:#6b7689;font-size:12px;"><?= esc($drive['message']) ?></div>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?= esc(date('M j, Y', strtotime($drive['deadline']))) ?>
+                                            <div style="margin-top:4px;">
+                                                <span class="dbadge <?= $isOpen ? 'dbadge--pending' : 'dbadge--resolved' ?>">
+                                                    <?= $isOpen ? 'Open' : 'Closed' ?>
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td><?= (int) $drive['notified_count'] ?></td>
+                                        <td><?= esc($poster !== '' ? $poster : 'Barangay office') ?></td>
+                                        <td style="font-size:12px;color:#6b7689;white-space:nowrap;">
+                                            <?= ! empty($drive['created_at']) ? esc(date('M j, Y g:i A', strtotime($drive['created_at']))) : '—' ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- ── Census Update Diff Modal ──────────────────────────────────── -->
+    <div class="pa-overlay" id="cudDiffOverlay" style="z-index:1050;">
+        <div class="pa-modal" style="max-width:700px;width:96%;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;border-radius:14px;">
+            <div style="padding:18px 22px;background:linear-gradient(135deg,#1d2448,#2e3a6e);color:#fff;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-shrink:0;">
+                <div>
+                    <div style="font-size:15px;font-weight:700;"><i class="fas fa-file-alt"></i> Census Update — Review Changes</div>
+                    <div id="cudDiffMeta" style="font-size:12px;opacity:.8;margin-top:4px;"></div>
+                </div>
+                <button onclick="closeCudDiff()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;padding:0;" title="Close">&times;</button>
+            </div>
+            <div style="padding:22px;overflow-y:auto;flex:1;">
+                <div id="cudDiffSpinner" style="display:none;text-align:center;padding:28px;color:#6b7280;font-size:13px;">
+                    <i class="fas fa-circle-notch fa-spin"></i> Loading…
+                </div>
+                <div id="cudDiffContent"></div>
+            </div>
+            <div id="cudDiffFoot" style="display:none;padding:16px 22px;border-top:1px solid #edf1f7;gap:10px;align-items:center;flex-wrap:wrap;">
+                <input type="text" id="cudRejectReason" placeholder="Rejection reason (optional)"
+                    style="flex:1;min-width:160px;padding:8px 10px;border:1px solid #d7dce6;border-radius:8px;font-family:'Poppins',sans-serif;font-size:12px;">
+                <button class="db-btn db-btn--outline db-btn--sm" onclick="submitCudAction('reject')">
+                    <i class="fas fa-times"></i> Reject
+                </button>
+                <button class="db-btn db-btn--primary db-btn--sm" onclick="submitCudAction('approve')">
+                    <i class="fas fa-check"></i> Approve
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            var currentAuthId = null;
+            var rolePrefix = <?= json_encode($role ?? 'secretary') ?>;
+            var csrfName = <?= json_encode(csrf_token()) ?>;
+            var csrfHash = <?= json_encode(csrf_hash()) ?>;
+
+            function escHtml(str) {
+                return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            }
+
+            window.openCudDiff = function(authId, residentName, submittedAt) {
+                currentAuthId = authId;
+                document.getElementById('cudDiffMeta').textContent =
+                    residentName + (submittedAt ? ' — submitted ' + submittedAt : '');
+                document.getElementById('cudDiffContent').innerHTML = '';
+                document.getElementById('cudDiffFoot').style.display = 'none';
+                document.getElementById('cudDiffSpinner').style.display = 'block';
+                document.getElementById('cudDiffOverlay').classList.add('active');
+                document.getElementById('cudRejectReason').value = '';
+
+                fetch('/' + rolePrefix + '/resident/census-update-diff/' + authId, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .then(function(r) {
+                        return r.json();
+                    })
+                    .then(function(data) {
+                        document.getElementById('cudDiffSpinner').style.display = 'none';
+                        if (!data.ok) {
+                            document.getElementById('cudDiffContent').innerHTML =
+                                '<div style="color:#b91c1c;padding:12px;">' + escHtml(data.message || 'Could not load changes.') + '</div>';
+                            return;
+                        }
+                        renderCudDiff(data);
+                        document.getElementById('cudDiffFoot').style.display = 'flex';
+                    })
+                    .catch(function() {
+                        document.getElementById('cudDiffSpinner').style.display = 'none';
+                        document.getElementById('cudDiffContent').innerHTML =
+                            '<div style="color:#b91c1c;padding:12px;">Network error — could not load changes.</div>';
+                    });
+            };
+
+            function renderCudDiff(data) {
+                var html = '';
+
+                if (data.confirm_only) {
+                    html += '<div class="cud-confirm-info"><i class="fas fa-check-circle"></i> ' +
+                        'Resident confirmed that their information is correct — no changes were proposed.</div>';
+                } else if (!data.diff || data.diff.length === 0) {
+                    html += '<div class="cud-confirm-info" style="background:#fff8ee;border-color:#f6d7a8;color:#7a4200;">' +
+                        '<i class="fas fa-info-circle"></i> No field-level changes were detected in the submitted data.</div>';
+                } else {
+                    html += '<table class="cud-diff-table">' +
+                        '<thead><tr><th>Field</th><th>Current Value</th><th>Proposed Change</th></tr></thead><tbody>';
+                    data.diff.forEach(function(row) {
+                        var oldVal = (row.old !== null && row.old !== '') ?
+                            '<span class="cud-diff-old">' + escHtml(row.old) + '</span>' :
+                            '<span class="cud-diff-unchanged">(empty)</span>';
+                        html += '<tr>' +
+                            '<td style="font-weight:600;color:#1d2448;white-space:nowrap;">' + escHtml(row.label) + '</td>' +
+                            '<td>' + oldVal + '</td>' +
+                            '<td><span class="cud-diff-new">' + escHtml(row.new) + '</span></td>' +
+                            '</tr>';
+                    });
+                    html += '</tbody></table>';
+                }
+
+                // Proof / supporting document
+                if (data.proof_url) {
+                    var ext = data.proof_url.split('.').pop().toLowerCase();
+                    html += '<div class="cud-proof-box">' +
+                        '<p><i class="fas fa-paperclip"></i> Uploaded Proof / Supporting Document</p>';
+                    if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+                        html += '<a href="' + escHtml(data.proof_url) + '" target="_blank">' +
+                            '<img src="' + escHtml(data.proof_url) + '" class="cud-proof-thumb" alt="Proof document">' +
+                            '</a>';
+                    } else {
+                        html += '<a href="' + escHtml(data.proof_url) + '" target="_blank">' +
+                            '<i class="fas fa-file-pdf"></i> View uploaded document</a>';
+                    }
+                    html += '</div>';
+                }
+
+                document.getElementById('cudDiffContent').innerHTML = html;
+            }
+
+            window.submitCudAction = function(action) {
+                if (!currentAuthId) return;
+                var reason = document.getElementById('cudRejectReason').value.trim();
+                var url = '/' + rolePrefix + '/resident/' +
+                    (action === 'approve' ? 'approve' : 'reject') +
+                    '-census-update/' + currentAuthId;
+
+                if (action === 'approve' && !confirm('Apply this census update to the database now?')) return;
+
+                var formData = new FormData();
+                formData.append(csrfName, csrfHash);
+                if (action === 'reject') {
+                    formData.append('remarks', reason);
+                }
+
+                fetch(url, {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(function() {
+                        window.location.reload();
+                    })
+                    .catch(function() {
+                        window.location.reload();
+                    });
+            };
+
+            window.closeCudDiff = function() {
+                document.getElementById('cudDiffOverlay').classList.remove('active');
+                currentAuthId = null;
+            };
+
+            // Close on backdrop click
+            document.getElementById('cudDiffOverlay').addEventListener('click', function(e) {
+                if (e.target === this) closeCudDiff();
+            });
+        })();
+    </script>
 </body>
 
 </html>

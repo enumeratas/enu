@@ -1037,14 +1037,14 @@
 
             <!-- ── Tabs (above the card) ── -->
             <?php if ($canAssignOfficials): ?>
-            <div class="pf-page-tabs" style="margin: 0 0 20px;">
-                <button class="pf-page-tab active" id="tab1" type="button" onclick="goTo(1)">
-                    <span class="pf-page-tab-num">1</span> Official Account
-                </button>
-                <button class="pf-page-tab" id="tab2" type="button" onclick="goTo(2)">
-                    <span class="pf-page-tab-num">2</span> Resident Account
-                </button>
-            </div>
+                <div class="pf-page-tabs" style="margin: 0 0 20px;">
+                    <button class="pf-page-tab active" id="tab1" type="button" onclick="goTo(1)">
+                        <span class="pf-page-tab-num">1</span> Official Account
+                    </button>
+                    <button class="pf-page-tab" id="tab2" type="button" onclick="goTo(2)">
+                        <span class="pf-page-tab-num">2</span> Resident Account
+                    </button>
+                </div>
             <?php endif; ?>
 
             <div class="ca-wrap">
@@ -1412,7 +1412,7 @@
                             <!-- Household No — shown only for Resident -->
                             <div class="ca-form-row ca-form-row--full" id="householdRow" style="margin-bottom:14px;">
                                 <div class="ca-form-group">
-                                    <label>Household Number <span style="color:#9aa0b4;font-weight:400;">(optional — links resident to census)</span></label>
+                                    <label>Household Number</label>
                                     <div class="ca-input-wrap">
                                         <i class="fas fa-home ca-input-icon"></i>
                                         <input type="text" name="household_no" id="householdNo" placeholder="e.g. 12345" maxlength="5">
@@ -1480,8 +1480,14 @@
         // ── Resident combobox data (PHP → JS) ────────────────────────────────────
         let RESIDENTS = [];
         fetch('/<?= esc($role ?? session()->get('role') ?? 'secretary') ?>/pii/directory/residents', {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        }).then(r => r.json()).then(rows => { RESIDENTS = Array.isArray(rows) ? rows : []; }).catch(() => { RESIDENTS = []; });
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        }).then(r => r.json()).then(rows => {
+            RESIDENTS = Array.isArray(rows) ? rows : [];
+        }).catch(() => {
+            RESIDENTS = [];
+        });
 
         // ── Custom confirmation modal ────────────────────────────────────────────
         let _pendingAction = null;

@@ -18,6 +18,7 @@
     $activity      = $activity ?? [];
     $registrations = $registrations ?? [];
     $reqList       = $reqList ?? [];
+    $councilZone   = $councilZone ?? '';
     include(APPPATH . 'Views/dashboard/sidebar.php');
 
     $badgeMap = [
@@ -48,6 +49,12 @@
                 </a>
                 <span>›</span>
                 <span><?= esc($activity['title'] ?? 'Registrations') ?></span>
+                <?php if ($councilZone !== ''): ?>
+                    <span>›</span>
+                    <span style="background:#f3f5fb;color:#1d2448;border:1px solid #dde4f0;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;">
+                        <i class="fas fa-map-marker-alt"></i> <?= esc($councilZone) ?> only
+                    </span>
+                <?php endif; ?>
             </div>
 
             <div style="background:#fff;border:1px solid #e2e6ee;padding:18px 22px;margin-bottom:22px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
@@ -81,100 +88,100 @@
                 </div>
             </form>
             <div id="liveResults">
-            <div class="db-table-wrap">
-                <table class="db-table">
-                    <thead>
-                        <tr>
-                            <th>Resident</th>
-                            <th>Requirements submitted</th>
-                            <th>Notes</th>
-                            <th>Registered</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if ($registrations === []): ?>
+                <div class="db-table-wrap">
+                    <table class="db-table">
+                        <thead>
                             <tr>
-                                <td colspan="6" style="text-align:center;padding:32px;color:#9aa0b4;">
-                                    <?= ($search ?? '') !== '' ? 'No registrations match your search.' : 'No one has joined this activity yet.' ?>
-                                </td>
+                                <th>Resident</th>
+                                <th>Requirements submitted</th>
+                                <th>Notes</th>
+                                <th>Registered</th>
+                                <th>Status</th>
+                                <th>Actions</th>
                             </tr>
-                        <?php else: ?>
-                            <?php foreach ($registrations as $row):
-                                $badge = $badgeMap[$row['status']] ?? 'db-badge--pending';
-                                $name = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''));
-                                $submitted = array_filter(array_map('trim', explode(',', $row['requirements_submitted'] ?? '')));
-                                $attachments = ! empty($row['attachments']) ? json_decode($row['attachments'], true) : [];
-                            ?>
+                        </thead>
+                        <tbody>
+                            <?php if ($registrations === []): ?>
                                 <tr>
-                                    <td>
-                                        <div style="font-weight:600;color:#1c2b45;"><?= esc($name !== '' ? $name : 'Resident') ?></div>
-                                        <div style="font-size:11.5px;color:#9aa0b4;">@<?= esc($row['username'] ?? '') ?> · <?= esc($row['email'] ?? '') ?></div>
-                                    </td>
-                                    <td>
-                                        <?php if ($submitted !== []): ?>
-                                            <?php foreach ($submitted as $item): ?>
-                                                <span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;background:#edfaf5;color:#0f7a62;border:1px solid #a8e6d5;padding:2px 8px;margin:2px 2px 2px 0;">
-                                                    <i class="fas fa-check"></i><?= esc($item) ?>
-                                                </span>
-                                            <?php endforeach; ?>
-                                        <?php else: ?>
-                                            <span style="color:#9aa0b4;font-size:12px;">None submitted</span>
-                                        <?php endif; ?>
-                                        <?php if (is_array($attachments) && $attachments !== []): ?>
-                                            <div style="margin-top:6px;">
-                                                <?php foreach ($attachments as $attachment): ?>
-                                                    <a href="/uploads/<?= esc($attachment['path'] ?? '') ?>" target="_blank" style="font-size:11px;margin-right:6px;">
-                                                        <i class="fas fa-paperclip"></i> <?= esc($attachment['requirement'] ?? 'File') ?>
-                                                    </a>
-                                                <?php endforeach; ?>
-                                            </div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td style="font-size:12.5px;color:#6b7689;"><?= esc($row['notes'] ?: '—') ?></td>
-                                    <td style="font-size:12px;color:#9aa0b4;"><?= ! empty($row['created_at']) ? esc(date('M d, Y', strtotime($row['created_at']))) : '—' ?></td>
-                                    <td><span class="db-badge <?= $badge ?>"><?= esc(ucfirst((string) $row['status'])) ?></span></td>
-                                    <td>
-                                        <?php if ($row['status'] === 'pending'): ?>
-                                            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                                                <form action="/<?= esc($role) ?>/activities/registrations/update/<?= (int) $row['id'] ?>" method="post">
-                                                    <?= csrf_field() ?>
-                                                    <input type="hidden" name="status" value="approved">
-                                                    <button type="submit" class="db-btn db-btn--sm db-btn--primary">Approve</button>
-                                                </form>
-                                                <form action="/<?= esc($role) ?>/activities/registrations/update/<?= (int) $row['id'] ?>" method="post" class="registration-reject-form" style="display:inline-flex;flex-wrap:wrap;gap:5px;">
-                                                    <?= csrf_field() ?>
-                                                    <input type="hidden" name="status" value="rejected">
-                                                    <button type="button" class="db-btn db-btn--sm db-btn--outline registration-reject-toggle">Reject</button>
-                                                    <div class="registration-reject-reason" hidden style="display:none;width:100%;align-items:center;gap:5px;">
-                                                        <input type="text" name="rejection_reason" placeholder="Reason for rejection" required style="min-width:140px;padding:6px 8px;border:1px solid #e2e5ef;">
-                                                        <button type="submit" class="db-btn db-btn--sm db-btn--outline">Confirm</button>
-                                                    </div>
-                                                </form>
-                                            </div>
-                                        <?php else: ?>
-                                            <span style="font-size:12px;color:#9aa0b4;">Processed</span>
-                                            <?php if ($row['status'] === 'rejected' && ! empty($row['rejection_reason'])): ?>
-                                                <div style="max-width:180px;margin-top:5px;font-size:11px;color:#b02a37;"><strong>Reason:</strong> <?= esc($row['rejection_reason']) ?></div>
-                                            <?php endif; ?>
-                                        <?php endif; ?>
+                                    <td colspan="6" style="text-align:center;padding:32px;color:#9aa0b4;">
+                                        <?= ($search ?? '') !== '' ? 'No registrations match your search.' : 'No one has joined this activity yet.' ?>
                                     </td>
                                 </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
+                            <?php else: ?>
+                                <?php foreach ($registrations as $row):
+                                    $badge = $badgeMap[$row['status']] ?? 'db-badge--pending';
+                                    $name = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''));
+                                    $submitted = array_filter(array_map('trim', explode(',', $row['requirements_submitted'] ?? '')));
+                                    $attachments = ! empty($row['attachments']) ? json_decode($row['attachments'], true) : [];
+                                ?>
+                                    <tr>
+                                        <td>
+                                            <div style="font-weight:600;color:#1c2b45;"><?= esc($name !== '' ? $name : 'Resident') ?></div>
+                                            <div style="font-size:11.5px;color:#9aa0b4;">@<?= esc($row['username'] ?? '') ?> · <?= esc($row['email'] ?? '') ?></div>
+                                        </td>
+                                        <td>
+                                            <?php if ($submitted !== []): ?>
+                                                <?php foreach ($submitted as $item): ?>
+                                                    <span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;background:#edfaf5;color:#0f7a62;border:1px solid #a8e6d5;padding:2px 8px;margin:2px 2px 2px 0;">
+                                                        <i class="fas fa-check"></i><?= esc($item) ?>
+                                                    </span>
+                                                <?php endforeach; ?>
+                                            <?php else: ?>
+                                                <span style="color:#9aa0b4;font-size:12px;">None submitted</span>
+                                            <?php endif; ?>
+                                            <?php if (is_array($attachments) && $attachments !== []): ?>
+                                                <div style="margin-top:6px;">
+                                                    <?php foreach ($attachments as $attachment): ?>
+                                                        <a href="/uploads/<?= esc($attachment['path'] ?? '') ?>" target="_blank" style="font-size:11px;margin-right:6px;">
+                                                            <i class="fas fa-paperclip"></i> <?= esc($attachment['requirement'] ?? 'File') ?>
+                                                        </a>
+                                                    <?php endforeach; ?>
+                                                </div>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td style="font-size:12.5px;color:#6b7689;"><?= esc($row['notes'] ?: '—') ?></td>
+                                        <td style="font-size:12px;color:#9aa0b4;"><?= ! empty($row['created_at']) ? esc(date('M d, Y', strtotime($row['created_at']))) : '—' ?></td>
+                                        <td><span class="db-badge <?= $badge ?>"><?= esc(ucfirst((string) $row['status'])) ?></span></td>
+                                        <td>
+                                            <?php if ($row['status'] === 'pending'): ?>
+                                                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                                    <form action="/<?= esc($role) ?>/activities/registrations/update/<?= (int) $row['id'] ?>" method="post">
+                                                        <?= csrf_field() ?>
+                                                        <input type="hidden" name="status" value="approved">
+                                                        <button type="submit" class="db-btn db-btn--sm db-btn--primary">Approve</button>
+                                                    </form>
+                                                    <form action="/<?= esc($role) ?>/activities/registrations/update/<?= (int) $row['id'] ?>" method="post" class="registration-reject-form" style="display:inline-flex;flex-wrap:wrap;gap:5px;">
+                                                        <?= csrf_field() ?>
+                                                        <input type="hidden" name="status" value="rejected">
+                                                        <button type="button" class="db-btn db-btn--sm db-btn--outline registration-reject-toggle">Reject</button>
+                                                        <div class="registration-reject-reason" hidden style="display:none;width:100%;align-items:center;gap:5px;">
+                                                            <input type="text" name="rejection_reason" placeholder="Reason for rejection" required style="min-width:140px;padding:6px 8px;border:1px solid #e2e5ef;">
+                                                            <button type="submit" class="db-btn db-btn--sm db-btn--outline">Confirm</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            <?php else: ?>
+                                                <span style="font-size:12px;color:#9aa0b4;">Processed</span>
+                                                <?php if ($row['status'] === 'rejected' && ! empty($row['rejection_reason'])): ?>
+                                                    <div style="max-width:180px;margin-top:5px;font-size:11px;color:#b02a37;"><strong>Reason:</strong> <?= esc($row['rejection_reason']) ?></div>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
     <script>
         function bindRegistrationRejects() {
-            document.querySelectorAll('.registration-reject-toggle').forEach(function (button) {
+            document.querySelectorAll('.registration-reject-toggle').forEach(function(button) {
                 if (button.dataset.bound === '1') return;
                 button.dataset.bound = '1';
-                button.addEventListener('click', function () {
+                button.addEventListener('click', function() {
                     const form = button.closest('.registration-reject-form');
                     const reason = form.querySelector('.registration-reject-reason');
                     reason.hidden = false;

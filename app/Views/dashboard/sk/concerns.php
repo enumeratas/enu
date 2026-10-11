@@ -169,83 +169,128 @@
             </div>
 
             <div id="liveResults">
-            <div class="db-table-wrap">
-                <table class="db-table" id="concernsTable">
-                    <thead>
-                        <tr>
-                            <th>Subject</th>
-                            <th>Category</th>
-                            <th>Appointment</th>
-                            <th>Date Filed</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if ($concerns === []): ?>
+                <div class="db-table-wrap">
+                    <table class="db-table" id="concernsTable">
+                        <thead>
                             <tr>
-                                <td colspan="5">
-                                    <div class="concern-empty">
-                                        <i class="fas fa-calendar-check"></i>
-                                        <p><?= ($search ?? '') !== '' ? 'No requests match your search.' : 'No requests yet. Click <strong>New Request</strong> to get started.' ?></p>
-                                    </div>
-                                </td>
+                                <th>Subject</th>
+                                <th>Category</th>
+                                <th>Appointment</th>
+                                <th>Date Filed</th>
+                                <th>Status</th>
                             </tr>
-                        <?php else: ?>
-                            <?php foreach ($concerns as $row):
-                                if (! is_array($row)) {
-                                    continue;
-                                }
-                                $status = is_string($row['status'] ?? null) ? $row['status'] : 'pending';
-                                $statusMap = [
-                                    'pending'   => ['clr-badge--pending',  'fa-clock',        'Pending'],
-                                    'approved'  => ['clr-badge--approved', 'fa-check-circle', 'Approved'],
-                                    'resolved'  => ['clr-badge--released', 'fa-check-double', 'Resolved'],
-                                    'dismissed' => ['clr-badge--rejected', 'fa-times-circle', 'Dismissed'],
-                                ];
-                                [$badgeClass, $icon, $label] = $statusMap[$status] ?? $statusMap['pending'];
-                                $subject = is_string($row['subject'] ?? null) ? $row['subject'] : '';
-                                $category = is_string($row['category'] ?? null) && $row['category'] !== '' ? $row['category'] : '—';
-                                $filed = ! empty($row['created_at']) ? date('M d, Y', strtotime((string) $row['created_at'])) : '—';
-                                $appointment = '—';
-                                if (! empty($row['appointment_date'])) {
-                                    $appointment = date('M d, Y', strtotime((string) $row['appointment_date']));
-                                    if (! empty($row['appointment_time'])) {
-                                        $appointment .= ' · ' . date('g:i A', strtotime((string) $row['appointment_time']));
-                                    }
-                                }
-                                $notes = is_string($row['notes'] ?? null) ? trim($row['notes']) : '';
-                                $search = strtolower($subject . ' ' . $category . ' ' . $appointment . ' ' . $filed . ' ' . $label);
-                            ?>
-                                <tr data-search="<?= esc($search) ?>">
-                                    <td>
-                                        <div style="font-size:13px;font-weight:600;color:#1a1d2e;"><?= esc($subject) ?></div>
-                                        <?php if ($notes !== ''): ?>
-                                            <div style="font-size:11px;color:#9aa0b4;margin-top:3px;">Office note: <?= esc($notes) ?></div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td><?= esc($category) ?></td>
-                                    <td><?= esc($appointment) ?></td>
-                                    <td><?= esc($filed) ?></td>
-                                    <td>
-                                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                                            <span class="clr-badge <?= esc($badgeClass) ?>">
-                                                <i class="fas <?= esc($icon) ?>"></i> <?= esc($label) ?>
-                                            </span>
-                                            <?php if ($status === 'pending'): ?>
-                                                <button type="button"
-                                                    class="db-btn db-btn--xs db-btn--danger"
-                                                    onclick='confirmCancel(<?= (int) ($row['id'] ?? 0) ?>, <?= json_encode($subject) ?>)'>
-                                                    <i class="fas fa-times"></i> Cancel
-                                                </button>
-                                            <?php endif; ?>
+                        </thead>
+                        <tbody>
+                            <?php if ($concerns === []): ?>
+                                <tr>
+                                    <td colspan="5">
+                                        <div class="concern-empty">
+                                            <i class="fas fa-calendar-check"></i>
+                                            <p><?= ($search ?? '') !== '' ? 'No requests match your search.' : 'No requests yet. Click <strong>New Request</strong> to get started.' ?></p>
                                         </div>
                                     </td>
                                 </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
+                            <?php else: ?>
+                                <?php foreach ($concerns as $row):
+                                    if (! is_array($row)) {
+                                        continue;
+                                    }
+                                    $status = is_string($row['status'] ?? null) ? $row['status'] : 'pending';
+                                    $statusMap = [
+                                        'pending'    => ['clr-badge--pending',  'fa-clock',        'Pending'],
+                                        'approved'   => ['clr-badge--approved', 'fa-check-circle', 'Approved'],
+                                        'resolved'   => ['clr-badge--released', 'fa-check-double', 'Resolved'],
+                                        'dismissed'  => ['clr-badge--rejected', 'fa-times-circle', 'Dismissed'],
+                                        'processing' => ['clr-badge--approved', 'fa-spinner',      'Processing'],
+                                        'ongoing'    => ['clr-badge--approved', 'fa-sync-alt',     'Ongoing'],
+                                    ];
+                                    [$badgeClass, $icon, $label] = $statusMap[$status] ?? $statusMap['pending'];
+                                    $subject = is_string($row['subject'] ?? null) ? $row['subject'] : '';
+                                    $category = is_string($row['category'] ?? null) && $row['category'] !== '' ? $row['category'] : '—';
+                                    $filed = ! empty($row['created_at']) ? date('M d, Y', strtotime((string) $row['created_at'])) : '—';
+                                    $appointment = '—';
+                                    if (! empty($row['appointment_date'])) {
+                                        $appointment = date('M d, Y', strtotime((string) $row['appointment_date']));
+                                        if (! empty($row['appointment_time'])) {
+                                            $appointment .= ' · ' . date('g:i A', strtotime((string) $row['appointment_time']));
+                                        }
+                                    }
+                                    $notes = is_string($row['notes'] ?? null) ? trim($row['notes']) : '';
+                                    $search = strtolower($subject . ' ' . $category . ' ' . $appointment . ' ' . $filed . ' ' . $label);
+                                ?>
+                                    <tr data-search="<?= esc($search) ?>">
+                                        <td>
+                                            <div style="font-size:13px;font-weight:600;color:#1a1d2e;"><?= esc($subject) ?></div>
+                                            <?php if ($notes !== ''): ?>
+                                                <div style="font-size:11px;color:#9aa0b4;margin-top:3px;">Office note: <?= esc($notes) ?></div>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td><?= esc($category) ?></td>
+                                        <td><?= esc($appointment) ?></td>
+                                        <td><?= esc($filed) ?></td>
+                                        <td>
+                                            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                                                <span class="clr-badge <?= esc($badgeClass) ?>">
+                                                    <i class="fas <?= esc($icon) ?>"></i> <?= esc($label) ?>
+                                                </span>
+                                                <?php if ($status === 'pending'): ?>
+                                                    <button type="button"
+                                                        class="db-btn db-btn--xs db-btn--danger"
+                                                        onclick='confirmCancel(<?= (int) ($row['id'] ?? 0) ?>, <?= json_encode($subject) ?>)'>
+                                                        <i class="fas fa-times"></i> Cancel
+                                                    </button>
+                                                <?php endif; ?>
+                                                <?php if (! empty($row['progress'])): ?>
+                                                    <button type="button"
+                                                        class="db-btn db-btn--xs"
+                                                        style="background:#f0f2f8;color:#1d2448;border:1px solid #e2e5ef;"
+                                                        onclick="toggleProgress(<?= (int) ($row['id'] ?? 0) ?>)">
+                                                        <i class="fas fa-history"></i>
+                                                        <?= count($row['progress']) ?> Update<?= count($row['progress']) !== 1 ? 's' : '' ?>
+                                                    </button>
+                                                <?php endif; ?>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <?php if (! empty($row['progress'])): ?>
+                                        <tr id="progress-<?= (int) ($row['id'] ?? 0) ?>"
+                                            style="display:none;background:#f8f9fc;">
+                                            <td colspan="5" style="padding:16px 20px;">
+                                                <?php foreach ($row['progress'] as $pEntry):
+                                                    $pStatus = is_string($pEntry['status'] ?? null) ? $pEntry['status'] : 'pending';
+                                                    [$pBadge, $pIcon, $pLabel] = $statusMap[$pStatus] ?? $statusMap['pending'];
+                                                    $pDate = ! empty($pEntry['created_at'])
+                                                        ? date('M d, Y \a\t g:i A', strtotime((string) $pEntry['created_at']))
+                                                        : '—';
+                                                    $pNote  = is_string($pEntry['note'] ?? null) ? trim($pEntry['note']) : '';
+                                                    $pProof = is_string($pEntry['proof_path'] ?? null) && $pEntry['proof_path'] !== '' ? $pEntry['proof_path'] : '';
+                                                ?>
+                                                    <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid #e8ecf4;">
+                                                        <span class="clr-badge <?= esc($pBadge) ?>" style="white-space:nowrap;">
+                                                            <i class="fas <?= esc($pIcon) ?>"></i> <?= esc($pLabel) ?>
+                                                        </span>
+                                                        <div style="flex:1;min-width:0;">
+                                                            <div style="font-size:11px;color:#9aa0b4;margin-bottom:3px;"><?= esc($pDate) ?></div>
+                                                            <?php if ($pNote !== ''): ?>
+                                                                <div style="font-size:13px;color:#4a5068;line-height:1.6;"><?= esc($pNote) ?></div>
+                                                            <?php endif; ?>
+                                                            <?php if ($pProof !== ''): ?>
+                                                                <a href="/<?= esc($pProof) ?>" target="_blank" rel="noopener"
+                                                                    style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#1d5fb0;text-decoration:none;margin-top:4px;">
+                                                                    <i class="fas fa-paperclip"></i> View Proof
+                                                                </a>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -352,7 +397,7 @@
             var input = document.getElementById('searchInput');
             if (!input) return;
             var query = (input.value || '').toLowerCase();
-            document.querySelectorAll('#concernsTable tbody tr[data-search]').forEach(function (row) {
+            document.querySelectorAll('#concernsTable tbody tr[data-search]').forEach(function(row) {
                 row.style.display = (row.getAttribute('data-search') || '').indexOf(query) !== -1 ? '' : 'none';
             });
         }
@@ -366,7 +411,7 @@
             });
         }
 
-        document.getElementById('concernForm')?.addEventListener('submit', function (event) {
+        document.getElementById('concernForm')?.addEventListener('submit', function(event) {
             var note = document.getElementById('concernSlotNote');
             if (concernDate && concernDate.value && concernTime && !concernTime.value) {
                 event.preventDefault();
@@ -378,8 +423,13 @@
         });
 
         <?php if ($reopenForm): ?>
-        openModal('newConcernModal');
+            openModal('newConcernModal');
         <?php endif; ?>
+
+        function toggleProgress(id) {
+            var row = document.getElementById('progress-' + id);
+            if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+        }
     </script>
 </body>
 

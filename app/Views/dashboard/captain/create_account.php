@@ -1039,17 +1039,17 @@
             <?php endif; ?>
 
             <?php if (! $appointSecretaryOnly): ?>
-            <!-- ── Tabs (above the card) ── -->
-            <div class="pf-page-tabs" style="margin: 0 0 20px;">
-                <?php if ($canAssignOfficials): ?>
-                    <button class="pf-page-tab active" id="tab1" type="button" onclick="goTo(1)">
-                        <span class="pf-page-tab-num">1</span> Official Account
+                <!-- ── Tabs (above the card) ── -->
+                <div class="pf-page-tabs" style="margin: 0 0 20px;">
+                    <?php if ($canAssignOfficials): ?>
+                        <button class="pf-page-tab active" id="tab1" type="button" onclick="goTo(1)">
+                            <span class="pf-page-tab-num">1</span> Official Account
+                        </button>
+                    <?php endif; ?>
+                    <button class="pf-page-tab <?= $canAssignOfficials ? '' : 'active' ?>" id="tab2" type="button" onclick="goTo(2)">
+                        <span class="pf-page-tab-num"><?= $canAssignOfficials ? '2' : '1' ?></span> Resident Account
                     </button>
-                <?php endif; ?>
-                <button class="pf-page-tab <?= $canAssignOfficials ? '' : 'active' ?>" id="tab2" type="button" onclick="goTo(2)">
-                    <span class="pf-page-tab-num"><?= $canAssignOfficials ? '2' : '1' ?></span> Resident Account
-                </button>
-            </div>
+                </div>
             <?php endif; ?>
 
             <div class="ca-wrap">
@@ -1076,12 +1076,12 @@
                                         <i class="fas fa-chevron-up" id="officialsListIcon"></i> <span id="officialsListLabel">Hide List</span>
                                     </button>
                                     <?php if (! $appointSecretaryOnly): ?>
-                                    <a href="/<?= session()->get('role') ?>/officials-history"
-                                        style="display:inline-flex;align-items:center;gap:7px;padding:7px 14px;background:#f5f7ff;border:1.5px solid #dde2f5;border-radius:8px;font-size:12px;font-weight:600;color:#1d2448;text-decoration:none;transition:all .15s;"
-                                        onmouseover="this.style.background='#1d2448';this.style.color='#fff';this.style.borderColor='#1d2448';"
-                                        onmouseout="this.style.background='#f5f7ff';this.style.color='#1d2448';this.style.borderColor='#dde2f5';">
-                                        <i class="fas fa-history" style="font-size:11px;"></i> Officials History
-                                    </a>
+                                        <a href="/<?= session()->get('role') ?>/officials-history"
+                                            style="display:inline-flex;align-items:center;gap:7px;padding:7px 14px;background:#f5f7ff;border:1.5px solid #dde2f5;border-radius:8px;font-size:12px;font-weight:600;color:#1d2448;text-decoration:none;transition:all .15s;"
+                                            onmouseover="this.style.background='#1d2448';this.style.color='#fff';this.style.borderColor='#1d2448';"
+                                            onmouseout="this.style.background='#f5f7ff';this.style.color='#1d2448';this.style.borderColor='#dde2f5';">
+                                            <i class="fas fa-history" style="font-size:11px;"></i> Officials History
+                                        </a>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -1314,134 +1314,134 @@
                 <?php endif; ?>
 
                 <?php if (! $appointSecretaryOnly): ?>
-                <!-- ══════════════════════════════════════════════════════════
+                    <!-- ══════════════════════════════════════════════════════════
                      CARD 2 — CREATE NEW ACCOUNT
                 ════════════════════════════════════════════════════════════ -->
-                <div class="ca-card" data-tab="2" style="display:<?= $canAssignOfficials ? 'none' : '' ?>;">
-                    <div class="ca-card-header">
-                        <div class="ca-card-header-icon"><i class="fas fa-user-plus"></i></div>
-                        <div class="ca-card-header-text">
-                            <h3>Create New Account</h3>
-                            <p>Register a brand-new Resident account from scratch.</p>
+                    <div class="ca-card" data-tab="2" style="display:<?= $canAssignOfficials ? 'none' : '' ?>;">
+                        <div class="ca-card-header">
+                            <div class="ca-card-header-icon"><i class="fas fa-user-plus"></i></div>
+                            <div class="ca-card-header-text">
+                                <h3>Create New Account</h3>
+                                <p>Register a brand-new Resident account from scratch.</p>
+                            </div>
                         </div>
-                    </div>
-                    <div class="ca-body">
+                        <div class="ca-body">
 
-                        <form action="<?= $officialActionBase ?>/create-account/store" method="post" id="createForm">
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="role" id="roleInput" value="resident">
+                            <form action="<?= $officialActionBase ?>/create-account/store" method="post" id="createForm">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="role" id="roleInput" value="resident">
 
-                            <!-- Role selection -->
-                            <p class="ca-section-label">Select Role</p>
+                                <!-- Role selection -->
+                                <p class="ca-section-label">Select Role</p>
 
-                            <div class="ca-role-pills">
-                                <label class="ca-role-pill ca-role-pill--resident selected" id="pill-resident" onclick="selectRole('resident')">
-                                    <input type="radio" name="_role_ui" value="resident" checked>
-                                    <div class="ca-role-pill-icon"><i class="fas fa-user"></i></div>
-                                    <div>
-                                        <div class="ca-role-pill-label">Resident</div>
-                                        <div class="ca-role-pill-sub">Barangay Resident</div>
-                                    </div>
-                                    <div class="ca-check" id="check-resident"><i class="fas fa-check"></i></div>
-                                </label>
-                            </div>
-
-                            <div class="ca-divider"></div>
-
-                            <div class="ca-info-note">
-                                <i class="fas fa-info-circle"></i>
-                                <span>This account will be <strong>immediately active</strong> — no email verification or approval required. Share the credentials directly with the user.</span>
-                            </div>
-
-                            <p class="ca-section-label">Account Details</p>
-
-                            <div class="ca-form-row">
-                                <div class="ca-form-group">
-                                    <label>Last Name</label>
-                                    <div class="ca-input-wrap">
-                                        <i class="fas fa-user ca-input-icon"></i>
-                                        <input type="text" name="last_name" placeholder="e.g. Dela Cruz" required>
-                                    </div>
-                                </div>
-                                <div class="ca-form-group">
-                                    <label>First Name</label>
-                                    <div class="ca-input-wrap">
-                                        <i class="fas fa-user ca-input-icon"></i>
-                                        <input type="text" name="first_name" placeholder="e.g. Juan" required>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="ca-form-row">
-                                <div class="ca-form-group">
-                                    <label>Middle Name <span style="color:#9aa0b4;font-weight:400;">(optional)</span></label>
-                                    <div class="ca-input-wrap">
-                                        <i class="fas fa-user ca-input-icon"></i>
-                                        <input type="text" name="middle_name" placeholder="e.g. Santos">
-                                    </div>
-                                </div>
-                                <div class="ca-form-group">
-                                    <label>Username</label>
-                                    <div class="ca-input-wrap">
-                                        <i class="fas fa-at ca-input-icon"></i>
-                                        <input type="text" name="username" placeholder="e.g. juan_delacruz" required>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="ca-form-row ca-form-row--full" style="margin-bottom:14px;">
-                                <div class="ca-form-group">
-                                    <label>Email Address</label>
-                                    <div class="ca-input-wrap">
-                                        <i class="fas fa-envelope ca-input-icon"></i>
-                                        <input type="email" name="email" placeholder="e.g. juan@email.com" required>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- Household No — shown only for Resident -->
-                            <div class="ca-form-row ca-form-row--full" id="householdRow" style="display:none;margin-bottom:14px;">
-                                <div class="ca-form-group">
-                                    <label>Household Number <span style="color:#9aa0b4;font-weight:400;">(optional — links resident to census)</span></label>
-                                    <div class="ca-input-wrap">
-                                        <i class="fas fa-home ca-input-icon"></i>
-                                        <input type="text" name="household_no" id="householdNo" placeholder="e.g. 12345" maxlength="5">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="ca-form-row">
-                                <div class="ca-form-group">
-                                    <label>Password</label>
-                                    <div class="ca-input-wrap ca-pw-wrap">
-                                        <i class="fas fa-lock ca-input-icon"></i>
-                                        <input type="password" name="password" id="pw1" placeholder="Minimum 8 characters" minlength="8" required oninput="checkStrength(this.value)">
-                                        <button type="button" class="ca-eye-btn" onclick="togglePw('pw1','eye1')" aria-label="Toggle password">
-                                            <i class="fas fa-eye" id="eye1"></i>
-                                        </button>
-                                    </div>
-                                    <div class="ca-pw-strength" id="pwStrength">
-                                        <div class="ca-pw-bar-track">
-                                            <div class="ca-pw-bar-fill" id="pwBar"></div>
+                                <div class="ca-role-pills">
+                                    <label class="ca-role-pill ca-role-pill--resident selected" id="pill-resident" onclick="selectRole('resident')">
+                                        <input type="radio" name="_role_ui" value="resident" checked>
+                                        <div class="ca-role-pill-icon"><i class="fas fa-user"></i></div>
+                                        <div>
+                                            <div class="ca-role-pill-label">Resident</div>
+                                            <div class="ca-role-pill-sub">Barangay Resident</div>
                                         </div>
-                                        <span class="ca-pw-label" id="pwLabel"></span>
+                                        <div class="ca-check" id="check-resident"><i class="fas fa-check"></i></div>
+                                    </label>
+                                </div>
+
+                                <div class="ca-divider"></div>
+
+                                <div class="ca-info-note">
+                                    <i class="fas fa-info-circle"></i>
+                                    <span>This account will be <strong>immediately active</strong> — no email verification or approval required. Share the credentials directly with the user.</span>
+                                </div>
+
+                                <p class="ca-section-label">Account Details</p>
+
+                                <div class="ca-form-row">
+                                    <div class="ca-form-group">
+                                        <label>Last Name</label>
+                                        <div class="ca-input-wrap">
+                                            <i class="fas fa-user ca-input-icon"></i>
+                                            <input type="text" name="last_name" placeholder="e.g. Dela Cruz" required>
+                                        </div>
+                                    </div>
+                                    <div class="ca-form-group">
+                                        <label>First Name</label>
+                                        <div class="ca-input-wrap">
+                                            <i class="fas fa-user ca-input-icon"></i>
+                                            <input type="text" name="first_name" placeholder="e.g. Juan" required>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="ca-form-group">
-                                    <label>Confirm Password</label>
-                                    <div class="ca-input-wrap ca-pw-wrap">
-                                        <i class="fas fa-lock ca-input-icon"></i>
-                                        <input type="password" name="confirm_password" id="pw2" placeholder="Re-enter password" required>
-                                        <button type="button" class="ca-eye-btn" onclick="togglePw('pw2','eye2')" aria-label="Toggle confirm password">
-                                            <i class="fas fa-eye" id="eye2"></i>
-                                        </button>
+                                <div class="ca-form-row">
+                                    <div class="ca-form-group">
+                                        <label>Middle Name <span style="color:#9aa0b4;font-weight:400;">(optional)</span></label>
+                                        <div class="ca-input-wrap">
+                                            <i class="fas fa-user ca-input-icon"></i>
+                                            <input type="text" name="middle_name" placeholder="e.g. Santos">
+                                        </div>
+                                    </div>
+                                    <div class="ca-form-group">
+                                        <label>Username</label>
+                                        <div class="ca-input-wrap">
+                                            <i class="fas fa-at ca-input-icon"></i>
+                                            <input type="text" name="username" placeholder="e.g. juan_delacruz" required>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                                <div class="ca-form-row ca-form-row--full" style="margin-bottom:14px;">
+                                    <div class="ca-form-group">
+                                        <label>Email Address</label>
+                                        <div class="ca-input-wrap">
+                                            <i class="fas fa-envelope ca-input-icon"></i>
+                                            <input type="email" name="email" placeholder="e.g. juan@email.com" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Household No — shown only for Resident -->
+                                <div class="ca-form-row ca-form-row--full" id="householdRow" style="display:none;margin-bottom:14px;">
+                                    <div class="ca-form-group">
+                                        <label>Household Number</label>
+                                        <div class="ca-input-wrap">
+                                            <i class="fas fa-home ca-input-icon"></i>
+                                            <input type="text" name="household_no" id="householdNo" placeholder="e.g. 12345" maxlength="5">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="ca-form-row">
+                                    <div class="ca-form-group">
+                                        <label>Password</label>
+                                        <div class="ca-input-wrap ca-pw-wrap">
+                                            <i class="fas fa-lock ca-input-icon"></i>
+                                            <input type="password" name="password" id="pw1" placeholder="Minimum 8 characters" minlength="8" required oninput="checkStrength(this.value)">
+                                            <button type="button" class="ca-eye-btn" onclick="togglePw('pw1','eye1')" aria-label="Toggle password">
+                                                <i class="fas fa-eye" id="eye1"></i>
+                                            </button>
+                                        </div>
+                                        <div class="ca-pw-strength" id="pwStrength">
+                                            <div class="ca-pw-bar-track">
+                                                <div class="ca-pw-bar-fill" id="pwBar"></div>
+                                            </div>
+                                            <span class="ca-pw-label" id="pwLabel"></span>
+                                        </div>
+                                    </div>
+                                    <div class="ca-form-group">
+                                        <label>Confirm Password</label>
+                                        <div class="ca-input-wrap ca-pw-wrap">
+                                            <i class="fas fa-lock ca-input-icon"></i>
+                                            <input type="password" name="confirm_password" id="pw2" placeholder="Re-enter password" required>
+                                            <button type="button" class="ca-eye-btn" onclick="togglePw('pw2','eye2')" aria-label="Toggle confirm password">
+                                                <i class="fas fa-eye" id="eye2"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
 
-                            <button type="submit" class="ca-submit-btn">
-                                <i class="fas fa-user-plus"></i> Create Account
-                            </button>
-                        </form>
+                                <button type="submit" class="ca-submit-btn">
+                                    <i class="fas fa-user-plus"></i> Create Account
+                                </button>
+                            </form>
 
-                    </div><!-- /.ca-body -->
-                </div><!-- /.ca-card (create new) -->
+                        </div><!-- /.ca-body -->
+                    </div><!-- /.ca-card (create new) -->
                 <?php endif; ?>
 
             </div><!-- /.ca-wrap -->
@@ -1468,8 +1468,14 @@
         // ── Resident combobox data (PHP → JS) ────────────────────────────────────
         let RESIDENTS = [];
         fetch('/<?= esc($role ?? session()->get('role') ?? 'captain') ?>/pii/directory/residents', {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        }).then(r => r.json()).then(rows => { RESIDENTS = Array.isArray(rows) ? rows : []; }).catch(() => { RESIDENTS = []; });
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        }).then(r => r.json()).then(rows => {
+            RESIDENTS = Array.isArray(rows) ? rows : [];
+        }).catch(() => {
+            RESIDENTS = [];
+        });
 
         // ── Custom confirmation modal ────────────────────────────────────────────
         let _pendingAction = null;

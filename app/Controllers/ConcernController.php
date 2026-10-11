@@ -282,7 +282,7 @@ class ConcernController extends BaseController
         $search = \App\Libraries\RecordSearch::term();
         return view('dashboard/sk/concerns', [
             'account'  => $user ?? [],
-            'concerns' => $this->filterOwnConcerns($user ?? [], $search),
+            'concerns' => $this->attachProgressToConcerns($this->filterOwnConcerns($user ?? [], $search)),
             'search'   => $search,
         ]);
     }
@@ -349,7 +349,7 @@ class ConcernController extends BaseController
         return view('dashboard/sk/concerns', [
             'account'  => $user ?? [],
             'role'     => 'resident',
-            'concerns' => $this->filterOwnConcerns($user ?? [], $search),
+            'concerns' => $this->attachProgressToConcerns($this->filterOwnConcerns($user ?? [], $search)),
             'search'   => $search,
         ]);
     }
@@ -632,8 +632,16 @@ class ConcernController extends BaseController
             return redirect()->to('/' . $role . '/notifications')->with('error', 'Concern not found.');
         }
 
+        $db       = \Config\Database::connect();
+        $progress = $db->table('concern_progress')
+            ->where('concern_id', $id)
+            ->orderBy('id', 'ASC')
+            ->get()
+            ->getResultArray();
+
         return view('dashboard/' . staff_view_folder($role) . '/concern_review', [
             'concern'   => $concern,
+            'progress'  => $progress,
             'role'      => $role,
             'pageTitle' => 'Review Concern',
         ]);
@@ -841,8 +849,8 @@ class ConcernController extends BaseController
             $db->table('blotter_reports')
                 ->select('appointment_date, hearing_date')
                 ->groupStart()
-                    ->where('appointment_date IS NOT NULL', null, false)
-                    ->orWhere('hearing_date IS NOT NULL', null, false)
+                ->where('appointment_date IS NOT NULL', null, false)
+                ->orWhere('hearing_date IS NOT NULL', null, false)
                 ->groupEnd()
                 ->get()->getResultArray(),
             'appointment_date'
@@ -1283,6 +1291,17 @@ class ConcernController extends BaseController
             'notes'  => $response,
         ]);
 
+        $db = \Config\Database::connect();
+        $db->table('concern_progress')->insert([
+            'concern_id' => $id,
+            'status'     => 'resolved',
+            'note'       => $response,
+            'proof_path' => null,
+            'created_by' => (int) session()->get('user_id'),
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
         try {
             (new \App\Libraries\EmailService())->sendConcernResponse(
                 $concern['email'],
@@ -1342,5 +1361,122 @@ class ConcernController extends BaseController
 
         return redirect()->to('/' . $role . '/concerns')
             ->with('success', 'Concern from <strong>' . esc($concern['full_name']) . '</strong> dismissed. Response sent to ' . esc($concern['email']) . '.');
+    }
+
+    // ── Admin: Update concern progress status ─────────────────────────────────
+
+    public function updateStatus(int $id): \CodeIgniter\HTTP\RedirectResponse
+    {
+        $role = session()->get('role');
+        if (! in_array($role, ['secretary', 'captain', 'admin'])) {
+            return redirect()->to('/')->with('error', 'Unauthorized.');
+        }
+
+        $concern = $this->model->find($id);
+        if (! $concern) {
+            return redirect()->to('/' . $role . '/concerns')->with('error', 'Concern not found.');
+        }
+
+        $newStatus = trim((string) $this->request->getPost('status'));
+        $allowed   = ['approved', 'processing', 'ongoing', 'resolved', 'dismissed'];
+        if (! in_array($newStatus, $allowed, true)) {
+            return redirect()->to('/' . $role . '/concern/' . $id)->with('error', 'Invalid status selected.');
+        }
+
+        $note = trim((string) ($this->request->getPost('note') ?? '')) ?: null;
+
+        // Handle optional file upload
+        $proofPath = null;
+        $file = $this->request->getFile('proof');
+        if ($file && $file->isValid() && ! $file->hasMoved()) {
+            $ext = strtolower($file->getClientExtension());
+            if (! in_array($ext, ['jpg', 'jpeg', 'png', 'pdf'], true)) {
+                return redirect()->to('/' . $role . '/concern/' . $id)->with('error', 'Proof file must be jpg, jpeg, png, or pdf.');
+            }
+            if ($file->getSize() > 5 * 1024 * 1024) {
+                return redirect()->to('/' . $role . '/concern/' . $id)->with('error', 'Proof file must not exceed 5 MB.');
+            }
+            $dir = FCPATH . 'uploads/concern_progress/';
+            @mkdir($dir, 0755, true);
+            $fileName  = 'cp_' . $id . '_' . time() . '_' . bin2hex(random_bytes(2)) . '.' . $ext;
+            $file->move($dir, $fileName);
+            $proofPath = 'uploads/concern_progress/' . $fileName;
+        }
+
+        $db = \Config\Database::connect();
+        $db->table('concern_progress')->insert([
+            'concern_id' => $id,
+            'status'     => $newStatus,
+            'note'       => $note,
+            'proof_path' => $proofPath,
+            'created_by' => (int) session()->get('user_id'),
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $this->model->update($id, ['status' => $newStatus]);
+
+        if ($newStatus === 'resolved') {
+            $response = $note ?? 'Your concern has been resolved.';
+            try {
+                (new \App\Libraries\EmailService())->sendConcernResponse(
+                    $concern['email'],
+                    $concern['full_name'],
+                    $concern['subject'],
+                    $concern['message'],
+                    $response,
+                    'resolved',
+                    $concern['appointment_date'] ?? null,
+                    $concern['appointment_time'] ?? null
+                );
+            } catch (\Throwable $e) {
+                log_message('error', 'Concern updateStatus resolved email failed: ' . $e->getMessage());
+            }
+        }
+
+        $concernUserId = (int) ($concern['user_id'] ?? 0);
+        if ($concernUserId > 0) {
+            $ownerRow = $db->table('users')->where('id', $concernUserId)->get()->getRowArray();
+            $ownerRole = $ownerRow['role'] ?? 'resident';
+            \App\Models\NotificationModel::push(
+                $concernUserId,
+                'concern_update',
+                'Concern Update: ' . ($concern['subject'] ?? ''),
+                'Your concern status has been updated to ' . $newStatus . '.',
+                '/' . $ownerRole . '/concerns'
+            );
+        }
+
+        return redirect()->to('/' . $role . '/concern/' . $id)
+            ->with('success', 'Concern status updated to ' . $newStatus . '.');
+    }
+
+    // ── Helper: attach progress rows to a list of concerns ───────────────────
+
+    private function attachProgressToConcerns(array $concerns): array
+    {
+        if (empty($concerns)) {
+            return [];
+        }
+
+        $ids = array_column($concerns, 'id');
+        $rows = \Config\Database::connect()
+            ->table('concern_progress')
+            ->whereIn('concern_id', $ids)
+            ->orderBy('id', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $byId = [];
+        foreach ($rows as $row) {
+            $byId[(int) $row['concern_id']][] = $row;
+        }
+
+        foreach ($concerns as &$c) {
+            $c['progress'] = $byId[(int) $c['id']] ?? [];
+        }
+        unset($c);
+
+        return $concerns;
     }
 }

@@ -147,6 +147,7 @@ class BarangayActivityController extends BaseController
         foreach ($activities as &$activity) {
             $activity['registration']       = $model->registrationFor((int) $activity['id'], $userId);
             $activity['registration_count'] = $model->registrationCount((int) $activity['id']);
+            $activity['reg_counts']         = $model->registrationCountByStatus((int) $activity['id']);
             $activity['requirements_list']  = BarangayActivityModel::parseRequirements($activity['requirements'] ?? null);
         }
         unset($activity);
@@ -176,25 +177,79 @@ class BarangayActivityController extends BaseController
         ]);
     }
 
+    public function councilActivities()
+    {
+        $model    = new BarangayActivityModel();
+        $model->syncDateStatuses();
+
+        // Get council's assigned zone
+        $councilUser = (new \App\Models\UserModel())->find((int) session()->get('user_id'));
+        $zone = is_array($councilUser) ? trim((string) ($councilUser['council_zone'] ?? '')) : '';
+
+        $activities = $model->visibleToResidents();
+        foreach ($activities as &$activity) {
+            $rc = $model->registrationCountByStatus((int) $activity['id']);
+            $activity['reg_counts']         = $rc;
+            $activity['registration_count'] = $rc['total'];
+            $activity['requirements_list']  = BarangayActivityModel::parseRequirements($activity['requirements'] ?? null);
+        }
+        unset($activity);
+
+        $search = \App\Libraries\RecordSearch::term();
+        $activities = \App\Libraries\RecordSearch::filter(
+            $activities,
+            $search,
+            static fn(array $activity): string => implode(' ', [
+                (string) ($activity['title'] ?? ''),
+                (string) ($activity['category'] ?? ''),
+                (string) ($activity['venue'] ?? ''),
+                (string) ($activity['description'] ?? ''),
+            ]),
+            static fn(array $activity): array => [
+                $activity['conducted_date'] ?? null,
+                $activity['activity_date'] ?? null,
+            ]
+        );
+
+        return view('dashboard/activities/council_activities', [
+            'activities' => $activities,
+            'zone'       => $zone,
+            'search'     => $search,
+        ]);
+    }
+
     public function registrations(int $id)
     {
-        $role  = $this->manageRole();
-        $model = new BarangayActivityModel();
-        $activity = $model->find($id);
+        // Council can manage registrations filtered to their zone
+        $isCouncil = session()->get('role') === 'council';
+        $role      = $isCouncil ? 'council' : $this->manageRole();
+        $model     = new BarangayActivityModel();
+        $activity  = $model->find($id);
         if (! $activity) {
             return redirect()->to('/' . $role . '/activities')->with('error', 'Activity not found.');
+        }
+
+        $councilZone = '';
+        if ($isCouncil) {
+            $councilUser = (new \App\Models\UserModel())->find((int) session()->get('user_id'));
+            $councilZone = is_array($councilUser) ? trim((string) ($councilUser['council_zone'] ?? '')) : '';
         }
 
         $rows = [];
         $db   = \Config\Database::connect();
         if ($db->tableExists('barangay_activity_registrations')) {
-            $rows = $db->table('barangay_activity_registrations r')
-                ->select('r.*, u.first_name, u.last_name, u.username, u.email')
+            $builder = $db->table('barangay_activity_registrations r')
+                ->select('r.*, u.first_name, u.last_name, u.username, u.email, h.zone')
                 ->join('users u', 'u.id = r.user_id', 'left')
-                ->where('r.activity_id', $id)
-                ->orderBy('r.created_at', 'ASC')
-                ->get()
-                ->getResultArray();
+                ->join('households h', 'h.household_no = u.household_no', 'left')
+                ->where('r.activity_id', $id);
+
+            // Council only sees registrants from their zone
+            if ($isCouncil && $councilZone !== '') {
+                $builder->where('h.zone', $councilZone);
+            }
+
+            $rows = $builder->orderBy('r.created_at', 'ASC')->get()->getResultArray();
         }
 
         $search = \App\Libraries\RecordSearch::term();
@@ -219,6 +274,7 @@ class BarangayActivityController extends BaseController
             'registrations' => $rows,
             'reqList'       => BarangayActivityModel::parseRequirements($activity['requirements'] ?? null),
             'search'        => $search,
+            'councilZone'   => $councilZone,
         ]);
     }
 
@@ -299,7 +355,7 @@ class BarangayActivityController extends BaseController
         $requirements = BarangayActivityModel::parseRequirements($activity['requirements'] ?? null);
         $uploads = array_values(array_filter(
             $requirements,
-            static fn (string $requirement): bool => BarangayActivityModel::isFileRequirement($requirement)
+            static fn(string $requirement): bool => BarangayActivityModel::isFileRequirement($requirement)
         ));
         $files = $this->request->getFileMultiple('attachments') ?? [];
         $attachments = [];

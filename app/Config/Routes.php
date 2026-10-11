@@ -140,6 +140,7 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
     $routes->post('moves/store',               'HouseholdMoveController::store');
     $routes->post('moves/approve/(:num)',      'HouseholdMoveController::approve/$1');
     $routes->post('moves/reject/(:num)',       'HouseholdMoveController::reject/$1');
+    $routes->post('moves/transfer-resend/(:num)', 'HouseholdMoveController::sendTransferConfirmation/$1');
 
     $routes->get('deceased-accounts',                 'DeceasedAccountController::index');
     $routes->post('deceased-accounts/policy',         'DeceasedAccountController::savePolicy');
@@ -149,6 +150,8 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
     $routes->post('census-updates/store', 'CensusUpdateDriveController::store');
     $routes->post('resident/approve-census-update/(:num)', 'CensusController::approveResidentUpdate/$1');
     $routes->post('resident/reject-census-update/(:num)', 'CensusController::rejectResidentUpdate/$1');
+    $routes->get('resident/census-update-diff/(:num)', 'CensusController::getCensusUpdateDiff/$1');
+    $routes->get('resident/census-update-review/(:num)', 'CensusController::reviewCensusUpdate/$1');
     $routes->post('member-request/approve/(:num)', 'CensusController::approveMemberRequest/$1');
     $routes->post('member-request/reject/(:num)', 'CensusController::rejectMemberRequest/$1');
 
@@ -172,6 +175,7 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
     $routes->post('concern/resolve/(:num)',       'ConcernController::resolve/$1');
     $routes->post('concern/dismiss/(:num)',       'ConcernController::dismiss/$1');
     $routes->post('concern/reschedule/(:num)',    'ConcernController::reschedule/$1');
+    $routes->post('concern/update-status/(:num)', 'ConcernController::updateStatus/$1');
     $routes->get('concern/availability',          'ConcernController::availability');
     $routes->get('concern/unavailable-dates',     'ConcernController::unavailableDates');
 
@@ -306,6 +310,7 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
     $routes->post('moves/store',               'HouseholdMoveController::store');
     $routes->post('moves/approve/(:num)',      'HouseholdMoveController::approve/$1');
     $routes->post('moves/reject/(:num)',       'HouseholdMoveController::reject/$1');
+    $routes->post('moves/transfer-resend/(:num)', 'HouseholdMoveController::sendTransferConfirmation/$1');
 
     $routes->get('deceased-accounts',                 'DeceasedAccountController::index');
     $routes->post('deceased-accounts/policy',         'DeceasedAccountController::savePolicy');
@@ -336,6 +341,7 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
     $routes->post('concern/resolve/(:num)',       'ConcernController::resolve/$1');
     $routes->post('concern/dismiss/(:num)',       'ConcernController::dismiss/$1');
     $routes->post('concern/reschedule/(:num)',    'ConcernController::reschedule/$1');
+    $routes->post('concern/update-status/(:num)', 'ConcernController::updateStatus/$1');
     $routes->get('concern/availability',          'ConcernController::availability');
     $routes->get('concern/unavailable-dates',     'ConcernController::unavailableDates');
 
@@ -372,6 +378,8 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
     $routes->post('resident/send-census-update', 'CensusController::sendResidentUpdateAuthorization');
     $routes->post('resident/approve-census-update/(:num)', 'CensusController::approveResidentUpdate/$1');
     $routes->post('resident/reject-census-update/(:num)', 'CensusController::rejectResidentUpdate/$1');
+    $routes->get('resident/census-update-diff/(:num)', 'CensusController::getCensusUpdateDiff/$1');
+    $routes->get('resident/census-update-review/(:num)', 'CensusController::reviewCensusUpdate/$1');
     $routes->post('member-request/approve/(:num)', 'CensusController::approveMemberRequest/$1');
     $routes->post('member-request/reject/(:num)', 'CensusController::rejectMemberRequest/$1');
 
@@ -500,6 +508,7 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('moves/store',               'HouseholdMoveController::store');
     $routes->post('moves/approve/(:num)',      'HouseholdMoveController::approve/$1');
     $routes->post('moves/reject/(:num)',       'HouseholdMoveController::reject/$1');
+    $routes->post('moves/transfer-resend/(:num)', 'HouseholdMoveController::sendTransferConfirmation/$1');
     $routes->get('deceased-accounts',                 'DeceasedAccountController::index');
     $routes->post('deceased-accounts/policy',         'DeceasedAccountController::savePolicy');
     $routes->post('deceased-accounts/account/(:num)', 'DeceasedAccountController::setAccount/$1');
@@ -522,6 +531,7 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('concern/resolve/(:num)',       'ConcernController::resolve/$1');
     $routes->post('concern/dismiss/(:num)',       'ConcernController::dismiss/$1');
     $routes->post('concern/reschedule/(:num)',    'ConcernController::reschedule/$1');
+    $routes->post('concern/update-status/(:num)', 'ConcernController::updateStatus/$1');
     $routes->get('concern/availability',          'ConcernController::availability');
     $routes->get('concern/unavailable-dates',     'ConcernController::unavailableDates');
     $routes->get('users',                 'AdminUserController::index');
@@ -540,6 +550,8 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('resident/send-census-update', 'CensusController::sendResidentUpdateAuthorization');
     $routes->post('resident/approve-census-update/(:num)', 'CensusController::approveResidentUpdate/$1');
     $routes->post('resident/reject-census-update/(:num)', 'CensusController::rejectResidentUpdate/$1');
+    $routes->get('resident/census-update-diff/(:num)', 'CensusController::getCensusUpdateDiff/$1');
+    $routes->get('resident/census-update-review/(:num)', 'CensusController::reviewCensusUpdate/$1');
     $routes->post('member-request/approve/(:num)', 'CensusController::approveMemberRequest/$1');
     $routes->post('member-request/reject/(:num)', 'CensusController::rejectMemberRequest/$1');
     $routes->post('settings/profile',          'SettingsController::updateProfile');
@@ -602,11 +614,13 @@ $routes->group('/council', ['filter' => ['auth', 'role:council']], function ($ro
     $routes->get('household-finder', 'CensusController::finder');
     $routes->get('household/(:segment)', 'UIController::council_household/$1');
     $routes->get('programs', 'SkController::programs');
-    $routes->get('activities', 'BarangayActivityController::resident');
-    $routes->post('activities/join/(:num)', 'BarangayActivityController::join/$1');
-    $routes->post('activities/unjoin/(:num)', 'BarangayActivityController::unjoin/$1');
+    $routes->get('activities', 'BarangayActivityController::councilActivities');
+    $routes->get('activities/registrations/(:num)', 'BarangayActivityController::registrations/$1');
+    $routes->post('activities/registrations/update/(:num)', 'BarangayActivityController::updateRegistration/$1');
     $routes->get('census-update', 'CensusController::residentCensusUpdateForm');
     $routes->post('census-update', 'CensusController::saveResidentCensusUpdate');
+    $routes->get('resident/census-update-diff/(:num)', 'CensusController::getCensusUpdateDiff/$1');
+    $routes->get('resident/census-update-review/(:num)', 'CensusController::reviewCensusUpdate/$1');
     $routes->get('sk-profiling', 'SkController::residentProfilingForm');
     $routes->post('sk-profiling/store', 'SkController::storeResidentProfiling');
     $routes->post('sk-profiling/update/(:num)', 'SkController::update/$1');
