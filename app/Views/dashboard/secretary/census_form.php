@@ -277,16 +277,6 @@
                                     <div id="linkedHouseholdPreview" style="display:none;margin-top:12px;padding:12px 14px;background:#fff;border:1px solid #dde2f5;border-radius:9px;"></div>
                                 </div>
 
-                                <div class="pf-id-upload" style="margin-top:12px;" data-id-block data-id-key="head_support">
-                                    <label class="pf-id-label"><i class="fas fa-id-card"></i> Head ID or Birth Certificate <span class="pf-req">* REQUIRED</span></label>
-                                    <label class="pf-file-drop">
-                                        <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
-                                        <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose one ID or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                                        <input type="file" name="head_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input">
-                                    </label>
-                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB.</div>
-                                </div>
-
                                 <div class="pf-check-row">
                                     <span class="pf-check-label">Household belongs to:</span>
                                     <label class="pf-check"><input type="checkbox" name="is_4ps" value="1" id="head_is_4ps" onchange="toggleIdUpload('head_is_4ps','id_4ps_wrap')"> <span>4Ps Beneficiary</span></label>
@@ -1801,27 +1791,6 @@
             if (prevErr) prevErr.remove();
 
             if (!savingDraft) {
-                const fileKept = (selector) => {
-                    const el = document.querySelector(selector);
-                    const nameEl = el && el.closest('.pf-file-drop') && el.closest('.pf-file-drop').querySelector('.pf-file-name');
-                    return !!(nameEl && /\(kept\)/i.test(nameEl.textContent || ''));
-                };
-                const fileMissing = (selector) => {
-                    const el = document.querySelector(selector);
-                    const hasFile = el && el.files && el.files.length > 0;
-                    return !hasFile && !fileKept(selector);
-                };
-                const headCovered = !fileMissing('input[name="head_supporting_doc"]')
-                    || (document.querySelector('input[name="is_4ps"]')?.checked && !fileMissing('input[name="id_4ps"]'))
-                    || (document.querySelector('input[name="is_senior_citizen"]')?.checked && !fileMissing('input[name="id_senior"]'))
-                    || (document.querySelector('input[name="is_solo_parent"]')?.checked && !fileMissing('input[name="id_solo_parent"]'))
-                    || (document.querySelector('input[name="is_pwd"]')?.checked && !fileMissing('input[name="id_pwd"]'));
-                if (!headCovered) {
-                    e.preventDefault();
-                    goTo(1);
-                    alert('The household head needs one ID or birth certificate, or save the household as a draft.');
-                    return;
-                }
                 document.querySelectorAll('#childrenRows .pf-member-card').forEach(row => {
                     const last = row.querySelector('input[name="child_last_name[]"]');
                     const occ = row.querySelector('input[name="child_occupation[]"]');

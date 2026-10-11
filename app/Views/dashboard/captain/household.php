@@ -698,21 +698,6 @@
                                 </div>
                             </div>
 
-                            <?php $headSupportUrl = $censusDocUrl($head['supporting_doc_path'] ?? null); ?>
-                            <div class="pf-id-upload" style="margin-top:12px;" data-id-block data-id-key="head_support">
-                                <label class="pf-id-label"><i class="fas fa-id-card"></i> Head ID or Birth Certificate <span class="pf-req">* REQUIRED</span></label>
-                                <label class="pf-file-drop">
-                                    <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
-                                    <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose one ID or birth certificate</span><span class="pf-file-name"><?= $headSupportUrl !== '' ? 'Existing file on record' : 'No file selected' ?></span></span>
-                                    <input type="file" name="head_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input">
-                                </label>
-                                <?php if ($headSupportUrl !== ''): ?>
-                                    <div class="pf-file-hint" style="color:#166534;"><i class="fas fa-check-circle"></i> Existing on file. <a href="<?= esc($headSupportUrl) ?>" target="_blank">View</a>. Leave blank to keep it, or upload a new file to replace it.</div>
-                                <?php else: ?>
-                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB.</div>
-                                <?php endif; ?>
-                            </div>
-
                             <div class="pf-check-row">
                                 <span class="pf-check-label">Household belongs to:</span>
                                 <label class="pf-check"><input type="checkbox" name="is_4ps" value="1" id="head_edit_4ps" <?= !empty($head['is_4ps']) ? 'checked' : '' ?> onchange="toggleIdUpload('head_edit_4ps','head_edit_id_4ps_wrap')"> <span>4Ps Beneficiary</span></label>

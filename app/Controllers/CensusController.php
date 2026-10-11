@@ -890,15 +890,6 @@ class CensusController extends BaseController
 
     private function missingSupportingDocumentMessage(array $post): ?string
     {
-        $headHas = $this->uploadIsPresent('head_supporting_doc')
-            || (isset($post['is_4ps']) && $this->uploadIsPresent('id_4ps'))
-            || (isset($post['is_senior_citizen']) && $this->uploadIsPresent('id_senior'))
-            || (isset($post['is_solo_parent']) && $this->uploadIsPresent('id_solo_parent'))
-            || (isset($post['is_pwd']) && $this->uploadIsPresent('id_pwd'));
-        if (! $headHas) {
-            return 'The household head needs one ID or birth certificate. Use Save as Draft if the document is not available yet.';
-        }
-
         if (trim((string) ($post['spouse_last_name'] ?? '')) !== '') {
             $spouseHas = $this->uploadIsPresent('spouse_supporting_doc')
                 || (($post['spouse_pwd'] ?? '0') === '1' && $this->uploadIsPresent('spouse_id_pwd'))
@@ -2347,19 +2338,6 @@ class CensusController extends BaseController
             $householdNo,
             $current['supporting_doc_path'] ?? null
         );
-
-        if (! $saveAsDraft) {
-            $headHasDoc = ! empty($headSupportPath)
-                || ($check4ps && ! empty($id4psPath))
-                || ($checkSenior && ! empty($idSeniorPath))
-                || ($checkSolo && ! empty($idSoloPath))
-                || ($checkPwd && ! empty($idPwdPath));
-            if (! $headHasDoc) {
-                return redirect()->back()
-                    ->with('error', 'The household head needs one ID or birth certificate. Use Save as Draft if the document is not available yet.')
-                    ->withInput();
-            }
-        }
 
         $newOwnership    = $post['house_ownership']  ?? 'Owned';
         $newNumFamilies  = max(1, (int) ($post['num_families'] ?? 1));
