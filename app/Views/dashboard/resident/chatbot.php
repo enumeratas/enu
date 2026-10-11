@@ -813,6 +813,8 @@
         const assistant = document.querySelector('.resident-assistant');
         let conversationId = null;
         let sending = false;
+        let chatAbort = null;
+        let requestGen = 0;
         let pinnedConversation = false;
         let liveConversationId = 0;
         let liveLabel = '';
@@ -1141,7 +1143,12 @@
         async function sendMessage(text, options) {
             const message = text.trim();
             const shouldSpeak = !!(options && options.speak);
-            if (message === '' || sending) return;
+            if (message === '') return;
+            const gen = ++requestGen;
+            if (chatAbort) {
+                try { chatAbort.abort(); } catch (e) {}
+            }
+            chatAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
             sending = true;
             stopSpeech();
             setMicIdle();
@@ -1160,6 +1167,7 @@
                 const response = await fetch(chatEndpoint, {
                     method: 'POST',
                     credentials: 'same-origin',
+                    signal: chatAbort ? chatAbort.signal : undefined,
                     headers: {
                         'Accept': 'application/json',
                         'Content-Type': 'application/x-www-form-urlencoded',
@@ -1168,6 +1176,7 @@
                     body: body.toString()
                 });
                 const data = await response.json();
+                if (gen !== requestGen) return;
                 setTyping(false);
                 if (data && Number(data.conversation_id) > 0) {
                     conversationId = Number(data.conversation_id);
@@ -1187,12 +1196,17 @@
                 }
                 loadHistory(false);
             } catch (error) {
+                if (error && error.name === 'AbortError') return;
+                if (gen !== requestGen) return;
                 setTyping(false);
                 addMessage('Sorry, I could not connect to the BIS service. Please try again.', false);
             } finally {
-                sending = false;
-                setMicIdle();
-                input.focus();
+                if (gen === requestGen) {
+                    sending = false;
+                    setTyping(false);
+                    setMicIdle();
+                    input.focus();
+                }
             }
         }
 
@@ -1919,17 +1933,18 @@
         // on-topic vocabulary (names, document types, Taglish phrases).
         function collectRecentContext() {
             if (!thread) return '';
-            const bubbles = thread.querySelectorAll('.gpt-bubble');
-            if (!bubbles || bubbles.length === 0) return '';
-            const take = Math.min(bubbles.length, 6);
+            const rows = thread.querySelectorAll('.gpt-row.user .gpt-bubble');
+            if (!rows || rows.length === 0) return '';
+            const refusal = /i can only answer questions about the barangay bacolod information system|maaari ko lang sagutin/i;
             const parts = [];
-            for (let i = bubbles.length - take; i < bubbles.length; i++) {
-                const txt = (bubbles[i].innerText || bubbles[i].textContent || '').trim();
-                if (txt) parts.push(txt.replace(/\s+/g, ' '));
+            const start = Math.max(0, rows.length - 2);
+            for (let i = start; i < rows.length; i++) {
+                const txt = (rows[i].innerText || rows[i].textContent || '').trim().replace(/\s+/g, ' ');
+                if (!txt || refusal.test(txt)) continue;
+                parts.push(txt);
             }
-            // Keep the payload modest; backend also clamps.
             let joined = parts.join(' | ');
-            if (joined.length > 600) joined = joined.slice(-600);
+            if (joined.length > 400) joined = joined.slice(-400);
             return joined;
         }
 
@@ -2076,17 +2091,22 @@
                 addMessage('I did not catch that. Please tap the mic and try again.', false);
                 return;
             }
+            const gen = ++requestGen;
+            if (chatAbort) {
+                try { chatAbort.abort(); } catch (e) {}
+            }
+            chatAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
             setMicBusy();
             try {
                 const body = new FormData();
                 const extension = blob.type.indexOf('mp4') !== -1 ? 'mp4' : (blob.type.indexOf('ogg') !== -1 ? 'ogg' : 'webm');
                 body.append('audio', blob, 'voice.' + extension);
-                // Give Whisper the recent conversation as a biasing prompt.
                 const context = collectRecentContext();
                 if (context) body.append('context', context);
                 const response = await fetch(transcribeEndpoint, {
                     method: 'POST',
                     credentials: 'same-origin',
+                    signal: chatAbort ? chatAbort.signal : undefined,
                     headers: {
                         'Accept': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest'
@@ -2094,6 +2114,7 @@
                     body: body
                 });
                 const data = await response.json();
+                if (gen !== requestGen) return;
                 setMicIdle();
                 if (!data || data.success !== true || !data.text) {
                     addMessage((data && data.response) ? data.response : 'I could not hear a clear question. Please try again.', false);
@@ -2101,6 +2122,8 @@
                 }
                 await sendMessage(data.text, { speak: true });
             } catch (error) {
+                if (error && error.name === 'AbortError') return;
+                if (gen !== requestGen) return;
                 setMicIdle();
                 addMessage('Voice chat could not reach the BIS service. Please try again.', false);
             }
@@ -2112,7 +2135,15 @@
                     stopVoiceRecording();
                     return;
                 }
-                if (sending || micArming || micBtn.classList.contains('is-busy')) return;
+                if (micArming) return;
+                if (sending || micBtn.classList.contains('is-busy')) {
+                    requestGen += 1;
+                    if (chatAbort) {
+                        try { chatAbort.abort(); } catch (e) {}
+                    }
+                    sending = false;
+                    setTyping(false);
+                }
                 startVoiceRecording();
             });
         }

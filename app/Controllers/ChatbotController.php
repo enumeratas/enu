@@ -11,13 +11,13 @@ use App\Models\ChatMessageModel;
 class ChatbotController extends ResourceController
 {
     protected string $apiKey = '';
-    protected string $apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
-    protected string $aiModel = 'openai/gpt-oss-20b';
-    protected string $voiceModel = 'whisper-large-v3-turbo';
-    protected string $sttUrl = 'https://api.groq.com/openai/v1/audio/transcriptions';
-    protected string $ttsModel = 'canopylabs/orpheus-v1-english';
-    protected string $ttsVoice = 'autumn';
-    protected string $ttsUrl = 'https://api.groq.com/openai/v1/audio/speech';
+    protected string $apiUrl = '';
+    protected string $aiModel = '';
+    protected string $voiceModel = '';
+    protected string $sttUrl = '';
+    protected string $ttsModel = '';
+    protected string $ttsVoice = '';
+    protected string $ttsUrl = '';
 
     protected int $maxRetrievedDocuments = 3;
     protected int $maxRetries = 2;
@@ -54,30 +54,13 @@ class ChatbotController extends ResourceController
             $this->apiKey = '';
         }
 
-        $configuredUrl = trim((string) env('GROQ_API_URL', ''));
-        if ($configuredUrl !== '') {
-            $this->apiUrl = $configuredUrl;
-        }
-
-        $configuredModel = trim((string) env('GROQ_MODEL', ''));
-        if ($configuredModel !== '') {
-            $this->aiModel = $configuredModel;
-        }
-
-        $configuredVoice = trim((string) env('GROQ_MODEL_VOICE', ''));
-        if ($configuredVoice !== '') {
-            $this->voiceModel = $configuredVoice;
-        }
-
-        $configuredTts = trim((string) env('GROQ_TTS_MODEL', ''));
-        if ($configuredTts !== '') {
-            $this->ttsModel = $configuredTts;
-        }
-
-        $configuredTtsVoice = trim((string) env('GROQ_TTS_VOICE', ''));
-        if ($configuredTtsVoice !== '') {
-            $this->ttsVoice = $configuredTtsVoice;
-        }
+        $this->apiUrl = $this->envSetting('GROQ_API_URL');
+        $this->aiModel = $this->envSetting('GROQ_MODEL');
+        $this->voiceModel = $this->envSetting('GROQ_MODEL_VOICE');
+        $this->sttUrl = $this->envSetting('GROQ_STT_URL');
+        $this->ttsModel = $this->envSetting('GROQ_TTS_MODEL');
+        $this->ttsVoice = $this->envSetting('GROQ_TTS_VOICE');
+        $this->ttsUrl = $this->envSetting('GROQ_TTS_URL');
 
         $this->householdModel = new HouseholdModel();
         $this->memberModel = new HouseholdMemberModel();
@@ -466,6 +449,7 @@ class ChatbotController extends ResourceController
                     $userId
                 )
                 : [];
+            $history = $this->filterHistoryForCurrentTurn($history, $message);
 
             log_message(
                 'info',
@@ -4135,6 +4119,137 @@ class ChatbotController extends ResourceController
         return false;
     }
 
+    /**
+     * @param list<array<string, mixed>> $history
+     * @return list<array<string, mixed>>
+     */
+    protected function filterHistoryForCurrentTurn(array $history, string $message): array
+    {
+        if ($history === []) {
+            return [];
+        }
+
+        $currentOnTopic = $this->isWebsiteRelatedQuestion($message)
+            || $this->looksLikeTopicCorrection($message);
+        if (! $currentOnTopic) {
+            return $history;
+        }
+
+        $filtered = [];
+        foreach ($history as $item) {
+            $text = trim((string) ($item['message'] ?? ''));
+            if ($text === '') {
+                continue;
+            }
+            $isUser = ($item['sender'] ?? '') === 'user';
+            if ($isUser && $this->isOffTopicIntent($this->normalizeChatText($text))) {
+                continue;
+            }
+            if (! $isUser && $this->isScopeRefusalMessage($text)) {
+                continue;
+            }
+            $filtered[] = $item;
+        }
+
+        return $filtered;
+    }
+
+    protected function looksLikeTopicCorrection(string $message): bool
+    {
+        $normalized = $this->normalizeChatText($message);
+        if ($normalized === '') {
+            return false;
+        }
+
+        return preg_match(
+            '/\b(i mean|actually|no i want|no po|hindi|wait|about|paano|how (?:do|to)|i want|gusto ko|clearance|certificate|blotter|census|appointment|document|indigency|residency|permit)\b/u',
+            $normalized
+        ) === 1;
+    }
+
+    protected function isScopeRefusalMessage(string $text): bool
+    {
+        $plain = $this->normalizeChatText(strip_tags($text));
+
+        return str_contains($plain, 'i can only answer questions about the barangay bacolod information system')
+            || str_contains($plain, 'maaari ko lang sagutin');
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function groqModelCandidates(): array
+    {
+        $models = [
+            $this->aiModel,
+            $this->envSetting('GROQ_MODEL_FALLBACK'),
+        ];
+
+        return array_values(array_unique(array_filter($models)));
+    }
+
+    protected function envSetting(string $key): string
+    {
+        return trim((string) env($key, ''));
+    }
+
+    /**
+     * @param array<string, mixed> $decoded
+     */
+    protected function extractGroqMessageContent(array $decoded): ?string
+    {
+        $message = $decoded['choices'][0]['message'] ?? null;
+        if (! is_array($message)) {
+            return null;
+        }
+
+        foreach (['content', 'reasoning'] as $key) {
+            $value = $message[$key] ?? null;
+            if (is_string($value) && trim($value) !== '') {
+                return trim($value);
+            }
+            if (is_array($value)) {
+                $parts = [];
+                foreach ($value as $part) {
+                    if (is_string($part) && trim($part) !== '') {
+                        $parts[] = trim($part);
+                    } elseif (is_array($part) && isset($part['text']) && is_string($part['text']) && trim($part['text']) !== '') {
+                        $parts[] = trim($part['text']);
+                    }
+                }
+                if ($parts !== []) {
+                    return implode("\n", $parts);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    protected function whisperConversationHint(string $context): string
+    {
+        if ($context === '') {
+            return '';
+        }
+
+        $chunks = preg_split('/\s*\|\s*/', $context) ?: [];
+        $kept = [];
+        foreach ($chunks as $chunk) {
+            $chunk = trim((string) $chunk);
+            if ($chunk === '') {
+                continue;
+            }
+            if ($this->isOffTopicIntent($this->normalizeChatText($chunk)) || $this->isScopeRefusalMessage($chunk)) {
+                continue;
+            }
+            if ($this->isWebsiteRelatedQuestion($chunk) || $this->looksLikeTopicCorrection($chunk)) {
+                $kept[] = $chunk;
+            }
+        }
+
+        return implode(' | ', array_slice($kept, -2));
+    }
+
     protected function containsTopicTerm(string $haystack, string $term): bool
     {
         $pattern = '/(?<![a-z0-9])' . preg_quote($term, '/') . '(?:es|s)?(?![a-z0-9])/u';
@@ -5464,10 +5579,9 @@ PROMPT;
         ?string $role = null
     ): ?string {
 
-        $historyText =
-            $this->buildConversationContext(
-                $conversationHistory
-            );
+        $historyText = $conversationHistory === []
+            ? 'No previous conversation messages.'
+            : 'Earlier turns are in the chat messages after this system prompt. Answer only the latest user message. If that latest message is about Barangay Bacolod or this Information System, answer it. Do not continue a previous off-topic request.';
 
         $liveContext =
             'No live BIS database data was retrieved for this question.';
@@ -5637,7 +5751,8 @@ ANSWER STYLE
 - For census questions, organize statistics clearly.
 - If the user asks for a summary, provide a useful summary rather than only two or three fields.
 - Do not repeat unnecessary information.
-- For follow-up questions, use the conversation history.
+- For follow-up questions, use the conversation history only when the latest message continues that topic.
+- If the latest message starts a new on-topic request after an off-topic message, ignore the off-topic turn.
 - If information is not available, say so.
 - Never fabricate missing data.
 - Number procedure steps 1, 2, 3 in order. Never label every step as 1.
@@ -5702,7 +5817,7 @@ This conversation is the assistant for the Barangay Bacolod Information System.
 
 If the user is talking about this system, answer them. That includes documents, accounts, login, this website, appointments, available appointment dates, open schedule slots, concerns, officials, fees, schedules, the BIS calendar, census, SK services, and how to use the barangay portal. A statement such as "I have an account on this website" is about this system, so answer it. A question such as "What is the available date for appointment?" is about this system, so answer it with the live appointment dates when they are provided.
 
-If you judge that the prompt is not about this system, do not answer it. Do not explain, solve, or continue that topic. Reply with only a Tagalog refusal that you can answer questions about the Barangay Bacolod Information System and its services, such as documents, blotter reports, accounts, schedules, appointment dates, fees, and office information.
+Judge only the latest user message. If that latest message is about this system, answer it even if an earlier message was off topic. If the latest message is not about this system, do not answer it. Reply with only a Tagalog refusal that you can answer questions about the Barangay Bacolod Information System and its services, such as documents, blotter reports, accounts, schedules, appointment dates, fees, and office information.
 PROMPT
                 : <<<'PROMPT'
 
@@ -5715,7 +5830,7 @@ This conversation is the assistant for the Barangay Bacolod Information System.
 
 If the user is talking about this system, answer them. That includes documents, accounts, login, this website, appointments, available appointment dates, open schedule slots, concerns, officials, fees, schedules, the BIS calendar, census, SK services, and how to use the barangay portal. A statement such as "I have an account on this website" is about this system, so answer it. A question such as "What is the available date for appointment?" is about this system, so answer it with the live appointment dates when they are provided.
 
-If you judge that the prompt is not about this system, do not answer it. Do not explain, solve, or continue that topic. Reply with only an English refusal that you can answer questions about the Barangay Bacolod Information System and its services, such as documents, blotter reports, accounts, schedules, appointment dates, fees, and office information.
+Judge only the latest user message. If that latest message is about this system, answer it even if an earlier message was off topic. If the latest message is not about this system, do not answer it. Reply with only an English refusal that you can answer questions about the Barangay Bacolod Information System and its services, such as documents, blotter reports, accounts, schedules, appointment dates, fees, and office information.
 PROMPT;
             $systemPrompt .= $scopeLock;
         }
@@ -5760,198 +5875,113 @@ PROMPT;
             'content' => $userMessage . $languageNudge
         ];
 
-        $payload = [
-            'model' => $this->aiModel,
-            'messages' => $messages,
-            'temperature' => 0.2,
-            'max_tokens' => 2048
-        ];
+        foreach ($this->groqModelCandidates() as $model) {
+            $payload = [
+                'model' => $model,
+                'messages' => $messages,
+                'temperature' => 0.2,
+                'max_tokens' => 1600
+            ];
 
-        if (stripos($this->aiModel, 'gpt-oss') !== false) {
-            $payload['reasoning_effort'] = 'low';
-        }
+            if (stripos($model, 'gpt-oss') !== false) {
+                $payload['reasoning_effort'] = 'low';
+            }
 
-        $jsonPayload = json_encode(
-            $payload,
-            JSON_UNESCAPED_UNICODE |
-                JSON_UNESCAPED_SLASHES
-        );
-
-        if ($jsonPayload === false) {
-
-            log_message(
-                'error',
-                'Failed to encode Groq payload.'
+            $jsonPayload = json_encode(
+                $payload,
+                JSON_UNESCAPED_UNICODE |
+                    JSON_UNESCAPED_SLASHES
             );
 
-            return null;
-        }
-
-        log_message(
-            'info',
-            'Groq request: model=' .
-                $this->aiModel .
-                ', role=' .
-                ($role ?? 'guest') .
-                ', question=' .
-                $userMessage .
-                ', live_census=' .
-                (
-                    $liveCensus !== null
-                    ? 'YES'
-                    : 'NO'
-                )
-        );
-
-        for (
-            $attempt = 1;
-            $attempt <= $this->maxRetries;
-            $attempt++
-        ) {
-
-            $ch = curl_init(
-                $this->apiUrl
-            );
-
-            curl_setopt_array($ch, [
-
-                CURLOPT_RETURNTRANSFER => true,
-
-                CURLOPT_POST => true,
-
-                CURLOPT_POSTFIELDS =>
-                $jsonPayload,
-
-                CURLOPT_HTTPHEADER => [
-                    'Authorization: Bearer ' .
-                        $this->apiKey,
-
-                    'Content-Type: application/json',
-
-                    'Accept: application/json'
-                ],
-
-                CURLOPT_CONNECTTIMEOUT => 15,
-
-                CURLOPT_TIMEOUT => 60,
-
-                CURLOPT_SSL_VERIFYPEER => true,
-
-                CURLOPT_SSL_VERIFYHOST => 2
-            ]);
-
-            $response = curl_exec($ch);
-
-            $curlError = curl_error($ch);
-
-            $httpCode = (int) curl_getinfo(
-                $ch,
-                CURLINFO_HTTP_CODE
-            );
-
-            curl_close($ch);
-
-            if ($response === false) {
-
-                log_message(
-                    'error',
-                    "Groq cURL error on attempt {$attempt}: " .
-                        $curlError
-                );
-
-                continue;
+            if ($jsonPayload === false) {
+                log_message('error', 'Failed to encode Groq payload.');
+                return null;
             }
 
             log_message(
                 'info',
-                "Groq HTTP {$httpCode} response: " .
-                    mb_substr(
-                        $response,
-                        0,
-                        3000
-                    )
+                'Groq request: model=' .
+                    $model .
+                    ', role=' .
+                    ($role ?? 'guest') .
+                    ', question=' .
+                    $userMessage .
+                    ', live_census=' .
+                    ($liveCensus !== null ? 'YES' : 'NO')
             );
 
-            if (
-                $httpCode < 200 ||
-                $httpCode >= 300
-            ) {
+            for ($attempt = 1; $attempt <= $this->maxRetries; $attempt++) {
+                $ch = curl_init($this->apiUrl);
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_POST => true,
+                    CURLOPT_POSTFIELDS => $jsonPayload,
+                    CURLOPT_HTTPHEADER => [
+                        'Authorization: Bearer ' . $this->apiKey,
+                        'Content-Type: application/json',
+                        'Accept: application/json'
+                    ],
+                    CURLOPT_CONNECTTIMEOUT => 8,
+                    CURLOPT_TIMEOUT => 28,
+                    CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_SSL_VERIFYHOST => 2
+                ]);
+
+                $response = curl_exec($ch);
+                $curlError = curl_error($ch);
+                $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($response === false) {
+                    log_message('error', "Groq cURL error on attempt {$attempt}: " . $curlError);
+                    continue;
+                }
 
                 log_message(
-                    'error',
-                    "Groq HTTP error: {$httpCode}"
+                    'info',
+                    "Groq HTTP {$httpCode} response: " . mb_substr((string) $response, 0, 3000)
                 );
 
-                continue;
+                $decoded = json_decode((string) $response, true);
+                $errorCode = is_array($decoded['error'] ?? null)
+                    ? strtolower((string) (($decoded['error']['code'] ?? '') . ' ' . ($decoded['error']['message'] ?? '')))
+                    : '';
+                $modelMissing = $httpCode === 404
+                    || str_contains($errorCode, 'model_not_found')
+                    || str_contains($errorCode, 'decommissioned')
+                    || str_contains($errorCode, 'does not exist');
+
+                if ($modelMissing) {
+                    log_message('error', 'Groq model unavailable: ' . $model);
+                    break;
+                }
+
+                if ($httpCode < 200 || $httpCode >= 300) {
+                    log_message('error', "Groq HTTP error: {$httpCode}");
+                    continue;
+                }
+
+                if (! is_array($decoded)) {
+                    log_message('error', 'Groq returned invalid JSON.');
+                    continue;
+                }
+
+                if (isset($decoded['error'])) {
+                    log_message('error', 'Groq API error: ' . json_encode($decoded['error']));
+                    continue;
+                }
+
+                $content = $this->extractGroqMessageContent($decoded);
+                if ($content === null || $content === '') {
+                    log_message('error', 'Groq response did not contain message content.');
+                    continue;
+                }
+
+                $content = preg_replace('/^```(?:text|markdown)?\s*/i', '', $content) ?? $content;
+                $content = preg_replace('/\s*```$/', '', $content) ?? $content;
+
+                return trim($content);
             }
-
-            $decoded = json_decode(
-                $response,
-                true
-            );
-
-            if (!is_array($decoded)) {
-
-                log_message(
-                    'error',
-                    'Groq returned invalid JSON.'
-                );
-
-                continue;
-            }
-
-            if (isset($decoded['error'])) {
-
-                log_message(
-                    'error',
-                    'Groq API error: ' .
-                        json_encode(
-                            $decoded['error']
-                        )
-                );
-
-                continue;
-            }
-
-            $content =
-                $decoded['choices'][0]['message']['content']
-                ?? null;
-
-            if (!is_string($content)) {
-
-                log_message(
-                    'error',
-                    'Groq response did not contain message content.'
-                );
-
-                continue;
-            }
-
-            $content = trim($content);
-
-            if ($content === '') {
-
-                log_message(
-                    'error',
-                    'Groq returned empty content.'
-                );
-
-                continue;
-            }
-
-            $content = preg_replace(
-                '/^```(?:text|markdown)?\s*/i',
-                '',
-                $content
-            );
-
-            $content = preg_replace(
-                '/\s*```$/',
-                '',
-                $content
-            );
-
-            return trim($content);
         }
 
         return null;
@@ -6032,6 +6062,7 @@ PROMPT;
         if (mb_strlen($context) > 600) {
             $context = mb_substr($context, -600);
         }
+        $context = $this->whisperConversationHint($context);
 
         log_message(
             'info',
