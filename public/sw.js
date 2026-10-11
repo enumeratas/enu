@@ -1,9 +1,6 @@
-const CACHE_NAME = 'bis-app-shell-v10';
+const CACHE_NAME = 'bis-app-shell-v11';
 const APP_SHELL = [
-  '/',
-  '/login',
   '/manifest.webmanifest',
-  '/js/offline-sync.js',
   '/js/resident-offline.js',
   '/style.css',
   '/dashboard-theme.css',
@@ -30,7 +27,7 @@ function offlineBlockedResponse() {
     <div class="box">
       <div class="badge">OFFLINE MODE</div>
       <h1>Page not available while offline</h1>
-      <p>This page is not allowed during offline mode. Your current session stays active, and any request or report you create on cached pages will be saved and synced automatically when the internet is restored.</p>
+      <p>Login and other modules stay online-only. After you sign in, clearance requests and blotter reports opened on this device can be saved offline and sent when the internet returns.</p>
     </div>
   </body>
   </html>`, {
@@ -39,16 +36,15 @@ function offlineBlockedResponse() {
   });
 }
 
+function appPath(url) {
+  return String(url.pathname || '').replace(/^\/index\.php/, '') || '/';
+}
+
 function canCacheResponse(response) {
   if (!response) {
     return false;
   }
-
   const status = Number(response.status || 0);
-  if (Number.isNaN(status)) {
-    return false;
-  }
-
   return status >= 200 && status < 300;
 }
 
@@ -56,31 +52,33 @@ function isAuthRedirectResponse(response) {
   if (!response) {
     return false;
   }
-
   const status = Number(response.status || 0);
   if (status >= 300 && status < 400) {
     return true;
   }
-
   const location = response.headers && response.headers.get ? response.headers.get('location') : null;
   return Boolean(location && /\/login(?:$|[?#])/i.test(location));
 }
 
 function isSessionRequest(request) {
-  const url = new URL(request.url);
-  return url.pathname === '/login'
-    || url.pathname === '/logout'
-    || url.pathname.startsWith('/api/')
-    || /^\/(admin|captain|secretary|resident|sk|council)(?:\/|$)/.test(url.pathname)
-    || url.pathname.startsWith('/uploads/')
-    || url.pathname.startsWith('/household-files/');
+  const path = appPath(new URL(request.url));
+  return path === '/login'
+    || path === '/logout'
+    || path.startsWith('/api/')
+    || /^\/(admin|captain|secretary|resident|sk|council)(?:\/|$)/.test(path)
+    || path.startsWith('/uploads/')
+    || path.startsWith('/household-files/');
 }
 
-function isResidentDocument(url, request) {
+function isOfflineModulePage(url, request) {
   const navigation = request.mode === 'navigate' || request.destination === 'document';
-  return navigation
-    && /^\/(resident|sk)(?:\/|$)/.test(url.pathname)
-    && !url.pathname.includes('/pii/');
+  if (!navigation) {
+    return false;
+  }
+  const path = appPath(url);
+  return /^\/resident\/clearance\/?$/.test(path)
+    || /^\/(admin|secretary)\/blotter\/?$/.test(path)
+    || /^\/(admin|secretary)\/blotter\/new\/?$/.test(path);
 }
 
 function metaDb() {
@@ -114,7 +112,7 @@ function userCacheName(userId) {
 
 self.addEventListener('message', (event) => {
   const data = event.data || {};
-  if (data.type === 'bis-user' && data.userId && (data.role === 'resident' || data.role === 'sk')) {
+  if (data.type === 'bis-user' && data.userId && ['resident', 'admin', 'secretary'].indexOf(data.role) !== -1) {
     event.waitUntil(writeMeta('userId', String(data.userId)));
   }
   if (data.type === 'bis-logout' && data.userId) {
@@ -146,15 +144,17 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
-  if (url.pathname === '/sw.js' || url.pathname.includes('/notifications/poll') || url.pathname === '/public/concern/slots') return;
+  const path = appPath(url);
+  if (url.origin === self.location.origin && (path === '/sw.js' || path.includes('/notifications/poll') || path === '/public/concern/slots')) {
+    return;
+  }
 
   const isNavigationRequest = request.mode === 'navigate' || request.destination === 'document';
   const isStyleRequest = url.pathname.endsWith('.css');
   const isScriptRequest = url.pathname.endsWith('.js');
+  const isFontAwesome = url.hostname === 'cdnjs.cloudflare.com' && url.pathname.indexOf('font-awesome') !== -1;
 
-  // Always prefer the latest stylesheets and scripts so a cached copy cannot freeze the app.
-  if (isStyleRequest || isScriptRequest) {
+  if (isStyleRequest || isScriptRequest || isFontAwesome) {
     event.respondWith(
       fetch(request).then((response) => {
         if (canCacheResponse(response)) {
@@ -167,8 +167,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Official pages always come from the server. A resident or SK page that was
-  // opened while online is kept only for that signed-in user so it can open offline.
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
   if (isSessionRequest(request)) {
     event.respondWith((async () => {
       const userId = await readMeta('userId');
@@ -176,19 +178,19 @@ self.addEventListener('fetch', (event) => {
       try {
         const response = await fetch(request);
         const redirectedToLogin = response.redirected && /\/login(?:$|[?#])/i.test(response.url);
-        if (userId && isResidentDocument(url, request) && canCacheResponse(response) && !redirectedToLogin && !isAuthRedirectResponse(response)) {
+        if (userId && isOfflineModulePage(url, request) && canCacheResponse(response) && !redirectedToLogin && !isAuthRedirectResponse(response)) {
           const copy = response.clone();
           caches.open(cacheName).then((cache) => cache.put(request, copy)).catch(() => undefined);
         }
         return response;
       } catch (error) {
-        if (userId && isResidentDocument(url, request)) {
+        if (userId && isOfflineModulePage(url, request)) {
           const cached = await caches.match(request, { cacheName });
           if (cached) {
             return cached;
           }
         }
-        if (request.mode === 'navigate' || request.destination === 'document') {
+        if (isNavigationRequest) {
           return offlineBlockedResponse();
         }
         return new Response('', { status: 503, statusText: 'Offline' });
@@ -197,47 +199,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (isNavigationRequest && navigator.onLine) {
-    event.respondWith(
-      fetch(request).then((response) => {
-        if (canCacheResponse(response)) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => undefined);
-        }
-
-        if (isAuthRedirectResponse(response)) {
-          return response;
-        }
-
-        return response;
-      }).catch(() => {
-        const fallback = caches.match(request) || caches.match('/');
-        return fallback || offlineBlockedResponse();
-      })
-    );
-    return;
-  }
-
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached && !isAuthRedirectResponse(cached)) {
+    fetch(request).then((response) => {
+      if (canCacheResponse(response) && !isAuthRedirectResponse(response)) {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => undefined);
+      }
+      return response;
+    }).catch(async () => {
+      const cached = await caches.match(request);
+      if (cached) {
         return cached;
       }
-
-      return fetch(request).then((response) => {
-        const copy = response.clone();
-        if (canCacheResponse(response)) {
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => undefined);
-        }
-        return response;
-      }).catch(() => {
-        if (isNavigationRequest) {
-          const fallback = caches.match(request) || caches.match('/');
-          return fallback || offlineBlockedResponse();
-        }
-
-        return caches.match('/');
-      });
+      if (isNavigationRequest) {
+        return offlineBlockedResponse();
+      }
+      return new Response('', { status: 503, statusText: 'Offline' });
     })
   );
 });

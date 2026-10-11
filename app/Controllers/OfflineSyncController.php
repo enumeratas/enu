@@ -93,22 +93,43 @@ class OfflineSyncController extends BaseController
         if ($operation === 'blotter_submission') {
             $userId = $sessionUserId;
             $incidentType = trim((string) ($data['incident_type'] ?? ''));
+            $complainantNarrative = trim((string) ($data['complainant_narrative'] ?? ''));
+            $respondentNarrative = trim((string) ($data['respondent_narrative'] ?? ''));
             $narrative = trim((string) ($data['narrative'] ?? ''));
+            if ($narrative === '' && $complainantNarrative !== '') {
+                $narrative = "Complainant's Narrative:\n" . $complainantNarrative;
+                if ($respondentNarrative !== '') {
+                    $narrative .= "\n\nRespondent's Narrative:\n" . $respondentNarrative;
+                }
+            }
             if ($userId <= 0 || $incidentType === '' || $narrative === '') {
                 return $this->jsonResponse(['success' => false, 'message' => 'Required blotter fields are missing.'], 422);
             }
 
+            $complainantUserId = (int) ($data['complainant_user_id'] ?? 0);
+            $respondentUserId = (int) ($data['respondent_user_id'] ?? 0);
+
             $db->transStart();
             $db->table('blotter_reports')->insert([
-                'complainant_user_id' => $userId,
+                'complainant_user_id' => $complainantUserId > 0 ? $complainantUserId : null,
                 'complainant_name' => trim((string) ($data['complainant_name'] ?? '')) ?: null,
                 'complainant_email' => trim((string) ($data['complainant_email'] ?? '')) ?: null,
                 'complainant_contact' => trim((string) ($data['complainant_contact'] ?? '')) ?: null,
+                'complainant_address' => trim((string) ($data['complainant_address'] ?? '')) ?: null,
+                'complainant_narrative' => $complainantNarrative !== '' ? $complainantNarrative : null,
+                'respondent_user_id' => $respondentUserId > 0 ? $respondentUserId : null,
+                'respondent_name' => trim((string) ($data['respondent_name'] ?? '')) ?: null,
+                'respondent_email' => trim((string) ($data['respondent_email'] ?? '')) ?: null,
+                'respondent_address' => trim((string) ($data['respondent_address'] ?? '')) ?: null,
+                'respondent_narrative' => $respondentNarrative !== '' ? $respondentNarrative : null,
                 'incident_type' => $incidentType,
                 'incident_date' => trim((string) ($data['incident_date'] ?? '')) ?: null,
+                'incident_time' => trim((string) ($data['incident_time'] ?? '')) ?: null,
+                'location' => trim((string) ($data['location'] ?? '')) ?: null,
+                'persons_involved' => trim((string) ($data['persons_involved'] ?? '')) ?: null,
                 'narrative' => $narrative,
-                'respondent_name' => trim((string) ($data['respondent_name'] ?? '')) ?: null,
                 'status' => 'pending',
+                'processed_by' => $userId,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);

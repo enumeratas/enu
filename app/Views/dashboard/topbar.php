@@ -567,14 +567,14 @@ foreach (
     window.BIS_USER_ID = <?= (int) (session()->get('user_id') ?? 0) ?>;
     window.BIS_USER_ROLE = <?= json_encode((string) (session()->get('role') ?? '')) ?>;
 </script>
-<script src="/js/resident-offline.js?v=5"></script>
+<script src="/js/resident-offline.js?v=6"></script>
 <script src="/js/pwa-install.js?v=1"></script>
 <script src="/js/live-search.js?v=1"></script>
 
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
-            navigator.serviceWorker.register('/sw.js?v=10', {
+            navigator.serviceWorker.register('/sw.js?v=11', {
                 updateViaCache: 'none'
             }).catch(function() {
                 // Ignore registration failures; the app still works online.

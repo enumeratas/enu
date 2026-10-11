@@ -411,6 +411,7 @@ class BlotterController extends BaseController
         return view('dashboard/secretary/blotter_create', [
             'residents'    => $residents,
             'residentData' => $residentData,
+            'role'         => (string) (session()->get('role') ?: 'secretary'),
         ]);
     }
 
@@ -731,6 +732,7 @@ class BlotterController extends BaseController
             'total'         => $total,
             'statusFilter'  => $statusFilter,
             'search'        => $search,
+            'role'          => $role,
         ]);
     }
 

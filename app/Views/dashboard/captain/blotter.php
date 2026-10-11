@@ -72,8 +72,8 @@
                             value="<?= esc($search) ?>">
                     </div>
                     <div class="db-toolbar-actions">
-                        <?php if ($role === 'secretary'): ?>
-                            <a href="/secretary/blotter/new" class="db-btn db-btn--primary"><i class="fas fa-plus"></i> Create Report</a>
+                        <?php if (in_array($role, ['admin', 'secretary'], true)): ?>
+                            <a href="/<?= esc($role) ?>/blotter/new" class="db-btn db-btn--primary"><i class="fas fa-plus"></i> Create Report</a>
                         <?php endif; ?>
                         <select class="db-filter-select" name="status" onchange="this.form.submit()">
                             <option value="">All Status</option>

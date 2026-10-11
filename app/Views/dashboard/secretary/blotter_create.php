@@ -92,7 +92,9 @@
 
 <body class="db-body">
     <?php
-    $role   = 'secretary';
+    $role   = in_array(($role ?? session()->get('role')), ['admin', 'secretary'], true)
+        ? ($role ?? session()->get('role'))
+        : 'secretary';
     $active = 'blotter';
     $pageTitle = 'Create Blotter Report';
     include(APPPATH . 'Views/dashboard/sidebar.php');
@@ -103,7 +105,7 @@
         <?php include(APPPATH . 'Views/dashboard/topbar.php'); ?>
         <div class="db-content">
             <div class="hh-breadcrumb" style="margin-bottom:20px;">
-                <a href="/secretary/blotter" class="hh-back"><i class="fas fa-arrow-left"></i> Back to Blotter Reports</a>
+                <a href="/<?= esc($role) ?>/blotter" class="hh-back"><i class="fas fa-arrow-left"></i> Back to Blotter Reports</a>
                 <span class="hh-bc-sep">/</span><span>Create Report</span>
             </div>
 
@@ -116,8 +118,9 @@
             <div class="bl-card" style="width:100%;">
                 <h3 class="bl-card-title"><i class="fas fa-file-signature"></i> Secretary-Created Blotter Report</h3>
 
-                <form id="blotterForm" action="/secretary/blotter/store" method="post"
-                    enctype="multipart/form-data" novalidate>
+                <form id="blotterForm" action="/<?= esc($role) ?>/blotter/store" method="post"
+                    enctype="multipart/form-data" data-offline-sync="blotter_submission" data-offline-verified="1" novalidate>
+                    <p data-offline-sync-status aria-live="polite" style="font-size:12px;color:#667085;margin:0 0 12px;display:block;"></p>
                     <?= csrf_field() ?>
 
                     <!-- ══════════════════════════════════════════════════════
@@ -581,17 +584,28 @@
             });
 
             /* ── Form submit guard ──────────────────────────────────────────── */
-            $('blotterForm').addEventListener('submit', function(e) {
+            function guardBlotterSubmit(e) {
+                ['complainant', 'respondent'].forEach(function (type) {
+                    const c = cfg[type];
+                    if (!party[type].residentId && c.nameInput.value.trim() !== '' && c.userIdInput.value === '') {
+                        c.userIdInput.value = 'external';
+                    }
+                });
                 if (!runValidation()) {
-                    e.preventDefault();
-                    // Scroll to first visible error
+                    if (e) e.preventDefault();
                     const first = document.querySelector('.bl-field-error.show');
                     if (first) first.scrollIntoView({
                         behavior: 'smooth',
                         block: 'center'
                     });
+                    return false;
                 }
-            });
+                return true;
+            }
+            window.bisValidateOfflineForm = function (form) {
+                return !form || form.id !== 'blotterForm' || guardBlotterSubmit();
+            };
+            $('blotterForm').addEventListener('submit', guardBlotterSubmit);
 
             /* ── Restore state on old() repopulation ────────────────────────── */
             ['complainant', 'respondent'].forEach(type => {

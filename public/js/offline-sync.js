@@ -1,4 +1,3 @@
-    const form = event.target.closest('form[data-offline-sync="clearance_request"], form[data-offline-sync="blotter_submission"]');
 (function () {
     'use strict';
 
