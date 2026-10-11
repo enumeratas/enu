@@ -531,16 +531,15 @@
 
                 // Proof / supporting document
                 if (data.proof_url) {
-                    var ext = data.proof_url.split('.').pop().toLowerCase();
                     html += '<div class="cud-proof-box">' +
                         '<p><i class="fas fa-paperclip"></i> Uploaded Proof / Supporting Document</p>';
-                    if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
-                        html += '<a href="' + escHtml(data.proof_url) + '" target="_blank">' +
-                            '<img src="' + escHtml(data.proof_url) + '" class="cud-proof-thumb" alt="Proof document">' +
-                            '</a>';
+                    if (data.proof_is_image) {
+                        html += '<img src="' + escHtml(data.proof_url) + '" class="cud-proof-thumb" alt="Proof document">' +
+                            '<div style="margin-top:10px;"><a href="' + escHtml(data.proof_url) + '" target="_blank" rel="noopener">' +
+                            'Open supporting document</a></div>';
                     } else {
-                        html += '<a href="' + escHtml(data.proof_url) + '" target="_blank">' +
-                            '<i class="fas fa-file-pdf"></i> View uploaded document</a>';
+                        html += '<a href="' + escHtml(data.proof_url) + '" target="_blank" rel="noopener">' +
+                            '<i class="fas fa-file-pdf"></i> Open supporting document</a>';
                     }
                     html += '</div>';
                 }

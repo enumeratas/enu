@@ -21,7 +21,7 @@ class PiiOutputFilter implements FilterInterface
         }
 
         $path = strtolower($request->getUri()->getPath());
-        foreach (['/pii/', '/uploads/', '/household-files/', '/api/', '/login', '/signup', '/forgot-password', '/verify-email', '/export', '/download', '/print'] as $skip) {
+        foreach (['/pii/', '/uploads/', '/household-files/', '/census-update-proof/', '/api/', '/login', '/signup', '/forgot-password', '/verify-email', '/export', '/download', '/print'] as $skip) {
             if (str_contains($path, $skip)) {
                 return $response;
             }

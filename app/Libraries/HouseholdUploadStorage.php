@@ -26,6 +26,41 @@ class HouseholdUploadStorage
         return true;
     }
 
+    /**
+     * Upload now so a staff preview can read the file on this same request.
+     * Falls back to the deferred queue if the live bucket is temporarily down.
+     */
+    public function storeNow(string $localPath, string $objectPath): bool
+    {
+        if (! is_file($localPath)) {
+            return false;
+        }
+
+        $bucket = $this->bucket();
+        if ($bucket === null) {
+            return true;
+        }
+
+        try {
+            $handle = fopen($localPath, 'r');
+            if ($handle === false) {
+                return false;
+            }
+
+            $bucket->upload($handle, [
+                'name' => ltrim($objectPath, '/'),
+                'metadata' => ['cacheControl' => 'private, max-age=3600'],
+            ]);
+
+            return true;
+        } catch (\Throwable $e) {
+            log_message('error', 'Immediate household upload failed: ' . $e->getMessage());
+            $this->queueRemote($localPath, $objectPath);
+
+            return false;
+        }
+    }
+
     public function signedUrl(string $objectPath): ?string
     {
         $bucket = $this->bucket();

@@ -49,7 +49,7 @@ class HouseholdUploadController extends BaseController
     {
         $path = self::normalizeUploadPath($path);
         if ($path === '' || str_contains($path, '..') || ! str_starts_with($path, 'uploads/')) {
-            return $this->response->setStatusCode(404);
+            return $this->fileMissing();
         }
 
         $localPaths = [FCPATH . $path, WRITEPATH . $path];
@@ -71,8 +71,18 @@ class HouseholdUploadController extends BaseController
         }
 
         $signedUrl = $storage->signedUrl($path);
-        return $signedUrl === null
-            ? $this->response->setStatusCode(404)
-            : redirect()->to($signedUrl);
+        if ($signedUrl !== null) {
+            return redirect()->to($signedUrl);
+        }
+
+        return $this->fileMissing();
+    }
+
+    private function fileMissing()
+    {
+        return $this->response
+            ->setStatusCode(404)
+            ->setContentType('text/html')
+            ->setBody('<!doctype html><html><body style="font-family:Arial,sans-serif;padding:32px;">That file is not available.</body></html>');
     }
 }

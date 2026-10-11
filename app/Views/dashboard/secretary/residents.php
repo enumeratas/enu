@@ -1629,8 +1629,7 @@
                         proofLink.textContent = 'View proof document';
                         var imgWrap = document.getElementById('cuDiffProofImgWrap');
                         var img = document.getElementById('cuDiffProofImg');
-                        var lowerUrl = data.proof_url.toLowerCase();
-                        if (lowerUrl.endsWith('.jpg') || lowerUrl.endsWith('.jpeg') || lowerUrl.endsWith('.png')) {
+                        if (data.proof_is_image) {
                             img.src = data.proof_url;
                             imgWrap.style.display = '';
                         } else {

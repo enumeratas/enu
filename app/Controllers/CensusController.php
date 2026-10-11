@@ -1804,7 +1804,7 @@ class CensusController extends BaseController
             }
             $proofDocPath = 'uploads/census_proof/' . $fileName;
             try {
-                (new HouseholdUploadStorage())->store($uploadDir . $fileName, $proofDocPath);
+                (new HouseholdUploadStorage())->storeNow($uploadDir . $fileName, $proofDocPath);
             } catch (\Throwable $e) {
                 log_message('warning', 'Census proof GCS upload failed: ' . $e->getMessage());
             }
@@ -2011,8 +2011,11 @@ class CensusController extends BaseController
             }
         }
 
-        // ── Proof URL ─────────────────────────────────────────────────────
-        $proofUrl = $this->protectedUploadUrl($auth['proof_document_path'] ?? null);
+        $proofUrl = ! empty($auth['proof_document_path'])
+            ? $this->censusUpdateProofUrl($id)
+            : '';
+        $proofExt = strtolower(pathinfo((string) ($auth['proof_document_path'] ?? ''), PATHINFO_EXTENSION));
+        $proofIsImage = $proofUrl !== '' && in_array($proofExt, ['jpg', 'jpeg', 'png', 'webp'], true);
 
         // ── Resident name ─────────────────────────────────────────────────
         $residentName = '';
@@ -2027,26 +2030,132 @@ class CensusController extends BaseController
             'ok'            => true,
             'diff'          => $diff,
             'confirm_only'  => $confirmOnly,
-            'proof_url'     => $proofUrl !== '' ? $proofUrl : null,
+            'proof_url'      => $proofUrl !== '' ? $proofUrl : null,
+            'proof_is_image' => $proofIsImage,
             'resident_name' => $residentName,
             'submitted_at'  => $auth['submitted_at'] ?? null,
             'auth_id'       => $id,
         ]);
     }
 
-    private function protectedUploadUrl(?string $path): string
+    private function censusUpdateProofUrl(int $id): string
     {
-        $normalized = HouseholdUploadController::normalizeUploadPath($path);
+        $role = '';
+        $path = (string) (service('request')->getUri()->getPath() ?? '');
+        if (preg_match('#/(admin|captain|secretary|council)(/|$)#', $path, $matches)) {
+            $role = strtolower($matches[1]);
+        }
+        if ($role === '') {
+            $role = strtolower(trim((string) (session()->get('role') ?: 'secretary')));
+        }
+        if (! in_array($role, ['admin', 'captain', 'secretary', 'council'], true)) {
+            $role = 'secretary';
+        }
+
+        return '/' . $role . '/resident/census-update-proof/' . $id;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function censusUpdateProofPaths(?string $storedPath): array
+    {
+        $normalized = HouseholdUploadController::normalizeUploadPath($storedPath);
         if ($normalized === '') {
-            return '';
+            return [];
         }
 
-        $route = preg_replace('#^uploads/#i', '', ltrim($normalized, '/'));
-        if ($route === '') {
-            return '';
+        $base = basename($normalized);
+
+        return array_values(array_unique([
+            WRITEPATH . $normalized,
+            FCPATH . $normalized,
+            WRITEPATH . 'uploads/census_proof/' . $base,
+            FCPATH . 'uploads/census_proof/' . $base,
+        ]));
+    }
+
+    public function showCensusUpdateProof(int $id)
+    {
+        if (! can_role('secretary', 'captain', 'admin', 'council')) {
+            return redirect()->to('/login')->with('error', 'Please log in to view this document.');
         }
 
-        return site_url('household-files/' . implode('/', array_map('rawurlencode', explode('/', $route))));
+        $auth = (new CensusUpdateAuthorizationModel())->find($id);
+        $storedPath = is_array($auth) ? (string) ($auth['proof_document_path'] ?? '') : '';
+        if ($storedPath === '') {
+            return $this->proofDocumentMissing();
+        }
+
+        $normalized = HouseholdUploadController::normalizeUploadPath($storedPath);
+        $filename = basename($normalized) ?: 'proof-document';
+
+        foreach ($this->censusUpdateProofPaths($storedPath) as $localPath) {
+            if (is_file($localPath) && is_readable($localPath)) {
+                return $this->streamProofDocument($localPath, $filename);
+            }
+        }
+
+        $storage = new HouseholdUploadStorage();
+        foreach (array_unique([$normalized, 'uploads/census_proof/' . $filename, 'census_proof/' . $filename]) as $objectPath) {
+            if ($objectPath === '') {
+                continue;
+            }
+            $object = $storage->download($objectPath);
+            if ($object !== null && ($object['body'] ?? '') !== '') {
+                $mime = (string) ($object['mime'] ?? $this->proofMimeFromName($filename));
+
+                return $this->response
+                    ->setHeader('Content-Disposition', 'inline; filename="' . $filename . '"')
+                    ->setHeader('X-Content-Type-Options', 'nosniff')
+                    ->setHeader('Cache-Control', 'private, max-age=60')
+                    ->setContentType($mime)
+                    ->setBody((string) $object['body']);
+            }
+        }
+
+        return $this->proofDocumentMissing();
+    }
+
+    private function streamProofDocument(string $localPath, string $filename)
+    {
+        $detected = function_exists('mime_content_type') ? mime_content_type($localPath) : false;
+        $mime = (is_string($detected) && $detected !== '') ? $detected : $this->proofMimeFromName($filename);
+        $body = (string) file_get_contents($localPath);
+
+        return $this->response
+            ->setHeader('Content-Disposition', 'inline; filename="' . $filename . '"')
+            ->setHeader('Content-Length', (string) strlen($body))
+            ->setHeader('X-Content-Type-Options', 'nosniff')
+            ->setHeader('Cache-Control', 'private, max-age=60')
+            ->setContentType($mime)
+            ->setBody($body);
+    }
+
+    private function proofMimeFromName(string $filename): string
+    {
+        return match (strtolower((string) pathinfo($filename, PATHINFO_EXTENSION))) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            'gif' => 'image/gif',
+            'pdf' => 'application/pdf',
+            default => 'application/octet-stream',
+        };
+    }
+
+    private function proofDocumentMissing()
+    {
+        return $this->response
+            ->setStatusCode(404)
+            ->setContentType('text/html')
+            ->setBody(
+                '<!doctype html><html><head><meta charset="utf-8"><title>Document unavailable</title></head>'
+                . '<body style="font-family:Arial,sans-serif;padding:40px;color:#1d2448;">'
+                . '<h1 style="font-size:22px;">Document unavailable</h1>'
+                . '<p>The supporting document could not be opened. Ask the resident to upload it again.</p>'
+                . '</body></html>'
+            );
     }
 
     /**
@@ -2140,7 +2249,7 @@ class CensusController extends BaseController
             }
         }
 
-        $proofUrl     = $this->protectedUploadUrl($auth['proof_document_path'] ?? null);
+        $proofUrl     = ! empty($auth['proof_document_path']) ? $this->censusUpdateProofUrl((int) $auth['id']) : '';
         $proofIsImage = false;
         if ($proofUrl !== '') {
             $ext          = strtolower(pathinfo((string) $auth['proof_document_path'], PATHINFO_EXTENSION));

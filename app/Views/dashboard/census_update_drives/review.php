@@ -330,18 +330,16 @@ include APPPATH . 'Views/dashboard/sidebar.php';
                             Uploaded by resident
                         </div>
                         <?php if ($proofIsImage): ?>
-                            <a href="<?= esc($proofUrl) ?>" target="_blank">
-                                <img src="<?= esc($proofUrl) ?>" class="rev-proof-img" alt="Proof document">
-                            </a>
-                            <div style="margin-top:10px;font-size:12px;color:#6b7280;">
-                                Click the image to view full size in a new tab.
+                            <img src="<?= esc($proofUrl) ?>" class="rev-proof-img" alt="Proof document"
+                                onerror="this.style.display='none'; var n=document.getElementById('revProofMissing'); if(n) n.hidden=false;">
+                            <div id="revProofMissing" hidden style="margin:10px 0;color:#92400e;font-size:13px;">
+                                The preview could not be loaded. Use the button below to open the file.
                             </div>
-                        <?php else: ?>
-                            <a href="<?= esc($proofUrl) ?>" target="_blank" class="rev-proof-link">
-                                <i class="fas fa-file-pdf" style="color:#dc2626;font-size:18px;"></i>
-                                View uploaded document (PDF)
-                            </a>
                         <?php endif; ?>
+                        <a href="<?= esc($proofUrl) ?>" target="_blank" rel="noopener" class="rev-proof-link" style="margin-top:12px;">
+                            <i class="fas fa-external-link-alt"></i>
+                            Open supporting document
+                        </a>
                     </div>
                 </div>
             </div>
