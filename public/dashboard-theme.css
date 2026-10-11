@@ -763,6 +763,10 @@
     height: 15px;
 }
 
+.pii-text--large {
+    height: 20px;
+}
+
 .pii-text--muted,
 .pii-text--small {
     height: 14px;

@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Clearances - Bacolod BIS</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="/style.css">
     <style>
@@ -14,6 +14,26 @@
             transform: translateY(-8px);
             transition: opacity .25s ease, transform .25s ease;
             pointer-events: none;
+        }
+
+        .clr-for-name {
+            font-size: 16px;
+            font-weight: 800;
+            line-height: 1.25;
+            letter-spacing: .01em;
+            color: #111827;
+        }
+
+        .clr-for-name .pii-text,
+        .clr-for-name .pii-text--name,
+        .clr-for-name .pii-text--large {
+            height: 20px;
+        }
+
+        .clr-for-rel {
+            margin-top: 5px;
+            font-size: 11px;
+            color: #9aa0b4;
         }
 
         /* ── Empty state ── */
@@ -189,6 +209,11 @@
         .clr-member-pill.selected .clr-member-name,
         .clr-member-pill.selected .clr-member-rel {
             color: #fff;
+        }
+
+        .clr-member-pill.selected .clr-member-name .pii-text,
+        .clr-member-pill.selected .clr-member-rel .pii-text {
+            filter: brightness(0) invert(1);
         }
 
         /* Doc type cards */
@@ -699,8 +724,10 @@
                             ?>
                                 <tr>
                                     <td>
-                                        <div style="font-size:13px;font-weight:600;color:#1a1d2e;"><?= esc($r['for_member']) ?></div>
-                                        <div style="font-size:11px;color:#9aa0b4;"><?= esc($r['member_relationship'] ?? '') ?></div>
+                                        <div class="clr-for-name"><?= esc($r['for_member']) ?></div>
+                                        <?php if (trim((string) ($r['member_relationship'] ?? '')) !== ''): ?>
+                                            <div class="clr-for-rel"><?= esc($r['member_relationship']) ?></div>
+                                        <?php endif; ?>
                                     </td>
                                     <td><?= esc($r['document_type']) ?></td>
                                     <td><?= esc($r['purpose']) ?></td>

@@ -17,7 +17,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="/style.css">
     <link rel="stylesheet" href="/css/census-form.css">
-    <script src="/js/census-ocr.js"></script>
 </head>
 
 <body class="db-body">
@@ -542,15 +541,15 @@
                             <div class="pf-row pf-row-4">
                                 <div>
                                     <div class="pf-label">Last Name</div>
-                                    <input type="text" class="pf-ctrl pf-upper pf-alpha" name="last_name" data-ocr-last value="<?= esc($head['last_name'] ?? '') ?>" required>
+                                    <input type="text" class="pf-ctrl pf-upper pf-alpha" name="last_name" value="<?= esc($head['last_name'] ?? '') ?>" required>
                                 </div>
                                 <div>
                                     <div class="pf-label">First Name</div>
-                                    <input type="text" class="pf-ctrl pf-upper pf-alpha" name="first_name" data-ocr-first value="<?= esc($head['first_name'] ?? '') ?>" required>
+                                    <input type="text" class="pf-ctrl pf-upper pf-alpha" name="first_name" value="<?= esc($head['first_name'] ?? '') ?>" required>
                                 </div>
                                 <div>
                                     <div class="pf-label">Middle Name</div>
-                                    <input type="text" class="pf-ctrl pf-upper pf-alpha" name="middle_name" data-ocr-middle value="<?= esc($head['middle_name'] ?? '') ?>">
+                                    <input type="text" class="pf-ctrl pf-upper pf-alpha" name="middle_name" value="<?= esc($head['middle_name'] ?? '') ?>">
                                 </div>
                                 <div>
                                     <div class="pf-label">Suffix</div>
@@ -566,7 +565,7 @@
                                 <div>
                                     <div class="pf-label">Date of Birth</div>
                                     <div class="pf-date-wrap">
-                                        <input type="date" class="pf-ctrl" name="date_of_birth" data-ocr-dob value="<?= esc($headDobVal) ?>">
+                                        <input type="date" class="pf-ctrl" name="date_of_birth" value="<?= esc($headDobVal) ?>">
                                         <i class="fas fa-calendar-alt pf-date-icon"></i>
                                     </div>
                                 </div>
@@ -700,23 +699,18 @@
                             </div>
 
                             <?php $headSupportUrl = $censusDocUrl($head['supporting_doc_path'] ?? null); ?>
-                            <div class="pf-id-upload" style="margin-top:12px;" data-id-block data-id-key="head_support" data-ocr-mode="single">
+                            <div class="pf-id-upload" style="margin-top:12px;" data-id-block data-id-key="head_support">
                                 <label class="pf-id-label"><i class="fas fa-id-card"></i> Head ID or Birth Certificate <span class="pf-req">* REQUIRED</span></label>
                                 <label class="pf-file-drop">
                                     <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                     <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose one ID or birth certificate</span><span class="pf-file-name"><?= $headSupportUrl !== '' ? 'Existing file on record' : 'No file selected' ?></span></span>
-                                    <input type="file" name="head_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                                    <input type="file" name="head_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                 </label>
                                 <?php if ($headSupportUrl !== ''): ?>
                                     <div class="pf-file-hint" style="color:#166534;"><i class="fas fa-check-circle"></i> Existing on file. <a href="<?= esc($headSupportUrl) ?>" target="_blank">View</a>. Leave blank to keep it, or upload a new file to replace it.</div>
                                 <?php else: ?>
-                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. OCR reads the document and checks it against the name and birthdate.</div>
+                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB.</div>
                                 <?php endif; ?>
-                                <input type="hidden" name="head_supporting_verified" value="0" data-ocr-flag>
-                                <div class="pf-ocr-row">
-                                    <div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID or birth certificate. OCR runs automatically.</div>
-                                    <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
-                                </div>
                             </div>
 
                             <div class="pf-check-row">
@@ -729,9 +723,9 @@
 
                             <?php
                             $editIdBlocks = [
-                                ['wrap' => 'head_edit_id_4ps_wrap', 'field' => 'id_4ps', 'flag' => 'id_4ps_verified', 'path' => $head['id_4ps_path'] ?? null, 'label' => '4Ps Beneficiary ID', 'checked' => !empty($head['is_4ps']), 'required' => true],
-                                ['wrap' => 'head_edit_id_senior_wrap', 'field' => 'id_senior', 'flag' => 'id_senior_verified', 'path' => $head['id_senior_path'] ?? null, 'label' => 'Senior Citizen ID', 'checked' => !empty($head['is_senior_citizen']), 'required' => false],
-                                ['wrap' => 'head_edit_id_solo_wrap', 'field' => 'id_solo_parent', 'flag' => 'id_solo_parent_verified', 'path' => $head['id_solo_parent_path'] ?? null, 'label' => 'Solo Parent ID', 'checked' => !empty($head['is_solo_parent']), 'required' => true],
+                                ['wrap' => 'head_edit_id_4ps_wrap', 'field' => 'id_4ps', 'path' => $head['id_4ps_path'] ?? null, 'label' => '4Ps Beneficiary ID', 'checked' => !empty($head['is_4ps']), 'required' => true],
+                                ['wrap' => 'head_edit_id_senior_wrap', 'field' => 'id_senior', 'path' => $head['id_senior_path'] ?? null, 'label' => 'Senior Citizen ID', 'checked' => !empty($head['is_senior_citizen']), 'required' => false],
+                                ['wrap' => 'head_edit_id_solo_wrap', 'field' => 'id_solo_parent', 'path' => $head['id_solo_parent_path'] ?? null, 'label' => 'Solo Parent ID', 'checked' => !empty($head['is_solo_parent']), 'required' => true],
                             ];
                             foreach ($editIdBlocks as $idf):
                                 $idUrl = $censusDocUrl($idf['path'] ?? null);
@@ -745,24 +739,19 @@
                                         <label class="pf-file-drop">
                                             <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                             <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Front of ID</span><span class="pf-file-name"><?= $idUrl !== '' ? 'Existing file on record' : 'No file selected' ?></span></span>
-                                            <input type="file" name="<?= $idf['field'] ?>" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                                            <input type="file" name="<?= $idf['field'] ?>" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                         </label>
                                         <label class="pf-file-drop">
                                             <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                             <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Back of ID</span><span class="pf-file-name">No file selected</span></span>
-                                            <input type="file" name="<?= $idf['field'] ?>_back" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-back>
+                                            <input type="file" name="<?= $idf['field'] ?>_back" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                         </label>
                                     </div>
                                     <?php if ($idUrl !== ''): ?>
                                         <div class="pf-file-hint" style="color:#166534;"><i class="fas fa-check-circle"></i> Existing on file. <a href="<?= esc($idUrl) ?>" target="_blank">View</a>. Leave blank to keep it.</div>
                                     <?php else: ?>
-                                        <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. OCR compares this ID with the name and birthdate above.</div>
+                                        <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. Front and back.</div>
                                     <?php endif; ?>
-                                    <input type="hidden" name="<?= $idf['flag'] ?>" value="<?= !empty($head[$idf['flag']]) ? '1' : '0' ?>" data-ocr-flag>
-                                    <div class="pf-ocr-row">
-                                        <div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div>
-                                        <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
-                                    </div>
                                 </div>
                             <?php endforeach; ?>
 
@@ -778,22 +767,19 @@
                                         <label class="pf-file-drop">
                                             <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                             <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Front of ID</span><span class="pf-file-name"><?= $pwdUrl !== '' ? 'Existing file on record' : 'No file selected' ?></span></span>
-                                            <input type="file" name="id_pwd" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                                            <input type="file" name="id_pwd" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                         </label>
                                         <label class="pf-file-drop">
                                             <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                             <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Back of ID</span><span class="pf-file-name">No file selected</span></span>
-                                            <input type="file" name="id_pwd_back" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-back>
+                                            <input type="file" name="id_pwd_back" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                         </label>
                                     </div>
                                     <?php if ($pwdUrl !== ''): ?>
                                         <div class="pf-file-hint" style="color:#166534;"><i class="fas fa-check-circle"></i> Existing on file. <a href="<?= esc($pwdUrl) ?>" target="_blank">View</a>. Leave blank to keep it.</div>
+                                    <?php else: ?>
+                                        <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. Front and back.</div>
                                     <?php endif; ?>
-                                    <input type="hidden" name="id_pwd_verified" value="<?= !empty($head['id_pwd_verified']) ? '1' : '0' ?>" data-ocr-flag>
-                                    <div class="pf-ocr-row">
-                                        <div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div>
-                                        <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
-                                    </div>
                                 </div>
                             </div>
 
@@ -2092,10 +2078,26 @@
             }
             wrap.style.display = show ? 'block' : 'none';
             if (!show) {
-                const fileEl = wrap.querySelector('input[type="file"]');
-                if (fileEl) fileEl.value = '';
+                wrap.querySelectorAll('input[type="file"]').forEach(function (fileEl) {
+                    fileEl.value = '';
+                    const nameEl = fileEl.closest('.pf-file-drop') && fileEl.closest('.pf-file-drop').querySelector('.pf-file-name');
+                    if (nameEl) {
+                        nameEl.textContent = 'No file selected';
+                        nameEl.style.color = '';
+                        nameEl.style.fontWeight = '';
+                    }
+                });
             }
         }
+
+        document.addEventListener('change', function (e) {
+            if (!e.target.matches('.pf-file-input, input[type="file"]')) return;
+            const nameEl = e.target.closest('.pf-file-drop') && e.target.closest('.pf-file-drop').querySelector('.pf-file-name');
+            if (!nameEl) return;
+            nameEl.textContent = (e.target.files && e.target.files[0]) ? e.target.files[0].name : 'No file selected';
+            nameEl.style.color = '';
+            nameEl.style.fontWeight = '';
+        });
 
         function toggleMemberPwdId(show) {
             document.getElementById('em_pwd_type_wrap').style.display = show ? 'block' : 'none';
@@ -2243,16 +2245,6 @@
                     const savingDraft = !!(e.submitter && e.submitter.id === 'editDraftBtn');
                     const modeField = document.getElementById('editSaveModeField');
                     if (modeField) modeField.value = savingDraft ? 'draft' : 'complete';
-                    if (!savingDraft && window.CensusOcr) {
-                        const ocrIssues = CensusOcr.unverifiedLabels(editHeadForm);
-                        if (ocrIssues.length) {
-                            e.preventDefault();
-                            alert((ocrIssues.length === 1
-                                ? 'The uploaded ' + ocrIssues[0] + ' does not match the required name and birthdate. Please upload the correct document and verify it with OCR.'
-                                : 'These uploaded documents do not match the required information: ' + ocrIssues.join('; ') + '. Please upload the correct files and verify them with OCR.'));
-                            return;
-                        }
-                    }
                     const idChecks = [{
                             cb: 'input[name="is_4ps"]',
                             file: 'input[name="id_4ps"]',

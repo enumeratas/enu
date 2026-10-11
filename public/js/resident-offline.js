@@ -325,7 +325,13 @@
             }
             var row = document.createElement('tr');
             row.innerHTML = '<td></td><td></td><td></td><td>Saved on this device</td><td>—</td><td><span class="clr-badge clr-badge--pending"><i class="fas fa-clock"></i> Waiting to send</span></td>';
-            row.cells[0].textContent = fieldText(fields, 'for_member') || 'You';
+            var name = fieldText(fields, 'for_member') || 'You';
+            var rel = fieldText(fields, 'member_relationship');
+            row.cells[0].innerHTML = '<div class="clr-for-name"></div>' + (rel ? '<div class="clr-for-rel"></div>' : '');
+            row.cells[0].querySelector('.clr-for-name').textContent = name;
+            if (rel) {
+                row.cells[0].querySelector('.clr-for-rel').textContent = rel;
+            }
             row.cells[1].textContent = fieldText(fields, 'document_type') || 'Document request';
             row.cells[2].textContent = fieldText(fields, 'purpose') || '—';
             tableBody.insertBefore(row, tableBody.firstChild);

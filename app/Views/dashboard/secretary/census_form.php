@@ -9,7 +9,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="/style.css">
     <link rel="stylesheet" href="/css/census-form.css">
-    <script src="/js/census-ocr.js"></script>
 </head>
 
 <body class="db-body">
@@ -105,15 +104,15 @@
                                 <div class="pf-row pf-row-4">
                                     <div>
                                         <div class="pf-label">Last Name</div>
-                                        <input type="text" class="pf-ctrl pf-upper pf-alpha" name="last_name" data-ocr-last placeholder="DELA CRUZ" required>
+                                        <input type="text" class="pf-ctrl pf-upper pf-alpha" name="last_name" placeholder="DELA CRUZ" required>
                                     </div>
                                     <div>
                                         <div class="pf-label">First Name</div>
-                                        <input type="text" class="pf-ctrl pf-upper pf-alpha" name="first_name" data-ocr-first placeholder="JUAN" required>
+                                        <input type="text" class="pf-ctrl pf-upper pf-alpha" name="first_name" placeholder="JUAN" required>
                                     </div>
                                     <div>
                                         <div class="pf-label">Middle Name</div>
-                                        <input type="text" class="pf-ctrl pf-upper pf-alpha" name="middle_name" data-ocr-middle placeholder="SANTOS">
+                                        <input type="text" class="pf-ctrl pf-upper pf-alpha" name="middle_name" placeholder="SANTOS">
                                     </div>
                                     <div>
                                         <div class="pf-label">Suffix</div>
@@ -132,7 +131,7 @@
                                     <div>
                                         <div class="pf-label">Date of Birth</div>
                                         <div class="pf-date-wrap">
-                                            <input type="date" class="pf-ctrl" name="date_of_birth" data-ocr-dob required>
+                                            <input type="date" class="pf-ctrl" name="date_of_birth" required>
                                             <i class="fas fa-calendar-alt pf-date-icon"></i>
                                         </div>
                                     </div>
@@ -278,19 +277,14 @@
                                     <div id="linkedHouseholdPreview" style="display:none;margin-top:12px;padding:12px 14px;background:#fff;border:1px solid #dde2f5;border-radius:9px;"></div>
                                 </div>
 
-                                <div class="pf-id-upload" style="margin-top:12px;" data-id-block data-id-key="head_support" data-ocr-mode="single">
+                                <div class="pf-id-upload" style="margin-top:12px;" data-id-block data-id-key="head_support">
                                     <label class="pf-id-label"><i class="fas fa-id-card"></i> Head ID or Birth Certificate <span class="pf-req">* REQUIRED</span></label>
                                     <label class="pf-file-drop">
                                         <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                         <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose one ID or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                                        <input type="file" name="head_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                                        <input type="file" name="head_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                     </label>
-                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. OCR reads the document (works even if upside-down or rotated) and checks against the name and birthdate.</div>
-                                    <input type="hidden" name="head_supporting_verified" value="0" data-ocr-flag>
-                                    <div class="pf-ocr-row">
-                                        <div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID or birth certificate. OCR runs automatically.</div>
-                                        <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
-                                    </div>
+                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB.</div>
                                 </div>
 
                                 <div class="pf-check-row">
@@ -310,17 +304,15 @@
                                         <label class="pf-file-drop">
                                             <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                             <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Front of ID</span><span class="pf-file-name">No file selected</span></span>
-                                            <input type="file" name="id_4ps" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                                            <input type="file" name="id_4ps" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                         </label>
                                         <label class="pf-file-drop">
                                             <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                             <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Back of ID</span><span class="pf-file-name">No file selected</span></span>
-                                            <input type="file" name="id_4ps_back" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-back>
+                                            <input type="file" name="id_4ps_back" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                         </label>
                                     </div>
-                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB each. OCR works even if ID is upside-down. Compares with the name and birthdate above.</div>
-                                    <input type="hidden" name="id_4ps_verified" value="0" data-ocr-flag>
-                                    <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
+                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB each. Front and back.</div>
                                 </div>
                                 <div id="id_senior_wrap" class="pf-id-upload" style="display:none;" data-id-block data-id-key="senior">
                                     <label class="pf-id-label"><i class="fas fa-id-card"></i> Senior Citizen ID / Photo <span style="font-weight:400;color:#6b7291;">(optional)</span></label>
@@ -328,17 +320,15 @@
                                         <label class="pf-file-drop">
                                             <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                             <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Front of ID</span><span class="pf-file-name">No file selected</span></span>
-                                            <input type="file" name="id_senior" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                                            <input type="file" name="id_senior" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                         </label>
                                         <label class="pf-file-drop">
                                             <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                             <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Back of ID</span><span class="pf-file-name">No file selected</span></span>
-                                            <input type="file" name="id_senior_back" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-back>
+                                            <input type="file" name="id_senior_back" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                         </label>
                                     </div>
-                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> Optional. PDF, JPG, or PNG - max 5 MB each. OCR works even if ID is upside-down.</div>
-                                    <input type="hidden" name="id_senior_verified" value="0" data-ocr-flag>
-                                    <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
+                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> Optional. PDF, JPG, or PNG - max 5 MB each. Front and back.</div>
                                 </div>
                                 <div id="id_solo_wrap" class="pf-id-upload" style="display:none;" data-id-block data-id-key="solo">
                                     <label class="pf-id-label">
@@ -348,17 +338,15 @@
                                         <label class="pf-file-drop">
                                             <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                             <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Front of ID</span><span class="pf-file-name">No file selected</span></span>
-                                            <input type="file" name="id_solo_parent" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                                            <input type="file" name="id_solo_parent" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                         </label>
                                         <label class="pf-file-drop">
                                             <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                             <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Back of ID</span><span class="pf-file-name">No file selected</span></span>
-                                            <input type="file" name="id_solo_parent_back" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-back>
+                                            <input type="file" name="id_solo_parent_back" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                         </label>
                                     </div>
-                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB each. OCR works even if ID is upside-down. Compares with the name and birthdate above.</div>
-                                    <input type="hidden" name="id_solo_parent_verified" value="0" data-ocr-flag>
-                                    <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
+                                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB each. Front and back.</div>
                                 </div>
 
                                 <div style="margin-top:10px;">
@@ -377,17 +365,15 @@
                                             <label class="pf-file-drop">
                                                 <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                                 <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Front of ID</span><span class="pf-file-name">No file selected</span></span>
-                                                <input type="file" name="id_pwd" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                                                <input type="file" name="id_pwd" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                             </label>
                                             <label class="pf-file-drop">
                                                 <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                                 <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Back of ID</span><span class="pf-file-name">No file selected</span></span>
-                                                <input type="file" name="id_pwd_back" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-back>
+                                                <input type="file" name="id_pwd_back" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                             </label>
                                         </div>
-                                        <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB each. OCR works even if ID is upside-down. Compares with the name and birthdate above.</div>
-                                        <input type="hidden" name="id_pwd_verified" value="0" data-ocr-flag>
-                                        <div class="pf-ocr-row"><div class="pf-ocr-status" data-ocr-status>Fill in the name and birthdate, then upload the ID. Numbers or a month name both match.</div><button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button></div>
+                                        <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB each. Front and back.</div>
                                     </div>
                                 </div>
 
@@ -459,16 +445,16 @@
                             <div class="pf-page-section-bar">
                                 <i class="fas fa-ring"></i> Spouse
                             </div>
-                            <div class="pf-page-section-body" data-ocr-person>
+                            <div class="pf-page-section-body">
                                 <div class="pf-row pf-row-4">
                                     <div>
-                                        <div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="spouse_last_name" data-ocr-last placeholder="LAST NAME">
+                                        <div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="spouse_last_name" placeholder="LAST NAME">
                                     </div>
                                     <div>
-                                        <div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="spouse_first_name" data-ocr-first placeholder="FIRST NAME">
+                                        <div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="spouse_first_name" placeholder="FIRST NAME">
                                     </div>
                                     <div>
-                                        <div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="spouse_middle_name" data-ocr-middle placeholder="MIDDLE NAME">
+                                        <div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="spouse_middle_name" placeholder="MIDDLE NAME">
                                     </div>
                                     <div>
                                         <div class="pf-label">Suffix</div>
@@ -485,7 +471,7 @@
                                     <div>
                                         <div class="pf-label">Date of Birth</div>
                                         <div class="pf-date-wrap">
-                                            <input type="date" class="pf-ctrl" name="spouse_dob" data-ocr-dob>
+                                            <input type="date" class="pf-ctrl" name="spouse_dob">
                                             <i class="fas fa-calendar-alt pf-date-icon"></i>
                                         </div>
                                     </div>
@@ -558,19 +544,14 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="pf-id-upload" style="margin-top:12px;" data-id-block data-id-key="spouse_support" data-ocr-mode="single">
+                                <div class="pf-id-upload" style="margin-top:12px;" data-id-block data-id-key="spouse_support">
                                     <label class="pf-id-label"><i class="fas fa-id-card"></i> Spouse ID or Birth Certificate</label>
                                     <label class="pf-file-drop">
                                         <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                         <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose one ID or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                                        <input type="file" name="spouse_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                                        <input type="file" name="spouse_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                     </label>
-                                    <div class="pf-file-hint">Required when a spouse is recorded. OCR checks this file against the spouse name and birthdate. Save as Draft if the document is not available yet.</div>
-                                    <input type="hidden" name="spouse_supporting_verified" value="0" data-ocr-flag>
-                                    <div class="pf-ocr-row">
-                                        <div class="pf-ocr-status" data-ocr-status>Fill in the spouse name and birthdate, then upload the ID or birth certificate. OCR runs automatically.</div>
-                                        <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
-                                    </div>
+                                    <div class="pf-file-hint">Required when a spouse is recorded. PDF, JPG, or PNG - max 5 MB. Use Save as Draft if the document is not available yet.</div>
                                 </div>
                             </div>
 
@@ -668,13 +649,13 @@
             <optgroup label="Senior High School"><option>Grade 11</option><option>Grade 12</option></optgroup>
             <optgroup label="College / University"><option>1st Year College</option><option>2nd Year College</option><option>3rd Year College</option><option>4th Year College</option><option>5th Year College</option></optgroup>
             <optgroup label="Vocational / Technical"><option>1st Year Tech-Voc</option><option>2nd Year Tech-Voc</option></optgroup>';
-        return '<div class="pf-member-card" data-ocr-person>
+        return '<div class="pf-member-card">
             <div class="pf-member-fields">
-                <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_last_name[]" data-ocr-last placeholder="LAST NAME"></div>
-                <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_first_name[]" data-ocr-first placeholder="FIRST NAME"></div>
-                <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_middle_name[]" data-ocr-middle placeholder="MIDDLE NAME"></div>
+                <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_last_name[]" placeholder="LAST NAME"></div>
+                <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_first_name[]" placeholder="FIRST NAME"></div>
+                <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_middle_name[]" placeholder="MIDDLE NAME"></div>
                 <div class="pf-field-xs"><div class="pf-label">Suffix</div><select class="pf-ctrl" name="child_suffix[]"><option value="">—NONE—</option><option>Jr</option><option>Sr</option><option>II</option><option>III</option></select></div>
-                <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="child_dob[]" data-ocr-dob><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
+                <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="child_dob[]"><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
                 <div class="pf-field-xs"><div class="pf-label">Gender</div><select class="pf-ctrl" name="child_gender[]"><option value="">—Select—</option><option>Male</option><option>Female</option></select></div>
                 <div class="pf-field-sm"><div class="pf-label">Civil Status</div><input type="hidden" name="child_marital_status[]" value="Single"><label class="pf-married-toggle"><input type="checkbox" onchange="toggleChildMarried(this)"><span>Married</span></label></div>
                 <div class="pf-field-wrap"><div class="pf-label">Occupation</div>
@@ -720,19 +701,14 @@
                         </div>
             </div>
             <div class="pf-member-doc">
-                <div class="pf-id-upload" data-id-block data-ocr-mode="single">
+                <div class="pf-id-upload" data-id-block>
                     <label class="pf-id-label"><i class="fas fa-id-card"></i> This child&#39;s ID or Birth Certificate</label>
                     <label class="pf-file-drop">
                         <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                         <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this child&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                        <input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                        <input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
                     </label>
-                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> OCR checks this file against this child&#39;s name and birthdate. Use Save as Draft if it is not available yet.</div>
-                    <input type="hidden" name="child_supporting_verified[]" value="0" data-ocr-flag>
-                    <div class="pf-ocr-row">
-                        <div class="pf-ocr-status" data-ocr-status>Fill in this child&#39;s name and birthdate, then upload the document. OCR runs automatically.</div>
-                        <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
-                    </div>
+                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. Use Save as Draft if it is not available yet.</div>
                 </div>
             </div>
             </div>
@@ -742,13 +718,13 @@
 
     function otherRowHTML(int $i): string
     {
-        return '<div class="pf-member-card" data-ocr-person>
+        return '<div class="pf-member-card">
             <div class="pf-member-fields">
-                <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_last_name[]" data-ocr-last placeholder="LAST NAME"></div>
-                <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_first_name[]" data-ocr-first placeholder="FIRST NAME"></div>
-                <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_middle_name[]" data-ocr-middle placeholder="MIDDLE NAME"></div>
+                <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_last_name[]" placeholder="LAST NAME"></div>
+                <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_first_name[]" placeholder="FIRST NAME"></div>
+                <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_middle_name[]" placeholder="MIDDLE NAME"></div>
                 <div class="pf-field-xs"><div class="pf-label">Suffix</div><select class="pf-ctrl" name="other_suffix[]"><option value="">—NONE—</option><option>Jr</option><option>Sr</option><option>II</option><option>III</option></select></div>
-                <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="other_dob[]" data-ocr-dob><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
+                <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="other_dob[]"><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
                 <div class="pf-field-xs"><div class="pf-label">Gender</div><select class="pf-ctrl" name="other_gender[]"><option value="">—Select—</option><option>Male</option><option>Female</option></select></div>
                 <div class="pf-field-sm"><div class="pf-label">Relationship</div>
                     <select class="pf-ctrl" name="other_relationship[]">
@@ -788,19 +764,14 @@
                     </div>
                 </div>
             <div class="pf-member-doc">
-                <div class="pf-id-upload" data-id-block data-ocr-mode="single">
+                <div class="pf-id-upload" data-id-block>
                     <label class="pf-id-label"><i class="fas fa-id-card"></i> This member&#39;s ID or Birth Certificate</label>
                     <label class="pf-file-drop">
                         <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                         <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this member&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                        <input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                        <input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
                     </label>
-                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> OCR checks this file against this member&#39;s name and birthdate. Use Save as Draft if it is not available yet.</div>
-                    <input type="hidden" name="other_supporting_verified[]" value="0" data-ocr-flag>
-                    <div class="pf-ocr-row">
-                        <div class="pf-ocr-status" data-ocr-status>Fill in this member&#39;s name and birthdate, then upload the document. OCR runs automatically.</div>
-                        <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
-                    </div>
+                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. Use Save as Draft if it is not available yet.</div>
                 </div>
             </div>
             </div>
@@ -961,7 +932,7 @@
             linkRow.style.cssText = 'margin-top:12px;display:flex;justify-content:flex-end;';
             const linkBtn = document.createElement('button');
             linkBtn.type = 'button';
-            linkBtn.className = 'pf-ocr-btn';
+            linkBtn.className = 'db-btn db-btn--primary db-btn--sm';
             linkBtn.innerHTML = '<i class="fas fa-link"></i> Link';
             linkBtn.addEventListener('click', function () {
                 openHouseholdLinkModal(head);
@@ -1264,16 +1235,27 @@
                 show = rb && rb.value === '1';
             }
             wrap.style.display = show ? 'block' : 'none';
-            // Clear the file if hiding
             if (!show) {
-                const fileEl = wrap.querySelector('input[type="file"]');
-                if (fileEl) fileEl.value = '';
-                const nameEl = wrap.querySelector('.pf-file-name');
-                if (nameEl) nameEl.textContent = 'No file selected';
+                wrap.querySelectorAll('input[type="file"]').forEach(function (fileEl) {
+                    fileEl.value = '';
+                    const nameEl = fileEl.closest('.pf-file-drop') && fileEl.closest('.pf-file-drop').querySelector('.pf-file-name');
+                    if (nameEl) {
+                        nameEl.textContent = 'No file selected';
+                        nameEl.style.color = '';
+                        nameEl.style.fontWeight = '';
+                    }
+                });
             }
         }
 
-        // Document name display and OCR live in /js/census-ocr.js
+        document.addEventListener('change', function (e) {
+            if (!e.target.matches('.pf-file-input, input[type="file"]')) return;
+            const nameEl = e.target.closest('.pf-file-drop') && e.target.closest('.pf-file-drop').querySelector('.pf-file-name');
+            if (!nameEl) return;
+            nameEl.textContent = (e.target.files && e.target.files[0]) ? e.target.files[0].name : 'No file selected';
+            nameEl.style.color = '';
+            nameEl.style.fontWeight = '';
+        });
 
         // ── Init ──────────────────────────────────────────────────────────────
         (function() {
@@ -1364,13 +1346,13 @@
         function addChildRow() {
             const i = _childIdx++;
             document.getElementById('childrenRows').insertAdjacentHTML('beforeend', `
-                <div class="pf-member-card" data-ocr-person>
+                <div class="pf-member-card">
                     <div class="pf-member-fields">
-                        <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_last_name[]" data-ocr-last placeholder="LAST NAME"></div>
-                        <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_first_name[]" data-ocr-first placeholder="FIRST NAME"></div>
-                        <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_middle_name[]" data-ocr-middle placeholder="MIDDLE NAME"></div>
+                        <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_last_name[]" placeholder="LAST NAME"></div>
+                        <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_first_name[]" placeholder="FIRST NAME"></div>
+                        <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="child_middle_name[]" placeholder="MIDDLE NAME"></div>
                         <div class="pf-field-xs"><div class="pf-label">Suffix</div><select class="pf-ctrl" name="child_suffix[]"><option value="">—NONE—</option><option>Jr</option><option>Sr</option><option>II</option><option>III</option></select></div>
-                        <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="child_dob[]" data-ocr-dob><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
+                        <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="child_dob[]"><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
                         <div class="pf-field-xs"><div class="pf-label">Gender</div><select class="pf-ctrl" name="child_gender[]"><option value="">—Select—</option><option>Male</option><option>Female</option></select></div>
                         <div class="pf-field-sm"><div class="pf-label">Civil Status</div><input type="hidden" name="child_marital_status[]" value="Single"><label class="pf-married-toggle"><input type="checkbox" onchange="toggleChildMarried(this)"><span>Married</span></label></div>
                         <div class="pf-field-wrap"><div class="pf-label">Occupation</div>
@@ -1412,19 +1394,14 @@
                         </div>
                         </div>
                         <div class="pf-member-doc">
-                            <div class="pf-id-upload" data-id-block data-ocr-mode="single">
+                            <div class="pf-id-upload" data-id-block>
                                 <label class="pf-id-label"><i class="fas fa-id-card"></i> This child&#39;s ID or Birth Certificate</label>
                                 <label class="pf-file-drop">
                                     <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                     <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this child&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                                    <input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                                    <input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                 </label>
-                                <div class="pf-file-hint"><i class="fas fa-info-circle"></i> OCR checks this file against this child&#39;s name and birthdate. Use Save as Draft if it is not available yet.</div>
-                                <input type="hidden" name="child_supporting_verified[]" value="0" data-ocr-flag>
-                                <div class="pf-ocr-row">
-                                    <div class="pf-ocr-status" data-ocr-status>Fill in this child&#39;s name and birthdate, then upload the document. OCR runs automatically.</div>
-                                    <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
-                                </div>
+                                <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. Use Save as Draft if it is not available yet.</div>
                             </div>
                         </div>
                     </div>
@@ -1435,13 +1412,13 @@
         function addOtherRow() {
             const i = _otherIdx++;
             document.getElementById('otherRows').insertAdjacentHTML('beforeend', `
-                <div class="pf-member-card" data-ocr-person>
+                <div class="pf-member-card">
                     <div class="pf-member-fields">
-                        <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_last_name[]" data-ocr-last placeholder="LAST NAME"></div>
-                        <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_first_name[]" data-ocr-first placeholder="FIRST NAME"></div>
-                        <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_middle_name[]" data-ocr-middle placeholder="MIDDLE NAME"></div>
+                        <div class="pf-field-wrap"><div class="pf-label">Last Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_last_name[]" placeholder="LAST NAME"></div>
+                        <div class="pf-field-wrap"><div class="pf-label">First Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_first_name[]" placeholder="FIRST NAME"></div>
+                        <div class="pf-field-wrap"><div class="pf-label">Middle Name</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="other_middle_name[]" placeholder="MIDDLE NAME"></div>
                         <div class="pf-field-xs"><div class="pf-label">Suffix</div><select class="pf-ctrl" name="other_suffix[]"><option value="">—NONE—</option><option>Jr</option><option>Sr</option><option>II</option><option>III</option></select></div>
-                        <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="other_dob[]" data-ocr-dob><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
+                        <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="other_dob[]"><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
                         <div class="pf-field-xs"><div class="pf-label">Gender</div><select class="pf-ctrl" name="other_gender[]"><option value="">—Select—</option><option>Male</option><option>Female</option></select></div>
                         <div class="pf-field-sm"><div class="pf-label">Relationship</div>
                             <select class="pf-ctrl" name="other_relationship[]">
@@ -1467,19 +1444,14 @@
                     </div>
                     </div>
                     <div class="pf-member-doc">
-                        <div class="pf-id-upload" data-id-block data-ocr-mode="single">
+                        <div class="pf-id-upload" data-id-block>
                             <label class="pf-id-label"><i class="fas fa-id-card"></i> This member&#39;s ID or Birth Certificate</label>
                             <label class="pf-file-drop">
                                 <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
                                 <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this member&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                                <input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input" data-ocr-front>
+                                <input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
                             </label>
-                            <div class="pf-file-hint"><i class="fas fa-info-circle"></i> OCR checks this file against this member&#39;s name and birthdate. Use Save as Draft if it is not available yet.</div>
-                            <input type="hidden" name="other_supporting_verified[]" value="0" data-ocr-flag>
-                            <div class="pf-ocr-row">
-                                <div class="pf-ocr-status" data-ocr-status>Fill in this member&#39;s name and birthdate, then upload the document. OCR runs automatically.</div>
-                                <button type="button" class="pf-ocr-btn" data-ocr-run><i class="fas fa-fingerprint"></i> Verify with OCR</button>
-                            </div>
+                            <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. Use Save as Draft if it is not available yet.</div>
                         </div>
                     </div>
                     </div>
@@ -1828,26 +1800,6 @@
             const prevErr = document.getElementById('idUploadsError');
             if (prevErr) prevErr.remove();
 
-            if (!savingDraft && window.CensusOcr) {
-                const ocrIssues = CensusOcr.unverifiedLabels(this);
-                if (ocrIssues.length) {
-                    e.preventDefault();
-                    const msg = ocrIssues.length === 1
-                        ? 'The uploaded ' + ocrIssues[0] + ' does not match the required name and birthdate. Please upload the correct document and verify it with OCR.'
-                        : 'These uploaded documents do not match the required information: ' + ocrIssues.join('; ') + '. Please upload the correct files and verify them with OCR.';
-                    const banner = document.getElementById('formErrorBanner');
-                    const bannerText = document.getElementById('formErrorText');
-                    if (banner && bannerText) {
-                        banner.style.display = 'flex';
-                        bannerText.textContent = msg;
-                    }
-                    alert(msg);
-                    goTo(1);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return;
-                }
-            }
-
             if (!savingDraft) {
                 const fileKept = (selector) => {
                     const el = document.querySelector(selector);
@@ -2125,8 +2077,6 @@
                     nameEl.style.fontWeight = '700';
                 }
             }
-
-            if (window.CensusOcr) CensusOcr.syncFlagsFromDom();
 
             Object.keys(stashNames).forEach(function (field) {
                 const entry = stashNames[field];

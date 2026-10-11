@@ -903,69 +903,6 @@ class CensusController extends BaseController
         return null;
     }
 
-    private function postFlagIsVerified(array $post, string $key, ?int $index = null): bool
-    {
-        if ($index === null) {
-            return (string) ($post[$key] ?? '0') === '1';
-        }
-
-        $flags = $post[$key] ?? [];
-        if (! is_array($flags)) {
-            return false;
-        }
-
-        return (string) ($flags[$index] ?? '0') === '1';
-    }
-
-    private function unverifiedDocumentMessage(array $post): ?string
-    {
-        $fail = static function (string $label): string {
-            return 'The uploaded ' . $label . ' does not match the name and birthdate on the form. Please upload the correct document and verify it with OCR before saving.';
-        };
-
-        if ($this->uploadIsPresent('head_supporting_doc') && ! $this->postFlagIsVerified($post, 'head_supporting_verified')) {
-            return $fail('household head ID or birth certificate');
-        }
-        if (isset($post['is_4ps']) && $this->uploadIsPresent('id_4ps') && ! $this->postFlagIsVerified($post, 'id_4ps_verified')) {
-            return $fail('4Ps Beneficiary ID');
-        }
-        if (isset($post['is_senior_citizen']) && $this->uploadIsPresent('id_senior') && ! $this->postFlagIsVerified($post, 'id_senior_verified')) {
-            return $fail('Senior Citizen ID');
-        }
-        if (isset($post['is_solo_parent']) && $this->uploadIsPresent('id_solo_parent') && ! $this->postFlagIsVerified($post, 'id_solo_parent_verified')) {
-            return $fail('Solo Parent ID');
-        }
-        if (isset($post['is_pwd']) && $this->uploadIsPresent('id_pwd') && ! $this->postFlagIsVerified($post, 'id_pwd_verified')) {
-            return $fail('PWD ID');
-        }
-        if (trim((string) ($post['spouse_last_name'] ?? '')) !== ''
-            && $this->uploadIsPresent('spouse_supporting_doc')
-            && ! $this->postFlagIsVerified($post, 'spouse_supporting_verified')
-        ) {
-            return $fail('spouse ID or birth certificate');
-        }
-
-        foreach ((array) ($post['child_last_name'] ?? []) as $i => $lastName) {
-            if (trim((string) $lastName) === '') {
-                continue;
-            }
-            if ($this->uploadIsPresent('child_supporting_doc', (int) $i) && ! $this->postFlagIsVerified($post, 'child_supporting_verified', (int) $i)) {
-                return $fail('ID or birth certificate for child #' . ((int) $i + 1));
-            }
-        }
-
-        foreach ((array) ($post['other_last_name'] ?? []) as $i => $lastName) {
-            if (trim((string) $lastName) === '') {
-                continue;
-            }
-            if ($this->uploadIsPresent('other_supporting_doc', (int) $i) && ! $this->postFlagIsVerified($post, 'other_supporting_verified', (int) $i)) {
-                return $fail('ID or birth certificate for ' . trim((string) $lastName));
-            }
-        }
-
-        return null;
-    }
-
     private function missingWorkingStudentWork(array $post): ?string
     {
         foreach ((array) ($post['child_occupation'] ?? []) as $i => $occupation) {
@@ -1192,10 +1129,6 @@ class CensusController extends BaseController
             if ($documentError !== null) {
                 return $this->censusFormError($documentError);
             }
-            $verifyError = $this->unverifiedDocumentMessage($post);
-            if ($verifyError !== null) {
-                return $this->censusFormError($verifyError);
-            }
             $workError = $this->missingWorkingStudentWork($post);
             if ($workError !== null) {
                 return $this->censusFormError($workError);
@@ -1332,19 +1265,19 @@ class CensusController extends BaseController
         $idUpdate = [];
         if (isset($post['is_4ps'])) {
             $idUpdate['id_4ps_path']     = $this->_handleIdUpload('id_4ps', '4ps', $householdKey);
-            $idUpdate['id_4ps_verified'] = ($post['id_4ps_verified'] ?? '0') === '1' ? 1 : 0;
+            $idUpdate['id_4ps_verified'] = $this->uploadIsPresent('id_4ps') ? 1 : 0;
         }
         if (isset($post['is_senior_citizen'])) {
             $idUpdate['id_senior_path']     = $this->_handleIdUpload('id_senior', 'senior', $householdKey);
-            $idUpdate['id_senior_verified'] = ($post['id_senior_verified'] ?? '0') === '1' ? 1 : 0;
+            $idUpdate['id_senior_verified'] = $this->uploadIsPresent('id_senior') ? 1 : 0;
         }
         if (isset($post['is_solo_parent'])) {
             $idUpdate['id_solo_parent_path']     = $this->_handleIdUpload('id_solo_parent', 'solo', $householdKey);
-            $idUpdate['id_solo_parent_verified'] = ($post['id_solo_parent_verified'] ?? '0') === '1' ? 1 : 0;
+            $idUpdate['id_solo_parent_verified'] = $this->uploadIsPresent('id_solo_parent') ? 1 : 0;
         }
         if (isset($post['is_pwd'])) {
             $idUpdate['id_pwd_path']     = $this->_handleIdUpload('id_pwd', 'pwd', $householdKey);
-            $idUpdate['id_pwd_verified'] = ($post['id_pwd_verified'] ?? '0') === '1' ? 1 : 0;
+            $idUpdate['id_pwd_verified'] = $this->uploadIsPresent('id_pwd') ? 1 : 0;
         }
         $headSupportPath = $this->_handleIdUpload('head_supporting_doc', 'support', $householdKey);
         if ($headSupportPath) {
@@ -2038,13 +1971,6 @@ class CensusController extends BaseController
                         }
                     }
                 }
-            }
-        }
-
-        if (! $saveAsDraft) {
-            $verifyError = $this->unverifiedDocumentMessage($post);
-            if ($verifyError !== null) {
-                return redirect()->back()->with('error', $verifyError)->withInput();
             }
         }
 

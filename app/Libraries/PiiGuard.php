@@ -70,7 +70,7 @@ class PiiGuard
         }
 
         $style = self::variantStyle($variant);
-        $font  = self::fontPath();
+        $font  = self::fontPath(! empty($style['bold']));
 
         if (! function_exists('imagecreatetruecolor')) {
             return self::svgPngFallback($text, $style);
@@ -191,6 +191,14 @@ class PiiGuard
             $chunk
         ) ?? $chunk;
 
+        $chunk = preg_replace_callback(
+            '/<(div|span)([^>]*\b(?:clr-for-name|data-pii-large)\b[^>]*)>([^<]*)</i',
+            static function (array $m) use ($phrases): string {
+                return '<' . $m[1] . $m[2] . '>' . self::replacePhrases($m[3], $phrases, 'large') . '<';
+            },
+            $chunk
+        ) ?? $chunk;
+
         return preg_replace_callback(
             '/>([^<]+)</',
             static function (array $m) use ($phrases): string {
@@ -200,13 +208,13 @@ class PiiGuard
         ) ?? $chunk;
     }
 
-    private static function replacePhrases(string $text, array $phrases): string
+    private static function replacePhrases(string $text, array $phrases, ?string $variant = null): string
     {
         foreach ($phrases as $phrase) {
             if ($phrase === '' || stripos($text, $phrase) === false) {
                 continue;
             }
-            $img = self::img($phrase, self::guessVariant($text));
+            $img = self::img($phrase, $variant ?? self::guessVariant($text));
             $text = preg_replace('/' . preg_quote($phrase, '/') . '/iu', $img, $text) ?? $text;
         }
 
@@ -333,20 +341,33 @@ class PiiGuard
             'muted' => ['size' => 10.0, 'r' => 154, 'g' => 160, 'b' => 180],
             'small' => ['size' => 10.0, 'r' => 74, 'g' => 80, 'b' => 104],
             'inverse' => ['size' => 12.0, 'r' => 255, 'g' => 255, 'b' => 255],
+            'large' => ['size' => 13.5, 'r' => 17, 'g' => 24, 'b' => 39, 'bold' => true],
             default => ['size' => 11.5, 'r' => 26, 'g' => 29, 'b' => 46],
         };
     }
 
-    private static function fontPath(): ?string
+    private static function fontPath(bool $bold = false): ?string
     {
-        foreach ([
+        $paths = $bold
+            ? [
+                'C:\\Windows\\Fonts\\segoeuib.ttf',
+                'C:\\Windows\\Fonts\\arialbd.ttf',
+                'C:\\Windows\\Fonts\\calibrib.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+                '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf',
+                'C:\\Windows\\Fonts\\segoeui.ttf',
+                'C:\\Windows\\Fonts\\arial.ttf',
+            ]
+            : [
             'C:\\Windows\\Fonts\\segoeui.ttf',
             'C:\\Windows\\Fonts\\arial.ttf',
             'C:\\Windows\\Fonts\\calibri.ttf',
             '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
             '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
             '/usr/share/fonts/TTF/DejaVuSans.ttf',
-        ] as $path) {
+        ];
+        foreach ($paths as $path) {
             if (is_readable($path)) {
                 return $path;
             }
@@ -359,7 +380,10 @@ class PiiGuard
     {
         $color = sprintf('#%02x%02x%02x', $style['r'], $style['g'], $style['b']);
         $safe = htmlspecialchars($text, ENT_XML1 | ENT_QUOTES, 'UTF-8');
-        $svg = '<svg xmlns="http://www.w3.org/2000/svg" height="18"><text x="0" y="13" font-size="12" font-family="Segoe UI, Arial, sans-serif" fill="' . $color . '">' . $safe . '</text></svg>';
+        $fontSize = max(12, (int) round((float) ($style['size'] ?? 12)));
+        $weight = ! empty($style['bold']) ? 'bold' : 'normal';
+        $height = $fontSize + 8;
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" height="' . $height . '"><text x="0" y="' . ($fontSize + 2) . '" font-size="' . $fontSize . '" font-weight="' . $weight . '" font-family="Segoe UI, Arial, sans-serif" fill="' . $color . '">' . $safe . '</text></svg>';
 
         return $svg;
     }
