@@ -848,7 +848,7 @@
         const VAD_MIN_THRESHOLD = 0.010;
         const VAD_NOISE_MULTIPLIER = 2.8;          // speech must be ~3x louder than ambient
         const VAD_SILENCE_MS = 1600;               // auto-stop after this much trailing silence
-        const VAD_MIN_UTTERANCE_MS = 400;          // require at least this much speech first
+        const VAD_MIN_UTTERANCE_MS = 750;          // require at least this much speech first
         const VAD_WARMUP_MS = 400;                 // ambient calibration window
         const VAD_MAX_RECORD_MS = 45000;           // absolute hard cap
         const micChimeUrl = '/sounds/' + encodeURIComponent('Voicy_   iOS 16 Siri Sound .mp3');
@@ -1928,24 +1928,8 @@
             }
         }
 
-        // Collect the last few chat turns as plain text so the backend can
-        // forward them to Whisper's `prompt` field, biasing recognition toward
-        // on-topic vocabulary (names, document types, Taglish phrases).
         function collectRecentContext() {
-            if (!thread) return '';
-            const rows = thread.querySelectorAll('.gpt-row.user .gpt-bubble');
-            if (!rows || rows.length === 0) return '';
-            const refusal = /i can only answer questions about the barangay bacolod information system|maaari ko lang sagutin/i;
-            const parts = [];
-            const start = Math.max(0, rows.length - 2);
-            for (let i = start; i < rows.length; i++) {
-                const txt = (rows[i].innerText || rows[i].textContent || '').trim().replace(/\s+/g, ' ');
-                if (!txt || refusal.test(txt)) continue;
-                parts.push(txt);
-            }
-            let joined = parts.join(' | ');
-            if (joined.length > 400) joined = joined.slice(-400);
-            return joined;
+            return '';
         }
 
         async function startVoiceRecording() {
@@ -1973,6 +1957,7 @@
             setMicPreparing();
             sendBtn.disabled = true;
             await playMicChime();
+            await new Promise(function (resolve) { setTimeout(resolve, 180); });
             try {
                 mediaStream = await navigator.mediaDevices.getUserMedia({
                     audio: {
@@ -2004,7 +1989,7 @@
             // keeping the upload small. 48 kbps was borderline-too-low and
             // sometimes produced empty frames on the first chunk after a
             // repeat recording.
-            const recorderOpts = { audioBitsPerSecond: 64000 };
+            const recorderOpts = { audioBitsPerSecond: 96000 };
             if (mimeType) recorderOpts.mimeType = mimeType;
             try {
                 mediaRecorder = new MediaRecorder(mediaStream, recorderOpts);
@@ -2048,7 +2033,7 @@
                 // speech frames AND a very low peak level - this way a soft
                 // speaker still gets a chance at Whisper instead of being
                 // bounced here.
-                if (!heardSpeech && peak < 0.004) {
+                if (!heardSpeech) {
                     setMicIdle();
                     addMessage('I did not hear anything. Please tap the mic and speak clearly.', false);
                     return;

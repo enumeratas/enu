@@ -4239,7 +4239,7 @@ class ChatbotController extends ResourceController
             if ($chunk === '') {
                 continue;
             }
-            if ($this->isOffTopicIntent($this->normalizeChatText($chunk)) || $this->isScopeRefusalMessage($chunk)) {
+            if ($this->isOffTopicIntent($this->normalizeChatText($chunk)) || $this->isScopeRefusalMessage($chunk) || $this->looksLikeBadTranscript($chunk)) {
                 continue;
             }
             if ($this->isWebsiteRelatedQuestion($chunk) || $this->looksLikeTopicCorrection($chunk)) {
@@ -6079,7 +6079,7 @@ PROMPT;
             $context
         );
 
-        if ($text === null || $text === '') {
+        if ($text === null || $text === '' || $this->looksLikeBadTranscript($text)) {
             return $this->response
                 ->setStatusCode(422)
                 ->setJSON([
@@ -6169,76 +6169,55 @@ PROMPT;
             return null;
         }
 
-        // Rich domain vocabulary. Whisper's `prompt` field biases its decoder
-        // toward tokens that look like the prompt text, so we spell out the
-        // specific names, documents, offices, and common Taglish phrases a
-        // resident is likely to say.
-        //
-        // IMPORTANT: Groq's Whisper API enforces a hard limit of 896
-        // characters on the `prompt` field. We stay well under 880 so there
-        // is room for the recent-conversation context without ever hitting
-        // HTTP 400 "prompt length must be 896 characters or fewer". That
-        // 400 error was what caused the "I could not hear a clear question"
-        // response on every call after the first turn.
-        $basePrompt = 'Barangay Information System for Barangay Bacolod, Bato, Camarines Sur. '
-            . 'Documents: barangay clearance, indigency, residency, cedula, community tax, '
-            . 'blotter, business permit, business clearance, barangay ID, first-time job seeker, '
-            . 'OSCA senior citizen. '
-            . 'Officials: captain, kagawad, SK chairman, secretary, treasurer, tanod. '
-            . 'Topics: requirements, fees, release, pickup, follow up, office hours, contact, admin. '
-            . 'Taglish: paano mag-request, kailangan ko po, gusto ko po makipag-usap sa admin, '
-            . 'magkano po, kailan po pwedeng kunin, saan po ang barangay hall.';
-
-        $maxPromptChars = 880; // safe margin under Groq's 896-char limit
-
-        if ($extraContext !== '') {
-            $suffix   = ' Recent: ' . $extraContext;
-            $budget   = $maxPromptChars - mb_strlen($basePrompt);
-            if ($budget > 20) {
-                if (mb_strlen($suffix) > $budget) {
-                    $suffix = mb_substr($suffix, 0, $budget);
-                }
-                $prompt = $basePrompt . $suffix;
-            } else {
-                $prompt = mb_substr($basePrompt, 0, $maxPromptChars);
-            }
-        } else {
-            $prompt = mb_strlen($basePrompt) > $maxPromptChars
-                ? mb_substr($basePrompt, 0, $maxPromptChars)
-                : $basePrompt;
+        // Keep this short. A long prompt makes Whisper invent those words
+        // when the clip is noisy or the speaker uses Tagalog / Taglish.
+        $prompt = 'Philippine English and Tagalog. Barangay Bacolod, barangay clearance, indigency, residency, blotter, business permit.';
+        $hint = $this->whisperConversationHint($extraContext);
+        if ($hint !== '' && ! $this->looksLikeBadTranscript($hint)) {
+            $prompt .= ' ' . $hint;
+        }
+        if (mb_strlen($prompt) > 400) {
+            $prompt = mb_substr($prompt, 0, 400);
         }
 
-        $text = $this->callWhisper($path, $filename, $mime, $prompt, 'en');
-
-        if ($text === null || $this->looksGarbled($text)) {
-            log_message('info', 'Whisper EN pass failed or garbled, retrying with language=tl: ' . ($text ?? '(null)'));
-            $tagalogText = $this->callWhisper($path, $filename, $mime, $prompt, 'tl');
-            if ($tagalogText !== null) {
-                $text = $tagalogText;
+        $best = null;
+        foreach ([null, 'tl', 'en'] as $language) {
+            $result = $this->callWhisper($path, $filename, $mime, $prompt, $language);
+            if ($result === null) {
+                continue;
+            }
+            if ($this->looksLikeBadTranscript((string) $result['text'])) {
+                log_message('info', 'Whisper discarded bad transcript lang=' . ($language ?? 'auto') . ' text="' . mb_substr((string) $result['text'], 0, 120) . '"');
+                continue;
+            }
+            if ($best === null || (float) $result['score'] > (float) $best['score']) {
+                $best = $result;
+            }
+            if ((float) $result['score'] >= -0.35 && (float) $result['no_speech'] < 0.45) {
+                break;
             }
         }
 
-        return $text;
+        return $best !== null ? (string) $best['text'] : null;
     }
 
+    /**
+     * @return array{text: string, no_speech: float, avg_logprob: float, score: float}|null
+     */
     protected function callWhisper(
         string $path,
         string $filename,
         string $mime,
         string $prompt,
         ?string $language
-    ): ?string {
-        // Defensive final clamp. Groq rejects prompts longer than 896 chars
-        // with HTTP 400 and we would then lose the entire transcription.
-        if (mb_strlen($prompt) > 880) {
-            $prompt = mb_substr($prompt, 0, 880);
+    ): ?array {
+        if (mb_strlen($prompt) > 400) {
+            $prompt = mb_substr($prompt, 0, 400);
         }
 
         $fields = [
             'file' => new \CURLFile($path, $mime, $filename),
-            'model' => $this->voiceModel,
-            // `verbose_json` returns per-segment `no_speech_prob` and
-            // `avg_logprob` so we can drop obvious silence / hallucinations.
+            'model' => $this->voiceModel !== '' ? $this->voiceModel : 'whisper-large-v3',
             'response_format' => 'verbose_json',
             'temperature' => '0',
             'prompt' => $prompt,
@@ -6257,8 +6236,8 @@ PROMPT;
                 'Authorization: Bearer ' . $this->apiKey,
                 'Accept: application/json',
             ],
-            CURLOPT_CONNECTTIMEOUT => 15,
-            CURLOPT_TIMEOUT => 60,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => 35,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
         ]);
@@ -6287,40 +6266,85 @@ PROMPT;
             return null;
         }
 
-        $text = trim((string) ($decoded['text'] ?? ''));
-
-        // Diagnostic logging. Lets us see on every call whether Whisper
-        // returned text and how confident it was. Available in
-        // writable/logs/log-YYYY-MM-DD.log.
         $segments = isset($decoded['segments']) && is_array($decoded['segments'])
             ? $decoded['segments']
             : [];
+        $kept = [];
         $noSpeechMax = 0.0;
-        $logprobSum  = 0.0;
-        $segCount    = 0;
+        $logprobSum = 0.0;
+        $segCount = 0;
         foreach ($segments as $seg) {
             if (! is_array($seg)) {
                 continue;
             }
             $segCount++;
-            $noSpeechMax = max($noSpeechMax, (float) ($seg['no_speech_prob'] ?? 0.0));
-            $logprobSum += (float) ($seg['avg_logprob'] ?? 0.0);
+            $noSpeech = (float) ($seg['no_speech_prob'] ?? 0.0);
+            $logprob = (float) ($seg['avg_logprob'] ?? 0.0);
+            $noSpeechMax = max($noSpeechMax, $noSpeech);
+            $logprobSum += $logprob;
+            $segText = trim((string) ($seg['text'] ?? ''));
+            if ($segText === '' || $noSpeech >= 0.62 || $logprob < -1.05) {
+                continue;
+            }
+            $kept[] = $segText;
         }
-        $avgLogprob = $segCount > 0 ? $logprobSum / $segCount : 0.0;
+        $avgLogprob = $segCount > 0 ? $logprobSum / $segCount : -2.0;
+        $text = $kept !== [] ? trim(implode(' ', $kept)) : '';
+
         log_message(
             'info',
-            'Whisper lang=' . ($language ?? '(auto)')
+            'Whisper lang=' . ($language ?? 'auto')
             . ' segs=' . $segCount
+            . ' kept=' . count($kept)
             . ' no_speech=' . round($noSpeechMax, 3)
             . ' avg_logprob=' . round($avgLogprob, 3)
             . ' text="' . mb_substr($text, 0, 160) . '"'
         );
 
-        // No confidence-based rejection. If Whisper decoded anything at all
-        // we return it; the chatbot layer can then route it to the normal
-        // chat pipeline. The `looksGarbled` + Tagalog fallback handled by
-        // `transcribeAudioFile` is still in place as a safety net.
-        return $text !== '' ? $text : null;
+        if ($text === '' || $noSpeechMax >= 0.78 || $avgLogprob < -1.2) {
+            return null;
+        }
+
+        return [
+            'text' => $text,
+            'no_speech' => $noSpeechMax,
+            'avg_logprob' => $avgLogprob,
+            'score' => $avgLogprob - ($noSpeechMax * 0.8),
+        ];
+    }
+
+    protected function looksLikeBadTranscript(string $text): bool
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return true;
+        }
+        if ($this->looksGarbled($text)) {
+            return true;
+        }
+        if (preg_match('/thank you for watching|subscribe now|\[music\]|♪|www\.|\.com\b/iu', $text) === 1) {
+            return true;
+        }
+        if (preg_match('/\b(\p{L}{2,})(?:[\s,.;:]+\\1){2,}\b/u', $text) === 1) {
+            return true;
+        }
+
+        $normalized = $this->normalizeChatText($text);
+        if (
+            $this->isWebsiteRelatedQuestion($text)
+            || $this->isConversationalWebsitePrompt($normalized)
+            || $this->isConversationOutro($text)
+        ) {
+            return false;
+        }
+
+        if (preg_match('/\b(how|what|when|where|who|why|can|need|want|please|paano|pano|ano|saan|magkano|kailan|bakit|pwede|pwedi|gusto|request|help|tulong|requirements|hours|fee|fees|clearance|blotter|indigency|residency)\b/u', $normalized) === 1) {
+            return false;
+        }
+
+        $words = preg_split('/\s+/u', $normalized, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return count($words) <= 4;
     }
 
     protected function looksGarbled(string $text): bool
