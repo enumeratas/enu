@@ -41,9 +41,26 @@ class CensusController extends BaseController
         if (! empty($household)) {
             $headFirst = $normalize($household['first_name'] ?? '');
             $headLast  = $normalize($household['last_name'] ?? '');
-            $headNameMatches = $userFirst !== '' && $userLast !== '' && $headFirst === $userFirst && $headLast === $userLast;
+
+            if ($userFirst !== '' && $userLast !== '') {
+                // Exact match
+                if ($headFirst === $userFirst && $headLast === $userLast) {
+                    $headNameMatches = true;
+                }
+                // Last name matches and one first name starts with the other
+                // (handles "MARIANE" vs "MARIANE MAE", "JUAN" vs "JUAN JR", etc.)
+                elseif (
+                    $sameHousehold && $headLast === $userLast
+                    && (str_starts_with($headFirst, $userFirst) || str_starts_with($userFirst, $headFirst))
+                ) {
+                    $headNameMatches = true;
+                }
+            }
         }
 
+        // If the user is linked to this household by household_no and is not
+        // matched as a member below, treat them as the head. This handles cases
+        // where the census record name differs slightly from the account name.
         $matchedMember = null;
         foreach ($members as $member) {
             $memberFirst = $normalize($member['first_name'] ?? '');
@@ -52,6 +69,11 @@ class CensusController extends BaseController
                 $matchedMember = $member;
                 break;
             }
+        }
+
+        // Fallback: same household_no + no member match → must be the head
+        if (! $headNameMatches && $sameHousehold && $matchedMember === null) {
+            $headNameMatches = true;
         }
 
         $isHead = $headNameMatches;
@@ -1826,37 +1848,9 @@ class CensusController extends BaseController
             $payload['member'] = $this->collectOwnMemberPayload($post, $access['member'] ?? null, $user ?? []);
         }
 
-        // ── Proof document requirement for name / DOB changes ────────────────
+        // ── Proof document required for any change submission ───────────────
         $proofDocPath = null;
-        $identityFields = ['last_name', 'first_name', 'middle_name', 'suffix', 'date_of_birth'];
-        $needsProof = false;
-
-        if ($access['can_edit_household']) {
-            // HEAD scope — compare submitted payload against current household DB values
-            $submitted = $payload['household'] ?? [];
-            foreach ($identityFields as $field) {
-                if (isset($submitted[$field]) && strtolower(trim((string) $submitted[$field])) !== strtolower(trim((string) ($household[$field] ?? '')))) {
-                    $needsProof = true;
-                    break;
-                }
-            }
-        } else {
-            // MEMBER scope — compare submitted payload against current member DB values
-            $submitted = $payload['member'] ?? [];
-            $memberFieldMap = [
-                'last_name'     => 'last_name',
-                'first_name'    => 'first_name',
-                'middle_name'   => 'middle_name',
-                'date_of_birth' => 'date_of_birth',
-            ];
-            $currentMember = $access['member'] ?? [];
-            foreach ($memberFieldMap as $payloadKey => $dbKey) {
-                if (isset($submitted[$payloadKey]) && strtolower(trim((string) $submitted[$payloadKey])) !== strtolower(trim((string) ($currentMember[$dbKey] ?? '')))) {
-                    $needsProof = true;
-                    break;
-                }
-            }
-        }
+        $needsProof = ! $confirmOnly; // proof required whenever submitting actual changes
 
         if ($needsProof) {
             $proofFile = $this->request->getFile('proof_document');
@@ -2112,6 +2106,130 @@ class CensusController extends BaseController
             'resident_name' => $residentName,
             'submitted_at'  => $auth['submitted_at'] ?? null,
             'auth_id'       => $id,
+        ]);
+    }
+
+    /**
+     * Full-page review of a pending census update — for secretary, captain, admin, council.
+     * GET /{role}/resident/census-update-review/:id
+     */
+    public function reviewCensusUpdate(int $id)
+    {
+        if (! can_role('secretary', 'captain', 'admin', 'council')) {
+            return redirect()->back()->with('error', 'You do not have permission to review census updates.');
+        }
+
+        $authModel = new CensusUpdateAuthorizationModel();
+        $auth      = $authModel->find($id);
+
+        if (! $auth) {
+            return redirect()->back()->with('error', 'Census update request not found.');
+        }
+
+        $payload     = json_decode((string) ($auth['notes'] ?? ''), true);
+        $confirmOnly = is_array($payload) && ! empty($payload['confirm_only']);
+        $scope       = is_array($payload) ? ($payload['scope'] ?? 'head') : 'head';
+        $householdNo = is_array($payload) ? (string) ($payload['household_no'] ?? '') : '';
+
+        $labels = [
+            'last_name'              => 'Last Name',
+            'first_name'             => 'First Name',
+            'middle_name'            => 'Middle Name',
+            'suffix'                 => 'Suffix',
+            'date_of_birth'          => 'Date of Birth',
+            'place_of_birth'         => 'Place of Birth',
+            'gender'                 => 'Gender',
+            'civil_status'           => 'Civil Status',
+            'marital_status'         => 'Civil Status',
+            'nationality'            => 'Nationality',
+            'religion'               => 'Religion',
+            'occupation'             => 'Occupation',
+            'monthly_income'         => 'Monthly Income (₱)',
+            'contact_number'         => 'Contact Number',
+            'educational_attainment' => 'Educational Attainment',
+            'philhealth_no'          => 'PhilHealth No.',
+            'registered_voter'       => 'Registered Voter',
+            'address'                => 'Address',
+            'zone'                   => 'Zone',
+            'years_of_residency'     => 'Years of Residency',
+            'house_ownership'        => 'House Ownership',
+            'num_families'           => 'No. of Families',
+            'is_4ps'                 => '4Ps Member',
+            'is_senior_citizen'      => 'Senior Citizen',
+            'is_solo_parent'         => 'Solo Parent',
+            'is_indigenous'          => 'Indigenous People',
+            'is_pwd'                 => 'PWD',
+            'pwd_type'               => 'PWD Type',
+            'relationship'           => 'Relationship',
+            'water_source_level'     => 'Water Source Level',
+            'water_safety_managed'   => 'Safely Managed Water',
+            'sanitation_basic'       => 'Basic Sanitation',
+            'sanitation_managed'     => 'Managed Sanitation',
+        ];
+
+        $diff = [];
+
+        if ($scope === 'head' && $householdNo !== '') {
+            $current  = $this->householdModel->find($householdNo);
+            $proposed = is_array($payload['household'] ?? null) ? $payload['household'] : (is_array($payload) ? $payload : []);
+            foreach ($proposed as $field => $newVal) {
+                if (! array_key_exists($field, $labels) || in_array($field, ['member_id', 'household_no', 'scope', 'confirm_only'], true)) {
+                    continue;
+                }
+                $oldVal = (string) ($current[$field] ?? '');
+                $newStr = (string) ($newVal ?? '');
+                if ($oldVal !== $newStr) {
+                    $diff[] = ['field' => $field, 'label' => $labels[$field], 'old' => $oldVal, 'new' => $newStr];
+                }
+            }
+        } elseif ($scope === 'member') {
+            $memberPayload = is_array($payload['member'] ?? null) ? $payload['member'] : [];
+            $memberId      = (int) ($memberPayload['member_id'] ?? 0);
+            $current       = $memberId > 0 ? $this->memberModel->find($memberId) : null;
+            if ($current) {
+                foreach ($memberPayload as $field => $newVal) {
+                    if (! array_key_exists($field, $labels) || $field === 'member_id') {
+                        continue;
+                    }
+                    $oldVal = (string) ($current[$field] ?? '');
+                    $newStr = (string) ($newVal ?? '');
+                    if ($oldVal !== $newStr) {
+                        $diff[] = ['field' => $field, 'label' => $labels[$field], 'old' => $oldVal, 'new' => $newStr];
+                    }
+                }
+            }
+        }
+
+        $proofUrl     = null;
+        $proofIsImage = false;
+        if (! empty($auth['proof_document_path'])) {
+            $proofUrl     = base_url((string) $auth['proof_document_path']);
+            $ext          = strtolower(pathinfo((string) $auth['proof_document_path'], PATHINFO_EXTENSION));
+            $proofIsImage = in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true);
+        }
+
+        $residentName = '';
+        if (! empty($auth['user_id'])) {
+            $userRow = (new UserModel())->find((int) $auth['user_id']);
+            if ($userRow) {
+                $residentName = trim(($userRow['first_name'] ?? '') . ' ' . ($userRow['last_name'] ?? ''));
+            }
+        }
+
+        $role = (string) session()->get('role');
+
+        return view('dashboard/census_update_drives/review', [
+            'role'         => $role,
+            'pageTitle'    => 'Review Census Update',
+            'active'       => 'census_updates',
+            'auth'         => $auth,
+            'diff'         => $diff,
+            'confirmOnly'  => $confirmOnly,
+            'scope'        => $scope,
+            'householdNo'  => $householdNo,
+            'residentName' => $residentName,
+            'proofUrl'     => $proofUrl,
+            'proofIsImage' => $proofIsImage,
         ]);
     }
 

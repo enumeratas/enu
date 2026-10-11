@@ -34,6 +34,7 @@ class HouseholdMoveModel extends Model
         'destination_barangay_email',
         'transfer_confirmation_sent_at',
         'is_barangay_transfer',
+        'transfer_message',
     ];
 
     /** Every move with requester and processor names, newest first. */

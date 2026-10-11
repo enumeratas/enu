@@ -305,7 +305,8 @@ class EmailService
     string $toBarangayName,
     string $residentName,
     string $fromBarangay,
-    string $moveId
+    string $moveId,
+    string $message = ''
   ): bool {
     $eName        = htmlspecialchars($toBarangayName, ENT_QUOTES, 'UTF-8');
     $eResident    = htmlspecialchars($residentName,   ENT_QUOTES, 'UTF-8');
@@ -324,6 +325,12 @@ class EmailService
       . $this->p('Please verify whether <strong>' . $eResident . '</strong> has an existing record in '
         . 'your barangay system. If no record exists, the transfer will proceed and the '
         . 'resident will be removed from our census.')
+      . ($message !== ''
+        ? '<div style="background:#fffbeb;border:1px solid #fcd34d;border-left:4px solid #f59e0b;border-radius:0 6px 6px 0;padding:14px 18px;margin-bottom:18px;">'
+        . '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#92400e;margin-bottom:6px;">Message from ' . $eFrom . '</div>'
+        . '<div style="font-size:14px;color:#1f2937;line-height:1.6;">' . nl2br(htmlspecialchars($message, ENT_QUOTES, 'UTF-8')) . '</div>'
+        . '</div>'
+        : '')
       . '
 <div style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;padding:18px 22px;margin-bottom:18px;text-align:left;">
   <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#6b7280;margin-bottom:8px;">Reference Number</div>

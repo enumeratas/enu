@@ -88,15 +88,68 @@
             color: #6b7689;
         }
 
-        .brgy-reqs { margin-top: 12px; }
-        .brgy-reqs p { margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: #9aa0b4; }
-        .brgy-req { display: flex; gap: 6px; align-items: center; font-size: 12.5px; color: #4a5068; padding: 2px 0; }
-        .brgy-req i { color: #16325c; font-size: 11px; }
-        .brgy-foot { padding: 0 18px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-        .brgy-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; }
-        .brgy-chip--pending { background: #fff8ee; color: #a07900; border: 1px solid #f5d88a; }
-        .brgy-chip--approved { background: #edfaf5; color: #0f7a62; border: 1px solid #a8e6d5; }
-        .brgy-chip--rejected { background: #fff0f0; color: #c0392b; border: 1px solid #f5c0c0; }
+        .brgy-reqs {
+            margin-top: 12px;
+        }
+
+        .brgy-reqs p {
+            margin: 0 0 6px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .4px;
+            text-transform: uppercase;
+            color: #9aa0b4;
+        }
+
+        .brgy-req {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            font-size: 12.5px;
+            color: #4a5068;
+            padding: 2px 0;
+        }
+
+        .brgy-req i {
+            color: #16325c;
+            font-size: 11px;
+        }
+
+        .brgy-foot {
+            padding: 0 18px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .brgy-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 10px;
+        }
+
+        .brgy-chip--pending {
+            background: #fff8ee;
+            color: #a07900;
+            border: 1px solid #f5d88a;
+        }
+
+        .brgy-chip--approved {
+            background: #edfaf5;
+            color: #0f7a62;
+            border: 1px solid #a8e6d5;
+        }
+
+        .brgy-chip--rejected {
+            background: #fff0f0;
+            color: #c0392b;
+            border: 1px solid #f5c0c0;
+        }
     </style>
 </head>
 
@@ -134,17 +187,6 @@
                 <div class="dash-welcome-icon"><i class="fas fa-bullhorn"></i></div>
             </div>
 
-            <?php if (session()->getFlashdata('success')): ?>
-                <div class="db-alert db-alert--success" style="margin-bottom:16px;">
-                    <i class="fas fa-check-circle"></i> <?= esc(session()->getFlashdata('success')) ?>
-                </div>
-            <?php endif; ?>
-            <?php if (session()->getFlashdata('error')): ?>
-                <div class="db-alert db-alert--danger" style="margin-bottom:16px;">
-                    <i class="fas fa-exclamation-circle"></i> <?= esc(session()->getFlashdata('error')) ?>
-                </div>
-            <?php endif; ?>
-
             <form method="get" data-live-results="liveResults" style="margin-bottom:16px;">
                 <div class="db-search-wrap">
                     <i class="fas fa-search"></i>
@@ -152,91 +194,95 @@
                 </div>
             </form>
             <div id="liveResults">
-            <?php if ($activities === []): ?>
-                <div class="brgy-empty">
-                    <i class="fas fa-bullhorn" style="font-size:36px;color:#c5cdd8;display:block;margin-bottom:12px;"></i>
-                    <p style="margin:0;font-weight:600;color:#1c2b45;"><?= ($search ?? '') !== '' ? 'No activities match your search.' : 'No activities posted yet' ?></p>
-                    <p style="margin:6px 0 0;font-size:13px;">New barangay activities will appear here after they are posted.</p>
-                </div>
-            <?php else: ?>
-                <div class="brgy-grid">
-                    <?php foreach ($activities as $activity):
-                        $conducted = $activity['conducted_date'] ?? $activity['activity_date'] ?? '';
-                        $closed = ! empty($activity['end_date']) && $activity['end_date'] < date('Y-m-d');
-                        $status = $closed ? 'Closed' : ($activity['status'] ?? 'Upcoming');
-                        $reqs = $activity['requirements_list'] ?? [];
-                        $reg = $activity['registration'] ?? null;
-                        $eligLabels = \App\Models\BarangayActivityModel::eligibilitySummary($activity);
-                    ?>
-                        <article class="brgy-card">
-                            <?php $banner = trim((string) ($activity['banner_path'] ?? '')); ?>
-                            <?php if ($banner !== ''): ?>
-                                <img class="brgy-banner" src="/uploads/<?= esc(ltrim($banner, '/')) ?>" alt="">
-                            <?php endif; ?>
-                            <div class="brgy-card-head">
-                                <div class="brgy-icon"><i class="fas fa-bullhorn"></i></div>
-                                <div style="min-width:0;flex:1;">
-                                    <h2><?= esc($activity['title']) ?></h2>
-                                    <div class="brgy-meta">
-                                        <span><i class="fas fa-tag"></i> <?= esc($activity['category'] ?? 'Other') ?></span>
-                                        <span><i class="fas fa-calendar"></i> <?= $conducted !== '' ? esc(date('M j, Y', strtotime($conducted))) : 'Date to be announced' ?></span>
-                                        <span><i class="fas fa-map-marker-alt"></i> <?= esc($activity['venue'] ?: 'Venue to be announced') ?></span>
-                                        <?php if ($eligLabels !== []): ?>
-                                            <span><i class="fas fa-user-check"></i> <?= esc(implode(' · ', $eligLabels)) ?></span>
+                <?php if ($activities === []): ?>
+                    <div class="brgy-empty">
+                        <i class="fas fa-bullhorn" style="font-size:36px;color:#c5cdd8;display:block;margin-bottom:12px;"></i>
+                        <p style="margin:0;font-weight:600;color:#1c2b45;"><?= ($search ?? '') !== '' ? 'No activities match your search.' : 'No activities posted yet' ?></p>
+                        <p style="margin:6px 0 0;font-size:13px;">New barangay activities will appear here after they are posted.</p>
+                    </div>
+                <?php else: ?>
+                    <div class="brgy-grid">
+                        <?php foreach ($activities as $activity):
+                            $conducted = $activity['conducted_date'] ?? $activity['activity_date'] ?? '';
+                            $closed = ! empty($activity['end_date']) && $activity['end_date'] < date('Y-m-d');
+                            $status = $closed ? 'Closed' : ($activity['status'] ?? 'Upcoming');
+                            $reqs = $activity['requirements_list'] ?? [];
+                            $reg = $activity['registration'] ?? null;
+                            $eligLabels = \App\Models\BarangayActivityModel::eligibilitySummary($activity);
+                        ?>
+                            <article class="brgy-card">
+                                <?php $banner = trim((string) ($activity['banner_path'] ?? '')); ?>
+                                <?php if ($banner !== ''): ?>
+                                    <img class="brgy-banner" src="/uploads/<?= esc(ltrim($banner, '/')) ?>" alt="">
+                                <?php endif; ?>
+                                <div class="brgy-card-head">
+                                    <div class="brgy-icon"><i class="fas fa-bullhorn"></i></div>
+                                    <div style="min-width:0;flex:1;">
+                                        <h2><?= esc($activity['title']) ?></h2>
+                                        <div class="brgy-meta">
+                                            <span><i class="fas fa-tag"></i> <?= esc($activity['category'] ?? 'Other') ?></span>
+                                            <span><i class="fas fa-calendar"></i> <?= $conducted !== '' ? esc(date('M j, Y', strtotime($conducted))) : 'Date to be announced' ?></span>
+                                            <span><i class="fas fa-map-marker-alt"></i> <?= esc($activity['venue'] ?: 'Venue to be announced') ?></span>
+                                            <?php if ($eligLabels !== []): ?>
+                                                <span><i class="fas fa-user-check"></i> <?= esc(implode(' · ', $eligLabels)) ?></span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                    <span class="dbadge <?= $status === 'Active' ? 'dbadge--approved' : 'dbadge--resolved' ?>"><?= esc($status) ?></span>
+                                </div>
+                                <div class="brgy-body">
+                                    <?= nl2br(esc($activity['description'] ?: 'Details will be announced by the barangay.')) ?>
+                                    <?php if ($reqs !== []): ?>
+                                        <div class="brgy-reqs">
+                                            <p>Requirements</p>
+                                            <?php foreach ($reqs as $req): ?>
+                                                <div class="brgy-req"><i class="fas fa-check-circle"></i><?= esc($req) ?></div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                    <div style="margin-top:12px;font-size:12px;color:#6b7689;">
+                                        <?php
+                                        $total = (int) ($activity['registration_count'] ?? 0);
+                                        $slots = (int) ($activity['target_participants'] ?? 0);
+                                        ?>
+                                        <span style="color:#1d2448;font-weight:600;"><?= $total ?></span> registered
+                                        <?php if ($slots > 0): ?>
+                                            of <strong><?= $slots ?></strong> slots
                                         <?php endif; ?>
                                     </div>
                                 </div>
-                                <span class="dbadge <?= $status === 'Active' ? 'dbadge--approved' : 'dbadge--resolved' ?>"><?= esc($status) ?></span>
-                            </div>
-                            <div class="brgy-body">
-                                <?= nl2br(esc($activity['description'] ?: 'Details will be announced by the barangay.')) ?>
-                                <?php if ($reqs !== []): ?>
-                                    <div class="brgy-reqs">
-                                        <p>Requirements</p>
-                                        <?php foreach ($reqs as $req): ?>
-                                            <div class="brgy-req"><i class="fas fa-check-circle"></i><?= esc($req) ?></div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php endif; ?>
-                                <div style="margin-top:12px;font-size:12px;color:#6b7689;">
-                                    <?= (int) ($activity['registration_count'] ?? 0) ?> registered
-                                    <?php if ((int) ($activity['target_participants'] ?? 0) > 0): ?>
-                                        of <?= (int) $activity['target_participants'] ?> slots
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                            <div class="brgy-foot">
-                                <?php if ($reg): ?>
-                                    <span class="brgy-chip brgy-chip--<?= esc($reg['status'], 'attr') ?>">
+                                <div class="brgy-foot">
+                                    <?php if ($reg): ?>
+                                        <span class="brgy-chip brgy-chip--<?= esc($reg['status'], 'attr') ?>">
+                                            <?php if ($reg['status'] === 'pending'): ?>
+                                                <i class="fas fa-clock"></i> Pending approval
+                                            <?php elseif ($reg['status'] === 'approved'): ?>
+                                                <i class="fas fa-check-circle"></i> Approved
+                                            <?php else: ?>
+                                                <i class="fas fa-times-circle"></i> Not approved
+                                            <?php endif; ?>
+                                        </span>
                                         <?php if ($reg['status'] === 'pending'): ?>
-                                            <i class="fas fa-clock"></i> Pending approval
-                                        <?php elseif ($reg['status'] === 'approved'): ?>
-                                            <i class="fas fa-check-circle"></i> Approved
-                                        <?php else: ?>
-                                            <i class="fas fa-times-circle"></i> Not approved
+                                            <form action="/<?= esc($role) ?>/activities/unjoin/<?= (int) $activity['id'] ?>" method="post" class="unjoin-form" data-name="<?= esc($activity['title'], 'attr') ?>">
+                                                <?= csrf_field() ?>
+                                                <button type="submit" class="db-btn db-btn--outline db-btn--sm">Cancel</button>
+                                            </form>
+                                        <?php elseif ($reg['status'] === 'rejected' && ! empty($reg['rejection_reason'])): ?>
+                                            <span style="font-size:12px;color:#b02a37;"><strong>Reason:</strong> <?= esc($reg['rejection_reason']) ?></span>
                                         <?php endif; ?>
-                                    </span>
-                                    <?php if ($reg['status'] === 'pending'): ?>
-                                        <form action="/<?= esc($role) ?>/activities/unjoin/<?= (int) $activity['id'] ?>" method="post" class="unjoin-form" data-name="<?= esc($activity['title'], 'attr') ?>">
-                                            <?= csrf_field() ?>
-                                            <button type="submit" class="db-btn db-btn--outline db-btn--sm">Cancel</button>
-                                        </form>
-                                    <?php elseif ($reg['status'] === 'rejected' && ! empty($reg['rejection_reason'])): ?>
-                                        <span style="font-size:12px;color:#b02a37;"><strong>Reason:</strong> <?= esc($reg['rejection_reason']) ?></span>
+                                    <?php elseif ($closed || ($activity['status'] ?? '') === 'Completed'): ?>
+                                        <span style="font-size:12px;color:#6b7689;">This activity has ended.</span>
+                                    <?php else: ?>
+                                        <button type="button" class="db-btn db-btn--primary db-btn--sm"
+                                            onclick="openJoinModal(<?= htmlspecialchars(json_encode(['id' => (int) $activity['id'], 'name' => $activity['title'], 'reqs' => $reqs]), ENT_QUOTES) ?>)">
+                                            <i class="fas fa-hand-paper"></i> Join Activity
+                                        </button>
                                     <?php endif; ?>
-                                <?php elseif ($closed || ($activity['status'] ?? '') === 'Completed'): ?>
-                                    <span style="font-size:12px;color:#6b7689;">This activity has ended.</span>
-                                <?php else: ?>
-                                    <button type="button" class="db-btn db-btn--primary db-btn--sm"
-                                        onclick="openJoinModal(<?= htmlspecialchars(json_encode(['id' => (int) $activity['id'], 'name' => $activity['title'], 'reqs' => $reqs]), ENT_QUOTES) ?>)">
-                                        <i class="fas fa-hand-paper"></i> Join Activity
-                                    </button>
-                                <?php endif; ?>
-                            </div>
-                        </article>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
+                                </div>
+                            </article>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -275,6 +321,7 @@
         function closeJoinModal() {
             document.getElementById('joinModal').classList.remove('active');
         }
+
         function openJoinModal(activity) {
             document.getElementById('joinModalTitle').textContent = 'Join: ' + activity.name;
             document.getElementById('joinForm').action = '/<?= esc($role) ?>/activities/join/' + activity.id;
@@ -287,11 +334,11 @@
             );
             document.getElementById('joinModal').classList.add('active');
         }
-        document.getElementById('joinModal').addEventListener('click', function (event) {
+        document.getElementById('joinModal').addEventListener('click', function(event) {
             if (event.target === this) closeJoinModal();
         });
-        document.querySelectorAll('.unjoin-form').forEach(function (form) {
-            form.addEventListener('submit', function (event) {
+        document.querySelectorAll('.unjoin-form').forEach(function(form) {
+            form.addEventListener('submit', function(event) {
                 if (!confirm('Cancel your registration for "' + (form.dataset.name || 'this activity') + '"?')) {
                     event.preventDefault();
                 }

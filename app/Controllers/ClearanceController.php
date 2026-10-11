@@ -93,7 +93,22 @@ class ClearanceController extends BaseController
             // Match by name against the household head first, then household_members
             $ownerName         = strtolower(trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')));
             $headName          = $head ? strtolower(trim(($head['first_name'] ?? '') . ' ' . ($head['last_name'] ?? ''))) : '';
-            $ownerIsHead       = $head && ($ownerName === $headName);
+
+            // Exact match first; then try prefix match on first name + same last name
+            // (handles "MARIANE" vs "MARIANE MAE", "JUAN" vs "JUAN JR", etc.)
+            $ownerLastNorm = strtolower(trim($user['last_name'] ?? ''));
+            $ownerFirstNorm = strtolower(trim($user['first_name'] ?? ''));
+            $headLastNorm = $head ? strtolower(trim($head['last_name'] ?? '')) : '';
+            $headFirstNorm = $head ? strtolower(trim($head['first_name'] ?? '')) : '';
+
+            $ownerIsHead = $head && (
+                $ownerName === $headName
+                || (
+                    $ownerLastNorm !== '' && $ownerLastNorm === $headLastNorm
+                    && $ownerFirstNorm !== ''
+                    && (str_starts_with($headFirstNorm, $ownerFirstNorm) || str_starts_with($ownerFirstNorm, $headFirstNorm))
+                )
+            );
             $ownerIsSpouse     = false;
             $ownerMemberRecord = null;
 
@@ -128,11 +143,14 @@ class ClearanceController extends BaseController
                 ];
                 $occupation = $ownerMemberRecord['occupation'] ?? '';
             } else {
-                // Fallback: user name from session (no matching census record found)
+                // Fallback: use household head name if linked, otherwise user account name
+                $fallbackName = ($head && ! empty($head['first_name']))
+                    ? trim(($head['first_name'] ?? '') . ' ' . ($head['last_name'] ?? ''))
+                    : trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
                 $members[] = [
-                    'name'          => trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')),
-                    'relationship'  => 'Resident',
-                    'date_of_birth' => null,
+                    'name'          => $fallbackName,
+                    'relationship'  => 'Household Head',
+                    'date_of_birth' => $head['date_of_birth'] ?? null,
                     'is_minor'      => false,
                 ];
             }
@@ -339,47 +357,47 @@ class ClearanceController extends BaseController
                     return redirect()->back()->with('error', 'This request was already submitted. Check your list before sending it again.')->withInput();
                 }
                 try {
-                // Auto-reject: insert as rejected immediately
-                $autoRejectRemarks = 'Automatically rejected: household net monthly income of ₱' . number_format($totalIncome, 2) . ' exceeds the ₱12,000.00 indigency threshold.';
-                $this->model->insert([
-                    'user_id'             => $userId,
-                    'household_no'        => $user['household_no'] ?? null,
-                    'for_member'          => $forMember,
-                    'member_relationship' => $memberRel,
-                    'document_type'       => $docType,
-                    'purpose'             => $purpose,
-                    'notes'               => $notes ?: null,
-                    'status'              => 'rejected',
-                    'remarks'             => $autoRejectRemarks,
-                    'processed_at'        => date('Y-m-d H:i:s'),
-                    'est_release_date'    => null,
-                ]);
+                    // Auto-reject: insert as rejected immediately
+                    $autoRejectRemarks = 'Automatically rejected: household net monthly income of ₱' . number_format($totalIncome, 2) . ' exceeds the ₱12,000.00 indigency threshold.';
+                    $this->model->insert([
+                        'user_id'             => $userId,
+                        'household_no'        => $user['household_no'] ?? null,
+                        'for_member'          => $forMember,
+                        'member_relationship' => $memberRel,
+                        'document_type'       => $docType,
+                        'purpose'             => $purpose,
+                        'notes'               => $notes ?: null,
+                        'status'              => 'rejected',
+                        'remarks'             => $autoRejectRemarks,
+                        'processed_at'        => date('Y-m-d H:i:s'),
+                        'est_release_date'    => null,
+                    ]);
 
-                NotificationModel::push(
-                    $userId,
-                    'clearance_rejected',
-                    'Request Not Approved — ' . $docType,
-                    'Your ' . $docType . ' request was automatically rejected. Reason: ' . $autoRejectRemarks,
-                    $this->clearanceLinkForUser($userId)
-                );
-                $this->notifyClearanceByEmail([
-                    'user_id'          => $userId,
-                    'document_type'    => $docType,
-                    'est_release_date' => null,
-                ], 'rejected', $autoRejectRemarks);
+                    NotificationModel::push(
+                        $userId,
+                        'clearance_rejected',
+                        'Request Not Approved — ' . $docType,
+                        'Your ' . $docType . ' request was automatically rejected. Reason: ' . $autoRejectRemarks,
+                        $this->clearanceLinkForUser($userId)
+                    );
+                    $this->notifyClearanceByEmail([
+                        'user_id'          => $userId,
+                        'document_type'    => $docType,
+                        'est_release_date' => null,
+                    ], 'rejected', $autoRejectRemarks);
 
-                $role = match (session()->get('role')) {
-                    'sk'      => 'sk',
-                    'captain' => 'captain',
-                    'council' => 'council',
-                    default   => 'resident',
-                };
-                return redirect()->to('/' . $role . '/clearance')->with(
-                    'error',
-                    'Your request for a Certificate of Indigency was automatically rejected. ' .
-                        'Your household\'s net monthly income (₱' . number_format($totalIncome, 2) . ') ' .
-                        'exceeds the ₱12,000.00 eligibility threshold.'
-                );
+                    $role = match (session()->get('role')) {
+                        'sk'      => 'sk',
+                        'captain' => 'captain',
+                        'council' => 'council',
+                        default   => 'resident',
+                    };
+                    return redirect()->to('/' . $role . '/clearance')->with(
+                        'error',
+                        'Your request for a Certificate of Indigency was automatically rejected. ' .
+                            'Your household\'s net monthly income (₱' . number_format($totalIncome, 2) . ') ' .
+                            'exceeds the ₱12,000.00 eligibility threshold.'
+                    );
                 } finally {
                     $this->model->releaseOpenSlot($slot);
                 }
@@ -401,41 +419,41 @@ class ClearanceController extends BaseController
         }
 
         try {
-        $this->model->insert([
-            'user_id'             => $userId,
-            'household_no'        => $user['household_no'] ?? null,
-            'for_member'          => $forMember,
-            'member_relationship' => $memberRel,
-            'document_type'       => $docType,
-            'purpose'             => $purpose,
-            'notes'               => $notes ?: null,
-            'status'              => 'pending',
-            'est_release_date'    => $estRelease,
-        ]);
+            $this->model->insert([
+                'user_id'             => $userId,
+                'household_no'        => $user['household_no'] ?? null,
+                'for_member'          => $forMember,
+                'member_relationship' => $memberRel,
+                'document_type'       => $docType,
+                'purpose'             => $purpose,
+                'notes'               => $notes ?: null,
+                'status'              => 'pending',
+                'est_release_date'    => $estRelease,
+            ]);
 
-        $saved = [
-            'user_id'          => $userId,
-            'document_type'    => $docType,
-            'est_release_date' => $estRelease,
-            'resident_name'    => trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')),
-        ];
-        $autoApproved = $this->autoApproveIfEnabled((int) $this->model->getInsertID(), $saved);
-        $this->emailStaffClearance($saved, $autoApproved ? 'auto_approved' : 'submitted');
+            $saved = [
+                'user_id'          => $userId,
+                'document_type'    => $docType,
+                'est_release_date' => $estRelease,
+                'resident_name'    => trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')),
+            ];
+            $autoApproved = $this->autoApproveIfEnabled((int) $this->model->getInsertID(), $saved);
+            $this->emailStaffClearance($saved, $autoApproved ? 'auto_approved' : 'submitted');
 
-        $role = match (session()->get('role')) {
-            'sk'      => 'sk',
-            'captain' => 'captain',
-            'council' => 'council',
-            'admin'   => 'admin',
-            'secretary' => 'secretary',
-            default   => 'resident',
-        };
-        $releaseLabel = date('M d, Y', strtotime($autoApproved ? date('Y-m-d') : $estRelease));
-        $message = $autoApproved
-            ? 'Request approved automatically. Estimated release: ' . $releaseLabel
-            : 'Request submitted successfully! Estimated release: ' . $releaseLabel;
+            $role = match (session()->get('role')) {
+                'sk'      => 'sk',
+                'captain' => 'captain',
+                'council' => 'council',
+                'admin'   => 'admin',
+                'secretary' => 'secretary',
+                default   => 'resident',
+            };
+            $releaseLabel = date('M d, Y', strtotime($autoApproved ? date('Y-m-d') : $estRelease));
+            $message = $autoApproved
+                ? 'Request approved automatically. Estimated release: ' . $releaseLabel
+                : 'Request submitted successfully! Estimated release: ' . $releaseLabel;
 
-        return redirect()->to('/' . $role . '/clearance')->with('success', $message);
+            return redirect()->to('/' . $role . '/clearance')->with('success', $message);
         } finally {
             $this->model->releaseOpenSlot($slot);
         }
@@ -548,43 +566,43 @@ class ClearanceController extends BaseController
         }
 
         try {
-        $this->model->insert([
-            'user_id'             => $userId,
-            'household_no'        => $user['household_no'] ?? null,
-            'for_member'          => $residentName,
-            'member_relationship' => 'Resident',
-            'document_type'       => $docType,
-            'purpose'             => $purpose,
-            'notes'               => $notes ?: null,
-            'status'              => 'pending',
-            'est_release_date'    => $estRelease,
-        ]);
+            $this->model->insert([
+                'user_id'             => $userId,
+                'household_no'        => $user['household_no'] ?? null,
+                'for_member'          => $residentName,
+                'member_relationship' => 'Resident',
+                'document_type'       => $docType,
+                'purpose'             => $purpose,
+                'notes'               => $notes ?: null,
+                'status'              => 'pending',
+                'est_release_date'    => $estRelease,
+            ]);
 
-        $saved = [
-            'user_id'          => $userId,
-            'document_type'    => $docType,
-            'est_release_date' => $estRelease,
-            'resident_name'    => $residentName,
-        ];
-        $autoApproved = $this->autoApproveIfEnabled((int) $this->model->getInsertID(), $saved, (int) session()->get('user_id'));
+            $saved = [
+                'user_id'          => $userId,
+                'document_type'    => $docType,
+                'est_release_date' => $estRelease,
+                'resident_name'    => $residentName,
+            ];
+            $autoApproved = $this->autoApproveIfEnabled((int) $this->model->getInsertID(), $saved, (int) session()->get('user_id'));
 
-        if (! $autoApproved) {
-            NotificationModel::push(
-                $userId,
-                'clearance_submitted',
-                'New Clearance Request',
-                'A secretary filed a ' . $docType . ' request for your account.',
-                $this->clearanceLinkForUser($userId)
-            );
-        }
+            if (! $autoApproved) {
+                NotificationModel::push(
+                    $userId,
+                    'clearance_submitted',
+                    'New Clearance Request',
+                    'A secretary filed a ' . $docType . ' request for your account.',
+                    $this->clearanceLinkForUser($userId)
+                );
+            }
 
-        $this->emailStaffClearance($saved, $autoApproved ? 'auto_approved' : 'submitted');
+            $this->emailStaffClearance($saved, $autoApproved ? 'auto_approved' : 'submitted');
 
-        $message = $autoApproved
-            ? 'Request for ' . $residentName . ' was approved automatically.'
-            : 'Request created and linked to ' . $residentName . '.';
+            $message = $autoApproved
+                ? 'Request for ' . $residentName . ' was approved automatically.'
+                : 'Request created and linked to ' . $residentName . '.';
 
-        return redirect()->to('/' . session_role() . '/clearance')->with('success', $message);
+            return redirect()->to('/' . session_role() . '/clearance')->with('success', $message);
         } finally {
             $this->model->releaseOpenSlot($slot);
         }

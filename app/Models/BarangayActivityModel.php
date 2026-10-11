@@ -170,7 +170,7 @@ class BarangayActivityModel extends Model
 
         return array_values(array_filter(
             array_map('trim', explode(',', $groups)),
-            static fn (string $group): bool => in_array($group, $allowed, true)
+            static fn(string $group): bool => in_array($group, $allowed, true)
         ));
     }
 
@@ -186,7 +186,7 @@ class BarangayActivityModel extends Model
         }
         $groups = array_values(array_unique(array_filter(
             array_map('strval', $groups),
-            static fn (string $group): bool => in_array($group, $allowed, true)
+            static fn(string $group): bool => in_array($group, $allowed, true)
         )));
         $other = trim((string) $request->getPost('eligibility_other'));
         if (! in_array('other', $groups, true)) {
@@ -254,7 +254,7 @@ class BarangayActivityModel extends Model
     public static function educationEligibilityError(?array $user, array $activity): ?string
     {
         $groups = self::parseEligibilityGroups($activity['eligibility_groups'] ?? null);
-        $checkable = array_values(array_filter($groups, static fn (string $group): bool => $group !== 'other'));
+        $checkable = array_values(array_filter($groups, static fn(string $group): bool => $group !== 'other'));
         if ($checkable === []) {
             return null;
         }
@@ -322,6 +322,35 @@ class BarangayActivityModel extends Model
         return (int) $this->db->table('barangay_activity_registrations')
             ->where('activity_id', $activityId)
             ->countAllResults();
+    }
+
+    /**
+     * Returns ['total' => int, 'approved' => int, 'pending' => int, 'rejected' => int]
+     */
+    public function registrationCountByStatus(int $activityId): array
+    {
+        if (! $this->db->tableExists('barangay_activity_registrations')) {
+            return ['total' => 0, 'approved' => 0, 'pending' => 0, 'rejected' => 0];
+        }
+
+        $rows = $this->db->table('barangay_activity_registrations')
+            ->select('status, COUNT(*) AS cnt')
+            ->where('activity_id', $activityId)
+            ->groupBy('status')
+            ->get()
+            ->getResultArray();
+
+        $counts = ['total' => 0, 'approved' => 0, 'pending' => 0, 'rejected' => 0];
+        foreach ($rows as $row) {
+            $s = strtolower((string) ($row['status'] ?? ''));
+            $n = (int) $row['cnt'];
+            $counts['total'] += $n;
+            if (isset($counts[$s])) {
+                $counts[$s] = $n;
+            }
+        }
+
+        return $counts;
     }
 
     public function registrationFor(int $activityId, int $userId): ?array

@@ -272,6 +272,13 @@
                                         placeholder="e.g. brgy.sanjose@lgu.gov.ph">
                                 </div>
                             </div>
+                            <div class="mv-field" style="margin-top:10px;">
+                                <label>Message to destination barangay <span style="color:#6b7689;font-weight:400;">(optional)</span></label>
+                                <textarea name="transfer_message" rows="4" maxlength="1000"
+                                    style="width:100%;padding:10px 12px;border:1.5px solid #dde4f0;border-radius:8px;font-family:inherit;font-size:13px;resize:vertical;"
+                                    placeholder="e.g. Please verify if this resident has any existing record. They are relocating due to marriage. Contact us at 09XX-XXX-XXXX for coordination."></textarea>
+                                <small style="color:#6b7689;display:block;margin-top:4px;">This message will be included in the email sent to the destination barangay.</small>
+                            </div>
                         </div>
                     </div>
 

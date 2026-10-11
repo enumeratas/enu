@@ -148,7 +148,7 @@
 
         .clr-member-pill.selected {
             border-color: #1d2448;
-            background: #1d2448;
+            background: #2e3a6e;
         }
 
         .clr-member-pill input[type="radio"] {
@@ -170,25 +170,35 @@
         }
 
         .clr-member-pill.selected .clr-member-avatar {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.15);
             color: #fff;
         }
 
         .clr-member-name {
-            font-size: 12.5px;
-            font-weight: 600;
+            font-size: 13.5px;
+            font-weight: 700;
             color: #1a1d2e;
             line-height: 1.3;
         }
 
         .clr-member-rel {
             font-size: 11px;
-            color: #9aa0b4;
+            color: #4a5068;
         }
 
-        .clr-member-pill.selected .clr-member-name,
+        .clr-member-pill.selected .clr-member-name {
+            color: #ffffff !important;
+            font-weight: 700;
+            text-shadow: none;
+        }
+
         .clr-member-pill.selected .clr-member-rel {
-            color: #fff;
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+
+        .clr-member-pill:hover .clr-member-name,
+        .clr-member-pill:hover .clr-member-rel {
+            color: #1a1d2e;
         }
 
         /* Doc type cards */
@@ -662,70 +672,70 @@
             </div>
 
             <div id="liveResults">
-            <!-- Requests table -->
-            <div class="db-table-wrap">
-                <table class="db-table" id="requestsTable">
-                    <thead>
-                        <tr>
-                            <th>For</th>
-                            <th>Document Type</th>
-                            <th>Purpose</th>
-                            <th>Date Filed</th>
-                            <th>Est. Release</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($requests)): ?>
+                <!-- Requests table -->
+                <div class="db-table-wrap">
+                    <table class="db-table" id="requestsTable">
+                        <thead>
                             <tr>
-                                <td colspan="6">
-                                    <div class="clr-empty">
-                                        <i class="fas fa-file-alt"></i>
-                                        <p><?= ($search ?? '') !== '' ? 'No requests match your search.' : 'No requests yet. Click <strong>New Request</strong> to get started.' ?></p>
-                                    </div>
-                                </td>
+                                <th>For</th>
+                                <th>Document Type</th>
+                                <th>Purpose</th>
+                                <th>Date Filed</th>
+                                <th>Est. Release</th>
+                                <th>Status</th>
                             </tr>
-                        <?php else: ?>
-                            <?php foreach ($requests as $r):
-                                $statusMap = [
-                                    'pending'  => ['clr-badge--pending',  'fa-clock',        'Pending'],
-                                    'approved' => ['clr-badge--approved', 'fa-check-circle', 'Approved'],
-                                    'rejected' => ['clr-badge--rejected', 'fa-times-circle', 'Rejected'],
-                                    'released' => ['clr-badge--released', 'fa-box-open',     'Released'],
-                                ];
-                                [$badgeClass, $icon, $label] = $statusMap[$r['status']] ?? $statusMap['pending'];
-                                $filed   = date('M d, Y', strtotime($r['created_at']));
-                                $release = $r['est_release_date'] ? date('M d, Y', strtotime($r['est_release_date'])) : '—';
-                            ?>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($requests)): ?>
                                 <tr>
-                                    <td>
-                                        <div style="font-size:13px;font-weight:600;color:#1a1d2e;"><?= esc($r['for_member']) ?></div>
-                                        <div style="font-size:11px;color:#9aa0b4;"><?= esc($r['member_relationship'] ?? '') ?></div>
-                                    </td>
-                                    <td><?= esc($r['document_type']) ?></td>
-                                    <td><?= esc($r['purpose']) ?></td>
-                                    <td><?= $filed ?></td>
-                                    <td><?= $release ?></td>
-                                    <td>
-                                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                                            <span class="clr-badge <?= $badgeClass ?>">
-                                                <i class="fas <?= $icon ?>"></i> <?= $label ?>
-                                            </span>
-                                            <?php if (($r['status'] ?? '') === 'pending'): ?>
-                                                <button type="button"
-                                                    class="db-btn db-btn--xs db-btn--danger"
-                                                    onclick='confirmCancel(<?= (int) $r['id'] ?>, <?= json_encode($r['document_type'] ?? '') ?>)'>
-                                                    <i class="fas fa-times"></i> Cancel
-                                                </button>
-                                            <?php endif; ?>
+                                    <td colspan="6">
+                                        <div class="clr-empty">
+                                            <i class="fas fa-file-alt"></i>
+                                            <p><?= ($search ?? '') !== '' ? 'No requests match your search.' : 'No requests yet. Click <strong>New Request</strong> to get started.' ?></p>
                                         </div>
                                     </td>
                                 </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
+                            <?php else: ?>
+                                <?php foreach ($requests as $r):
+                                    $statusMap = [
+                                        'pending'  => ['clr-badge--pending',  'fa-clock',        'Pending'],
+                                        'approved' => ['clr-badge--approved', 'fa-check-circle', 'Approved'],
+                                        'rejected' => ['clr-badge--rejected', 'fa-times-circle', 'Rejected'],
+                                        'released' => ['clr-badge--released', 'fa-box-open',     'Released'],
+                                    ];
+                                    [$badgeClass, $icon, $label] = $statusMap[$r['status']] ?? $statusMap['pending'];
+                                    $filed   = date('M d, Y', strtotime($r['created_at']));
+                                    $release = $r['est_release_date'] ? date('M d, Y', strtotime($r['est_release_date'])) : '—';
+                                ?>
+                                    <tr>
+                                        <td>
+                                            <div style="font-size:13px;font-weight:600;color:#1a1d2e;"><?= esc($r['for_member']) ?></div>
+                                            <div style="font-size:11px;color:#9aa0b4;"><?= esc($r['member_relationship'] ?? '') ?></div>
+                                        </td>
+                                        <td><?= esc($r['document_type']) ?></td>
+                                        <td><?= esc($r['purpose']) ?></td>
+                                        <td><?= $filed ?></td>
+                                        <td><?= $release ?></td>
+                                        <td>
+                                            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                                                <span class="clr-badge <?= $badgeClass ?>">
+                                                    <i class="fas <?= $icon ?>"></i> <?= $label ?>
+                                                </span>
+                                                <?php if (($r['status'] ?? '') === 'pending'): ?>
+                                                    <button type="button"
+                                                        class="db-btn db-btn--xs db-btn--danger"
+                                                        onclick='confirmCancel(<?= (int) $r['id'] ?>, <?= json_encode($r['document_type'] ?? '') ?>)'>
+                                                        <i class="fas fa-times"></i> Cancel
+                                                    </button>
+                                                <?php endif; ?>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
         </div>
@@ -1023,7 +1033,7 @@
 
         const clearanceForm = document.getElementById('clearanceForm');
         if (clearanceForm) {
-            clearanceForm.addEventListener('submit', function (event) {
+            clearanceForm.addEventListener('submit', function(event) {
                 const note = clearanceForm.querySelector('[data-offline-sync-status]');
                 const chosen = clearanceForm.querySelector('input[name="document_type"]:checked:not(:disabled)');
                 const purpose = clearanceForm.querySelector('[name="purpose"]');
@@ -1039,15 +1049,17 @@
                     }
                     if (note) {
                         note.style.color = '#b42318';
-                        note.textContent = !chosen
-                            ? 'Choose a document type before submitting.'
-                            : (otherMissing
-                                ? 'Specify the exact purpose of your request.'
-                                : 'Choose a purpose before submitting.');
+                        note.textContent = !chosen ?
+                            'Choose a document type before submitting.' :
+                            (otherMissing ?
+                                'Specify the exact purpose of your request.' :
+                                'Choose a purpose before submitting.');
                     }
                     const target = !chosen ? document.getElementById('secretaryDocumentType') : (otherMissing ? purposeOther : purpose);
                     if (target && typeof target.scrollIntoView === 'function') {
-                        target.scrollIntoView({ block: 'center' });
+                        target.scrollIntoView({
+                            block: 'center'
+                        });
                     }
                     if (purpose && chosen && typeof purpose.reportValidity === 'function') {
                         purpose.reportValidity();

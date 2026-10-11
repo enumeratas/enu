@@ -228,6 +228,10 @@ class HouseholdMoveController extends BaseController
             $payload['destination_barangay_email'] = $destBarangayEmail;
             $payload['is_barangay_transfer']       = 1;
             $payload['status']                     = 'pending'; // always pending for transfers
+            $transferMessage = substr(trim((string) ($post['transfer_message'] ?? '')), 0, 1000);
+            if ($transferMessage !== '') {
+                $payload['transfer_message'] = $transferMessage;
+            }
         }
 
         // Transfers always go through approval — override any auto-approve below.
@@ -241,7 +245,8 @@ class HouseholdMoveController extends BaseController
                 $payload['destination_barangay'],
                 $residentName,
                 $fromBarangay,
-                (string) $moveId
+                (string) $moveId,
+                $transferMessage ?? ''
             );
             if ($emailSent) {
                 $this->moveModel->update($moveId, ['transfer_confirmation_sent_at' => date('Y-m-d H:i:s')]);
@@ -944,7 +949,8 @@ class HouseholdMoveController extends BaseController
             (string) $move['destination_barangay'],
             $residentName,
             $fromBarangay,
-            (string) $id
+            (string) $id,
+            (string) ($move['transfer_message'] ?? '')
         );
 
         if ($sent) {

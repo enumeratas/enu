@@ -55,6 +55,14 @@ class AddBarangayTransferFields extends Migration
             ];
         }
 
+        if (! in_array('transfer_message', $fields, true)) {
+            $columns['transfer_message'] = [
+                'type' => 'TEXT',
+                'null' => true,
+                'after' => 'is_barangay_transfer',
+            ];
+        }
+
         if ($columns !== []) {
             $this->forge->addColumn('household_moves', $columns);
         }
@@ -63,7 +71,7 @@ class AddBarangayTransferFields extends Migration
     public function down()
     {
         $fields = $this->db->getFieldNames('household_moves');
-        foreach (['is_barangay_transfer', 'transfer_confirmed_at', 'transfer_confirmation_sent_at', 'destination_barangay_email', 'destination_barangay'] as $column) {
+        foreach (['transfer_message', 'is_barangay_transfer', 'transfer_confirmed_at', 'transfer_confirmation_sent_at', 'destination_barangay_email', 'destination_barangay'] as $column) {
             if (in_array($column, $fields, true)) {
                 $this->forge->dropColumn('household_moves', $column);
             }

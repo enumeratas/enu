@@ -124,3 +124,9 @@ _modules/*
 
 /results/
 /phpunit*.xml
+
+#-------------------------
+# Kiro AI Agent Artifacts
+#-------------------------
+.agents/
+.kiro/
