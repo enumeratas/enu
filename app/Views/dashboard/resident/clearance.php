@@ -713,35 +713,10 @@
                         <tbody>
                             <?php if (empty($requests)): ?>
                                 <tr>
-<<<<<<< HEAD
-                                    <td>
-                                        <div class="clr-for-name"><?= esc($r['for_member']) ?></div>
-                                        <?php if (trim((string) ($r['member_relationship'] ?? '')) !== ''): ?>
-                                            <div class="clr-for-rel"><?= esc($r['member_relationship']) ?></div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td><?= esc($r['document_type']) ?></td>
-                                    <td><?= esc($r['purpose']) ?></td>
-                                    <td><?= $filed ?></td>
-                                    <td><?= $release ?></td>
-                                    <td>
-                                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                                            <span class="clr-badge <?= $badgeClass ?>">
-                                                <i class="fas <?= $icon ?>"></i> <?= $label ?>
-                                            </span>
-                                            <?php if (($r['status'] ?? '') === 'pending'): ?>
-                                                <button type="button"
-                                                    class="db-btn db-btn--xs db-btn--danger"
-                                                    onclick='confirmCancel(<?= (int) $r['id'] ?>, <?= json_encode($r['document_type'] ?? '') ?>)'>
-                                                    <i class="fas fa-times"></i> Cancel
-                                                </button>
-                                            <?php endif; ?>
-=======
                                     <td colspan="6">
                                         <div class="clr-empty">
                                             <i class="fas fa-file-alt"></i>
                                             <p><?= ($search ?? '') !== '' ? 'No requests match your search.' : 'No requests yet. Click <strong>New Request</strong> to get started.' ?></p>
->>>>>>> b0819af0751a4d725d17ce3093c654ff2a036fa4
                                         </div>
                                     </td>
                                 </tr>
@@ -759,8 +734,10 @@
                                 ?>
                                     <tr>
                                         <td>
-                                            <div style="font-size:13px;font-weight:600;color:#1a1d2e;"><?= esc($r['for_member']) ?></div>
-                                            <div style="font-size:11px;color:#9aa0b4;"><?= esc($r['member_relationship'] ?? '') ?></div>
+                                            <div class="clr-for-name"><?= esc($r['for_member']) ?></div>
+                                            <?php if (trim((string) ($r['member_relationship'] ?? '')) !== ''): ?>
+                                                <div class="clr-for-rel"><?= esc($r['member_relationship']) ?></div>
+                                            <?php endif; ?>
                                         </td>
                                         <td><?= esc($r['document_type']) ?></td>
                                         <td><?= esc($r['purpose']) ?></td>
