@@ -73,6 +73,7 @@
                     </div>
                     <div class="db-toolbar-actions">
                         <?php if (in_array($role, ['admin', 'secretary'], true)): ?>
+                            <link rel="prefetch" href="/<?= esc($role) ?>/blotter/new">
                             <a href="/<?= esc($role) ?>/blotter/new" class="db-btn db-btn--primary"><i class="fas fa-plus"></i> Create Report</a>
                         <?php endif; ?>
                         <select class="db-filter-select" name="status" onchange="this.form.submit()">

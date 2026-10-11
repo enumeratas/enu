@@ -620,11 +620,53 @@
         });
     });
 
+    function offlinePages() {
+        var pages = [];
+        if (role === 'resident') {
+            pages.push('/resident/clearance');
+        }
+        if (role === 'admin' || role === 'secretary') {
+            pages.push('/' + role + '/blotter');
+            pages.push('/' + role + '/blotter/new');
+        }
+        document.querySelectorAll('a[href*="/blotter/new"]').forEach(function (link) {
+            var href = link.getAttribute('href');
+            if (href) {
+                pages.push(href);
+            }
+        });
+        return pages.filter(function (page, index, all) {
+            return page && all.indexOf(page) === index;
+        });
+    }
+
+    function prefetchOfflinePages() {
+        if (!canUseOffline() || !navigator.onLine || !nativeFetch) {
+            return;
+        }
+        var pages = offlinePages();
+        pages.forEach(function (page) {
+            nativeFetch(page, {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                cache: 'reload'
+            }).catch(function () {});
+        });
+        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'bis-prefetch',
+                userId: String(userId),
+                role: role,
+                pages: pages
+            });
+        }
+    }
+
     function tellServiceWorker() {
         if (!('serviceWorker' in navigator) || !userId) {
             return;
         }
-        var message = { type: 'bis-user', userId: String(userId), role: role };
+        var message = { type: 'bis-user', userId: String(userId), role: role, pages: offlinePages() };
         var send = function (worker) {
             if (worker) {
                 worker.postMessage(message);
@@ -637,6 +679,7 @@
             send(navigator.serviceWorker.controller);
         });
         send(navigator.serviceWorker.controller);
+        prefetchOfflinePages();
     }
 
     document.addEventListener('click', function (event) {

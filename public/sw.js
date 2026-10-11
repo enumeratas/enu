@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bis-app-shell-v11';
+const CACHE_NAME = 'bis-app-shell-v12';
 const APP_SHELL = [
   '/manifest.webmanifest',
   '/js/resident-offline.js',
@@ -70,15 +70,87 @@ function isSessionRequest(request) {
     || path.startsWith('/household-files/');
 }
 
-function isOfflineModulePage(url, request) {
-  const navigation = request.mode === 'navigate' || request.destination === 'document';
-  if (!navigation) {
-    return false;
-  }
-  const path = appPath(url);
+function isOfflineModulePath(path) {
   return /^\/resident\/clearance\/?$/.test(path)
     || /^\/(admin|secretary)\/blotter\/?$/.test(path)
     || /^\/(admin|secretary)\/blotter\/new\/?$/.test(path);
+}
+
+function offlinePagesForRole(role) {
+  if (role === 'resident') {
+    return ['/resident/clearance'];
+  }
+  if (role === 'admin') {
+    return ['/admin/blotter', '/admin/blotter/new'];
+  }
+  if (role === 'secretary') {
+    return ['/secretary/blotter', '/secretary/blotter/new'];
+  }
+  return [];
+}
+
+function requestVariants(request) {
+  const url = new URL(request.url || request, self.location.origin);
+  const path = appPath(url).replace(/\/+$/, '') || '/';
+  const origin = url.origin;
+  return Array.from(new Set([
+    request.url || (origin + path),
+    origin + path,
+    origin + path + '/',
+    origin + '/index.php' + path,
+    origin + '/index.php' + path + '/'
+  ]));
+}
+
+async function storeOfflinePage(userId, request, response) {
+  if (!userId || !canCacheResponse(response) || isAuthRedirectResponse(response)) {
+    return;
+  }
+  const redirectedToLogin = response.redirected && /\/login(?:$|[?#])/i.test(response.url);
+  if (redirectedToLogin) {
+    return;
+  }
+  const cache = await caches.open(userCacheName(userId));
+  const copy = response.clone();
+  await cache.put(request, copy.clone()).catch(() => undefined);
+  const variants = requestVariants(request);
+  await Promise.all(variants.map((href) => cache.put(href, copy.clone()).catch(() => undefined)));
+}
+
+async function matchOfflinePage(request, userId) {
+  if (!userId) {
+    return null;
+  }
+  const cache = await caches.open(userCacheName(userId));
+  const candidates = [request].concat(requestVariants(request));
+  for (const candidate of candidates) {
+    const hit = await cache.match(candidate, { ignoreSearch: true }).catch(() => null);
+    if (hit) {
+      return hit;
+    }
+  }
+  return null;
+}
+
+async function prefetchOfflinePages(userId, pages) {
+  if (!userId || !Array.isArray(pages)) {
+    return;
+  }
+  for (const page of pages) {
+    if (!page) {
+      continue;
+    }
+    try {
+      const request = new Request(new URL(page, self.location.origin).href, {
+        credentials: 'same-origin',
+        cache: 'reload'
+      });
+      const response = await fetch(request);
+      await storeOfflinePage(userId, request, response);
+    } catch (error) {
+      // Keep any page that was already cached.
+    }
+  }
 }
 
 function metaDb() {
@@ -113,7 +185,16 @@ function userCacheName(userId) {
 self.addEventListener('message', (event) => {
   const data = event.data || {};
   if (data.type === 'bis-user' && data.userId && ['resident', 'admin', 'secretary'].indexOf(data.role) !== -1) {
-    event.waitUntil(writeMeta('userId', String(data.userId)));
+    const pages = Array.isArray(data.pages) && data.pages.length
+      ? data.pages
+      : offlinePagesForRole(data.role);
+    event.waitUntil(Promise.all([
+      writeMeta('userId', String(data.userId)),
+      prefetchOfflinePages(String(data.userId), pages)
+    ]));
+  }
+  if (data.type === 'bis-prefetch' && data.userId) {
+    event.waitUntil(prefetchOfflinePages(String(data.userId), data.pages || offlinePagesForRole(data.role)));
   }
   if (data.type === 'bis-logout' && data.userId) {
     event.waitUntil(Promise.all([
@@ -174,18 +255,22 @@ self.addEventListener('fetch', (event) => {
   if (isSessionRequest(request)) {
     event.respondWith((async () => {
       const userId = await readMeta('userId');
-      const cacheName = userCacheName(userId);
       try {
         const response = await fetch(request);
-        const redirectedToLogin = response.redirected && /\/login(?:$|[?#])/i.test(response.url);
-        if (userId && isOfflineModulePage(url, request) && canCacheResponse(response) && !redirectedToLogin && !isAuthRedirectResponse(response)) {
-          const copy = response.clone();
-          caches.open(cacheName).then((cache) => cache.put(request, copy)).catch(() => undefined);
+        if (userId && isOfflineModulePath(path)) {
+          const toCache = response.clone();
+          event.waitUntil((async () => {
+            await storeOfflinePage(userId, request, toCache);
+            if (/^\/(admin|secretary)\/blotter\/?$/.test(path)) {
+              const prefix = path.indexOf('/admin/') === 0 ? '/admin' : '/secretary';
+              await prefetchOfflinePages(userId, [prefix + '/blotter/new']);
+            }
+          })());
         }
         return response;
       } catch (error) {
-        if (userId && isOfflineModulePage(url, request)) {
-          const cached = await caches.match(request, { cacheName });
+        if (userId && isOfflineModulePath(path)) {
+          const cached = await matchOfflinePage(request, userId);
           if (cached) {
             return cached;
           }
