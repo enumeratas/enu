@@ -1803,6 +1803,11 @@ class CensusController extends BaseController
                     ->with('error', 'The proof document could not be saved. Please try again.');
             }
             $proofDocPath = 'uploads/census_proof/' . $fileName;
+            try {
+                (new HouseholdUploadStorage())->store($uploadDir . $fileName, $proofDocPath);
+            } catch (\Throwable $e) {
+                log_message('warning', 'Census proof GCS upload failed: ' . $e->getMessage());
+            }
         }
 
         (new CensusUpdateAuthorizationModel())->update($auth['id'], [
@@ -2007,10 +2012,7 @@ class CensusController extends BaseController
         }
 
         // ── Proof URL ─────────────────────────────────────────────────────
-        $proofUrl = null;
-        if (! empty($auth['proof_document_path'])) {
-            $proofUrl = base_url((string) $auth['proof_document_path']);
-        }
+        $proofUrl = $this->protectedUploadUrl($auth['proof_document_path'] ?? null);
 
         // ── Resident name ─────────────────────────────────────────────────
         $residentName = '';
@@ -2025,11 +2027,26 @@ class CensusController extends BaseController
             'ok'            => true,
             'diff'          => $diff,
             'confirm_only'  => $confirmOnly,
-            'proof_url'     => $proofUrl,
+            'proof_url'     => $proofUrl !== '' ? $proofUrl : null,
             'resident_name' => $residentName,
             'submitted_at'  => $auth['submitted_at'] ?? null,
             'auth_id'       => $id,
         ]);
+    }
+
+    private function protectedUploadUrl(?string $path): string
+    {
+        $normalized = HouseholdUploadController::normalizeUploadPath($path);
+        if ($normalized === '') {
+            return '';
+        }
+
+        $route = preg_replace('#^uploads/#i', '', ltrim($normalized, '/'));
+        if ($route === '') {
+            return '';
+        }
+
+        return site_url('household-files/' . implode('/', array_map('rawurlencode', explode('/', $route))));
     }
 
     /**
@@ -2123,10 +2140,9 @@ class CensusController extends BaseController
             }
         }
 
-        $proofUrl     = null;
+        $proofUrl     = $this->protectedUploadUrl($auth['proof_document_path'] ?? null);
         $proofIsImage = false;
-        if (! empty($auth['proof_document_path'])) {
-            $proofUrl     = base_url((string) $auth['proof_document_path']);
+        if ($proofUrl !== '') {
             $ext          = strtolower(pathinfo((string) $auth['proof_document_path'], PATHINFO_EXTENSION));
             $proofIsImage = in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true);
         }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bis-app-shell-v12';
+const CACHE_NAME = 'bis-app-shell-v13';
 const APP_SHELL = [
   '/manifest.webmanifest',
   '/js/resident-offline.js',
@@ -65,9 +65,7 @@ function isSessionRequest(request) {
   return path === '/login'
     || path === '/logout'
     || path.startsWith('/api/')
-    || /^\/(admin|captain|secretary|resident|sk|council)(?:\/|$)/.test(path)
-    || path.startsWith('/uploads/')
-    || path.startsWith('/household-files/');
+    || /^\/(admin|captain|secretary|resident|sk|council)(?:\/|$)/.test(path);
 }
 
 function isOfflineModulePath(path) {

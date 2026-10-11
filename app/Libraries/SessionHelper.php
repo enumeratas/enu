@@ -137,6 +137,22 @@ class SessionHelper
             $detected = self::configureFromPath('/' . $path);
         }
 
+        // File routes such as /uploads/... and /household-files/... have no
+        // role prefix. Use the page that requested the file, then any live
+        // role cookie, so a secretary preview does not open the login page.
+        if ($detected === null) {
+            $referer = (string) ($_SERVER['HTTP_REFERER'] ?? '');
+            if ($referer !== '') {
+                $refPath = (string) (parse_url($referer, PHP_URL_PATH) ?? '');
+                if ($refPath !== '') {
+                    $detected = self::configureFromPath($refPath);
+                }
+            }
+        }
+        if ($detected === null) {
+            $detected = self::configureFromCookie();
+        }
+
         self::applyLifetime($detected);
     }
 

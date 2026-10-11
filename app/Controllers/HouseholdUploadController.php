@@ -26,7 +26,7 @@ class HouseholdUploadController extends BaseController
             return 'uploads/' . ltrim($matches[2], '/');
         }
 
-        if (preg_match('#(?:^|/)(ids|ownership|avatars|sk_profiles|sk_programs|blotter_evidence|barangay_activities)/(.+)$#i', $value, $matches)) {
+        if (preg_match('#(?:^|/)(ids|ownership|avatars|sk_profiles|sk_programs|blotter_evidence|barangay_activities|census_proof)/(.+)$#i', $value, $matches)) {
             return 'uploads/' . $matches[1] . '/' . ltrim($matches[2], '/');
         }
 

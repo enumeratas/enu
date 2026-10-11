@@ -574,7 +574,7 @@ foreach (
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
-            navigator.serviceWorker.register('/sw.js?v=12', {
+            navigator.serviceWorker.register('/sw.js?v=13', {
                 updateViaCache: 'none'
             }).catch(function() {
                 // Ignore registration failures; the app still works online.
