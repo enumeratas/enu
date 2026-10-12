@@ -895,30 +895,7 @@ class CensusController extends BaseController
                 || (($post['spouse_pwd'] ?? '0') === '1' && $this->uploadIsPresent('spouse_id_pwd'))
                 || (isset($post['spouse_senior']) && $this->uploadIsPresent('spouse_id_senior'));
             if (! $spouseHas) {
-                return 'The spouse needs one ID or birth certificate. Use Save as Draft if the document is not available yet.';
-            }
-        }
-
-        foreach ((array) ($post['child_last_name'] ?? []) as $i => $lastName) {
-            if (trim((string) $lastName) === '') {
-                continue;
-            }
-            $has = $this->uploadIsPresent('child_supporting_doc', (int) $i)
-                || (($post['child_pwd'][$i] ?? '0') === '1' && $this->uploadIsPresent('child_id_pwd', (int) $i))
-                || (isset($post['child_senior'][$i]) && $this->uploadIsPresent('child_id_senior', (int) $i));
-            if (! $has) {
-                return 'Child #' . ((int) $i + 1) . ' needs one ID or birth certificate. Use Save as Draft if the document is not available yet.';
-            }
-        }
-
-        foreach ((array) ($post['other_last_name'] ?? []) as $i => $lastName) {
-            if (trim((string) $lastName) === '') {
-                continue;
-            }
-            $has = $this->uploadIsPresent('other_supporting_doc', (int) $i)
-                || (isset($post['other_senior'][$i]) && $this->uploadIsPresent('other_id_senior', (int) $i));
-            if (! $has) {
-                return trim($lastName) . ' needs one ID or birth certificate. Use Save as Draft if the document is not available yet.';
+                return 'The spouse needs one ID or birth certificate.';
             }
         }
 
@@ -1084,7 +1061,7 @@ class CensusController extends BaseController
     public function store()
     {
         $post = $this->request->getPost();
-        $saveAsDraft = ($post['save_mode'] ?? 'complete') === 'draft';
+        $saveAsDraft = false;
 
         $ageError = $this->validateFamilyAges(
             $post['date_of_birth'] ?? null,
@@ -2334,7 +2311,7 @@ class CensusController extends BaseController
     public function updateHousehold(string $householdNo)
     {
         $post = $this->request->getPost();
-        $saveAsDraft = ($post['save_mode'] ?? 'complete') === 'draft';
+        $saveAsDraft = false;
         $role = session()->get('role');
         $db   = \Config\Database::connect();
 

@@ -377,8 +377,10 @@ class BlotterController extends BaseController
 
     public function createSecretary()
     {
-        if (! can_role('secretary')) {
-            return redirect()->to('/' . session()->get('role') . '/blotter')->with('error', 'Only the secretary can create blotter reports.');
+        if (session_role() !== 'secretary') {
+            $home = session_role() !== '' ? '/' . session_role() . '/blotter' : '/login';
+
+            return redirect()->to($home)->with('error', 'Only the secretary can create blotter reports.');
         }
 
         $db = \Config\Database::connect();
@@ -417,8 +419,10 @@ class BlotterController extends BaseController
 
     public function storeSecretary()
     {
-        if (! can_role('secretary')) {
-            return redirect()->back()->with('error', 'Only the secretary can create blotter reports.');
+        if (session_role() !== 'secretary') {
+            $home = session_role() !== '' ? '/' . session_role() . '/blotter' : '/login';
+
+            return redirect()->to($home)->with('error', 'Only the secretary can create blotter reports.');
         }
 
         $complainantUserValue = trim($this->request->getPost('complainant_user_id') ?? '');

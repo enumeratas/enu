@@ -75,115 +75,15 @@ class ClearanceController extends BaseController
         $userModel = new UserModel();
         $user      = $userModel->find($userId);
 
-        // Load household members for the "for whom" dropdown
-        $members = [];
-        $householdTotalIncome = 0;
-        $occupation = '';   // household head's occupation for FTJS eligibility
-        $isSoloParent = false;
-
-        if (! empty($user['household_no'])) {
-            $hm         = new HouseholdModel();
-            $head       = $hm->find($user['household_no']);
-            $memModel   = new HouseholdMemberModel();
-            $rawMembers = $memModel->where('household_no', $user['household_no'])->findAll();
-
-            $cutoff = (new \DateTime('today'))->modify('-18 years')->format('Y-m-d');
-
-            // Identify the logged-in user's own census record
-            // Match by name against the household head first, then household_members
-            $ownerName         = strtolower(trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')));
-            $headName          = $head ? strtolower(trim(($head['first_name'] ?? '') . ' ' . ($head['last_name'] ?? ''))) : '';
-
-            // Exact match first; then try prefix match on first name + same last name
-            // (handles "MARIANE" vs "MARIANE MAE", "JUAN" vs "JUAN JR", etc.)
-            $ownerLastNorm = strtolower(trim($user['last_name'] ?? ''));
-            $ownerFirstNorm = strtolower(trim($user['first_name'] ?? ''));
-            $headLastNorm = $head ? strtolower(trim($head['last_name'] ?? '')) : '';
-            $headFirstNorm = $head ? strtolower(trim($head['first_name'] ?? '')) : '';
-
-            $ownerIsHead = $head && (
-                $ownerName === $headName
-                || (
-                    $ownerLastNorm !== '' && $ownerLastNorm === $headLastNorm
-                    && $ownerFirstNorm !== ''
-                    && (str_starts_with($headFirstNorm, $ownerFirstNorm) || str_starts_with($ownerFirstNorm, $headFirstNorm))
-                )
-            );
-            $ownerIsSpouse     = false;
-            $ownerMemberRecord = null;
-
-            foreach ($rawMembers as $m) {
-                $mName = strtolower(trim($m['first_name'] . ' ' . $m['last_name']));
-                if ($mName === $ownerName) {
-                    $ownerMemberRecord = $m;
-                    if (strtolower(trim($m['relationship'] ?? '')) === 'spouse') {
-                        $ownerIsSpouse = true;
-                    }
-                    break;
-                }
-            }
-
-            // --- Step 1: Add only the account owner as the requestable person ---
-            if ($ownerIsHead && $head) {
-                $members[] = [
-                    'name'          => trim($head['first_name'] . ' ' . $head['last_name']),
-                    'relationship'  => 'Household Head',
-                    'date_of_birth' => $head['date_of_birth'] ?? null,
-                    'is_minor'      => $this->personIsMinor($head['date_of_birth'] ?? null),
-                ];
-                $occupation = $head['occupation'] ?? '';
-                $isSoloParent = (int) ($head['is_solo_parent'] ?? 0) === 1;
-            } elseif ($ownerMemberRecord) {
-                $relLabel = ucfirst($ownerMemberRecord['relationship'] ?? 'Member');
-                $members[] = [
-                    'name'          => trim($ownerMemberRecord['first_name'] . ' ' . $ownerMemberRecord['last_name']),
-                    'relationship'  => $relLabel,
-                    'date_of_birth' => $ownerMemberRecord['date_of_birth'] ?? null,
-                    'is_minor'      => $this->personIsMinor($ownerMemberRecord['date_of_birth'] ?? null),
-                ];
-                $occupation = $ownerMemberRecord['occupation'] ?? '';
-            } else {
-                // Fallback: use household head name if linked, otherwise user account name
-                $fallbackName = ($head && ! empty($head['first_name']))
-                    ? trim(($head['first_name'] ?? '') . ' ' . ($head['last_name'] ?? ''))
-                    : trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
-                $members[] = [
-                    'name'          => $fallbackName,
-                    'relationship'  => 'Household Head',
-                    'date_of_birth' => $head['date_of_birth'] ?? null,
-                    'is_minor'      => false,
-                ];
-            }
-
-            // --- Step 2: Head or Spouse may also request for minor children ---
-            if ($ownerIsHead || $ownerIsSpouse) {
-                foreach ($rawMembers as $m) {
-                    $rel     = strtolower(trim($m['relationship'] ?? ''));
-                    $dob     = $m['date_of_birth'] ?? null;
-                    $isMinor = $dob && $dob > $cutoff;
-
-                    if ($isMinor) {
-                        $members[] = [
-                            'name'          => trim($m['first_name'] . ' ' . $m['last_name']),
-                            'relationship'  => ucfirst($rel ?: 'Member') . ' (Minor)',
-                            'date_of_birth' => $dob,
-                            'is_minor'      => true,
-                        ];
-                    }
-                }
-            }
-
-            // --- Income totals (all members, for indigency check) ---
-            if ($head) {
-                $householdTotalIncome += (float) ($head['monthly_income'] ?? 0);
-                if (empty($occupation)) {
-                    $occupation = $head['occupation'] ?? '';
-                }
-            }
-            foreach ($rawMembers as $m) {
-                $householdTotalIncome += (float) ($m['monthly_income'] ?? 0);
-            }
+        if (! is_array($user)) {
+            return redirect()->to('/login')->with('error', 'Please log in to continue.');
         }
+
+        $requestable = $this->requestablePeopleForUser($user);
+        $members              = $requestable['members'];
+        $householdTotalIncome = $requestable['householdTotalIncome'];
+        $occupation           = $requestable['occupation'];
+        $isSoloParent         = $requestable['isSoloParent'];
 
         $search = \App\Libraries\RecordSearch::term();
         $requests = \App\Libraries\RecordSearch::filter(
@@ -1168,6 +1068,119 @@ class ClearanceController extends BaseController
             default => 'resident'
         };
         return redirect()->to('/' . $role . '/clearance')->with('success', 'Request cancelled successfully.');
+    }
+
+    /**
+     * People this signed-in account may request a document for.
+     * Always starts with the account holder's own name so a council member
+     * (or any household member) is not replaced by the household head.
+     *
+     * @return array{members: list<array<string, mixed>>, householdTotalIncome: float, occupation: string, isSoloParent: bool}
+     */
+    private function requestablePeopleForUser(array $user): array
+    {
+        $ownName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+        if ($ownName === '') {
+            $ownName = trim((string) (session()->get('first_name') ?? '') . ' ' . (string) (session()->get('last_name') ?? ''));
+        }
+        $ownKey = strtolower($ownName);
+        $role   = strtolower(trim((string) ($user['role'] ?? session()->get('role') ?? 'resident')));
+
+        $relationship = match ($role) {
+            'council' => 'Council',
+            'captain' => 'Captain',
+            'sk'      => 'SK',
+            default   => 'Self',
+        };
+
+        $head                 = null;
+        $rawMembers           = [];
+        $ownerIsHead          = false;
+        $ownerIsSpouse        = false;
+        $occupation           = '';
+        $isSoloParent         = false;
+        $householdTotalIncome = 0.0;
+        $ownerDob             = null;
+
+        if (! empty($user['household_no'])) {
+            $head       = (new HouseholdModel())->find($user['household_no']);
+            $rawMembers = (new HouseholdMemberModel())->where('household_no', $user['household_no'])->findAll();
+
+            $headName    = $head ? strtolower(trim(($head['first_name'] ?? '') . ' ' . ($head['last_name'] ?? ''))) : '';
+            $ownerIsHead = $head && $ownKey !== '' && $ownKey === $headName;
+
+            if ($ownerIsHead && $head) {
+                $relationship = 'Household Head';
+                $occupation   = (string) ($head['occupation'] ?? '');
+                $isSoloParent = (int) ($head['is_solo_parent'] ?? 0) === 1;
+                $ownerDob     = $head['date_of_birth'] ?? null;
+            }
+
+            foreach ($rawMembers as $member) {
+                $memberName = strtolower(trim(($member['first_name'] ?? '') . ' ' . ($member['last_name'] ?? '')));
+                if ($ownKey === '' || $memberName !== $ownKey) {
+                    continue;
+                }
+
+                if (! $ownerIsHead) {
+                    $relationship = ucfirst((string) ($member['relationship'] ?? 'Member'));
+                    $occupation   = (string) ($member['occupation'] ?? '');
+                    $ownerDob     = $member['date_of_birth'] ?? null;
+                }
+                if (strtolower(trim((string) ($member['relationship'] ?? ''))) === 'spouse') {
+                    $ownerIsSpouse = true;
+                }
+                break;
+            }
+
+            if ($head) {
+                $householdTotalIncome += (float) ($head['monthly_income'] ?? 0);
+                if ($occupation === '') {
+                    $occupation = (string) ($head['occupation'] ?? '');
+                }
+            }
+            foreach ($rawMembers as $member) {
+                $householdTotalIncome += (float) ($member['monthly_income'] ?? 0);
+            }
+        }
+
+        $members = [[
+            'name'          => $ownName !== '' ? $ownName : 'Account holder',
+            'relationship'  => $relationship,
+            'date_of_birth' => $ownerDob,
+            'is_minor'      => $this->personIsMinor(is_string($ownerDob) ? $ownerDob : null),
+        ]];
+
+        if ($ownerIsHead || $ownerIsSpouse) {
+            $cutoff = (new \DateTime('today'))->modify('-18 years')->format('Y-m-d');
+            foreach ($rawMembers as $member) {
+                $memberName = trim(($member['first_name'] ?? '') . ' ' . ($member['last_name'] ?? ''));
+                if ($ownKey !== '' && strtolower($memberName) === $ownKey) {
+                    continue;
+                }
+
+                $dob     = $member['date_of_birth'] ?? null;
+                $isMinor = is_string($dob) && $dob !== '' && $dob > $cutoff;
+                if (! $isMinor) {
+                    continue;
+                }
+
+                $rel = strtolower(trim((string) ($member['relationship'] ?? '')));
+                $members[] = [
+                    'name'          => $memberName,
+                    'relationship'  => ucfirst($rel !== '' ? $rel : 'Member') . ' (Minor)',
+                    'date_of_birth' => $dob,
+                    'is_minor'      => true,
+                ];
+            }
+        }
+
+        return [
+            'members'              => $members,
+            'householdTotalIncome' => $householdTotalIncome,
+            'occupation'           => $occupation,
+            'isSoloParent'         => $isSoloParent,
+        ];
     }
 
     private function personIsMinor(?string $dob): bool

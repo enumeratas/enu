@@ -428,7 +428,7 @@ class BarangayActivityController extends BaseController
     {
         $role = strtolower((string) session()->get('role'));
 
-        return in_array($role, ['admin', 'secretary', 'captain', 'sk'], true) ? $role : 'secretary';
+        return in_array($role, ['admin', 'secretary', 'captain'], true) ? $role : 'secretary';
     }
 
     /** @return array<string, mixed>|null */

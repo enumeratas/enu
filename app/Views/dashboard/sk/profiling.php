@@ -42,6 +42,7 @@
     $statusBadge = [
         'Student'       => 'background:#f0faf6;color:#1a7a55;border:1px solid #c3e8d8;',
         'Employed'      => 'background:#eef0fb;color:#1d2448;border:1px solid #d0d8f5;',
+        'Self-Employed' => 'background:#eef0fb;color:#1d2448;border:1px solid #d0d8f5;',
         'Unemployed'    => 'background:#fff8f0;color:#b7600a;border:1px solid #fde8c8;',
         'Out-of-School' => 'background:#fff0f1;color:#c0392b;border:1px solid #fad4d4;',
     ];
@@ -179,6 +180,7 @@
                                 <option value="Employed" <?= $status === 'Employed'      ? 'selected' : '' ?>>Employed</option>
                                 <option value="Unemployed" <?= $status === 'Unemployed'    ? 'selected' : '' ?>>Unemployed</option>
                                 <option value="Out-of-School" <?= $status === 'Out-of-School' ? 'selected' : '' ?>>Out-of-School</option>
+                                <option value="Self-Employed" <?= $status === 'Self-Employed' ? 'selected' : '' ?>>Self-Employed</option>
                             </select>
                         </div>
 
@@ -284,7 +286,12 @@
                                     <td><?= esc($y['contact_number'] ?: '—') ?></td>
                                     <td>
                                         <div class="db-action-group">
-                                            <a href="/sk/household/<?= esc($y['household_no']) ?>?source=<?= esc($y['source']) ?>&member_id=<?= $y['source'] === 'member' ? (int)$y['id'] : 0 ?>"
+                                            <?php
+                                            $viewHref = ! empty($y['household_no'])
+                                                ? '/sk/household/' . rawurlencode((string) $y['household_no']) . '?source=' . rawurlencode((string) ($y['source'] ?? '')) . '&member_id=' . ($y['source'] === 'member' ? (int) $y['id'] : 0)
+                                                : (! empty($y['profile_id']) ? '/sk/profiling/view/' . (int) $y['profile_id'] : '/sk/profiling');
+                                            ?>
+                                            <a href="<?= esc($viewHref) ?>"
                                                 class="db-icon-btn db-icon-btn--view" title="View Youth Profile">
                                                 <i class="fas fa-eye"></i>
                                             </a>

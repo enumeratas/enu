@@ -437,23 +437,18 @@ if (! function_exists('resident_sk_youth')) {
 
         $userId = (int) ($user['id'] ?? 0);
         if ($userId > 0 && $db->fieldExists('user_id', 'sk_youth')) {
-            $row = $db->table('sk_youth')->where('user_id', $userId)->get()->getRowArray();
+            $row = $db->table('sk_youth')
+                ->where('user_id', $userId)
+                ->orderBy('updated_at', 'DESC')
+                ->orderBy('id', 'DESC')
+                ->get()
+                ->getRowArray();
             if ($row) {
                 return $row;
             }
         }
 
-        $first = strtoupper(trim((string) ($user['first_name'] ?? '')));
-        $last  = strtoupper(trim((string) ($user['last_name'] ?? '')));
-        if ($first === '' || $last === '') {
-            return null;
-        }
-
-        return $db->table('sk_youth')
-            ->where('UPPER(first_name)', $first)
-            ->where('UPPER(last_name)', $last)
-            ->get()
-            ->getRowArray() ?: null;
+        return (new \App\Models\SkYouthModel())->matchProfile($user, $userId);
     }
 }
 

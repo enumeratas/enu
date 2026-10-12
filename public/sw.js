@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bis-app-shell-v13';
+const CACHE_NAME = 'bis-app-shell-v14';
 const APP_SHELL = [
   '/manifest.webmanifest',
   '/js/resident-offline.js',
@@ -70,6 +70,7 @@ function isSessionRequest(request) {
 
 function isOfflineModulePath(path) {
   return /^\/resident\/clearance\/?$/.test(path)
+    || /^\/(admin|secretary)\/clearance\/?$/.test(path)
     || /^\/(admin|secretary)\/blotter\/?$/.test(path)
     || /^\/(admin|secretary)\/blotter\/new\/?$/.test(path);
 }
@@ -79,10 +80,10 @@ function offlinePagesForRole(role) {
     return ['/resident/clearance'];
   }
   if (role === 'admin') {
-    return ['/admin/blotter', '/admin/blotter/new'];
+    return ['/admin/clearance', '/admin/blotter', '/admin/blotter/new'];
   }
   if (role === 'secretary') {
-    return ['/secretary/blotter', '/secretary/blotter/new'];
+    return ['/secretary/clearance', '/secretary/blotter', '/secretary/blotter/new'];
   }
   return [];
 }

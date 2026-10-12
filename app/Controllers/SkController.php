@@ -18,7 +18,6 @@ class SkController extends BaseController
 
     public function profiling()
     {
-        $db        = \Config\Database::connect();
         $search    = trim($_GET['search']      ?? '');
         $ageFilter = trim($_GET['age']         ?? '');
         $gender    = trim($_GET['gender']      ?? '');
@@ -26,129 +25,67 @@ class SkController extends BaseController
         $zone      = trim($_GET['zone']        ?? '');
         $civil     = trim($_GET['civil']       ?? '');
 
-        // Age range boundaries for youth (15–30)
-        $youthMax = date('Y-m-d', strtotime('-15 years'));
-        $youthMin = date('Y-m-d', strtotime('-30 years'));
+        $youth = $this->mergedYouthRoster();
 
-        // ── Build WHERE clauses ───────────────────────────────────────────────
-        $hw = ["h.date_of_birth IS NOT NULL", "h.date_of_birth <= '{$youthMax}'", "h.date_of_birth >= '{$youthMin}'"];
-        $mw = ["m.date_of_birth IS NOT NULL", "m.date_of_birth <= '{$youthMax}'", "m.date_of_birth >= '{$youthMin}'"];
+        $statsTotal    = count($youth);
+        $statsMale     = count(array_filter($youth, static fn($r) => strtolower((string) ($r['gender'] ?? '')) === 'male'));
+        $statsFemale   = count(array_filter($youth, static fn($r) => strtolower((string) ($r['gender'] ?? '')) === 'female'));
+        $statsStudents = count(array_filter($youth, static fn($r) => strcasecmp((string) ($r['economic_status'] ?? ''), 'Student') === 0));
+        $statsOos      = count(array_filter($youth, static fn($r) => stripos((string) ($r['economic_status'] ?? ''), 'out-of-school') !== false));
 
-        if ($search !== '') {
-            $hw[] = \App\Libraries\RecordSearch::clause(
-                ['h.last_name', 'h.first_name', 'h.middle_name', 'h.contact_number'],
-                ['h.date_of_birth'],
-                $search
-            );
-            $mw[] = \App\Libraries\RecordSearch::clause(
-                ['m.last_name', 'm.first_name', 'm.middle_name'],
-                ['m.date_of_birth'],
-                $search
-            );
-        }
+        $youth = \App\Libraries\RecordSearch::filter(
+            $youth,
+            $search,
+            static fn(array $row): string => implode(' ', [
+                (string) ($row['last_name'] ?? ''),
+                (string) ($row['first_name'] ?? ''),
+                (string) ($row['middle_name'] ?? ''),
+                (string) ($row['contact_number'] ?? ''),
+                (string) ($row['zone'] ?? ''),
+                (string) ($row['economic_status'] ?? ''),
+            ]),
+            static fn(array $row): array => [$row['date_of_birth'] ?? null]
+        );
+
         if ($gender !== '') {
-            $g    = $db->escapeString($gender);
-            $hw[] = "h.gender = '{$g}'";
-            $mw[] = "m.gender = '{$g}'";
+            $youth = array_values(array_filter($youth, static fn($r) => strcasecmp((string) ($r['gender'] ?? ''), $gender) === 0));
         }
         if ($zone !== '') {
-            $z    = $db->escapeString($zone);
-            $hw[] = "h.zone = '{$z}'";
-            $mw[] = "h2.zone = '{$z}'";
+            $youth = array_values(array_filter($youth, static fn($r) => strcasecmp(trim((string) ($r['zone'] ?? '')), $zone) === 0));
         }
         if ($civil !== '') {
-            $c    = $db->escapeString($civil);
-            $hw[] = "h.civil_status = '{$c}'";
-            $mw[] = "1=0"; // members have no civil_status
+            $youth = array_values(array_filter($youth, static fn($r) => strcasecmp((string) ($r['civil_status'] ?? ''), $civil) === 0));
+        }
+        if ($status !== '') {
+            $youth = array_values(array_filter($youth, static function ($r) use ($status) {
+                $value = (string) ($r['economic_status'] ?? '');
+                if ($status === 'Out-of-School') {
+                    return stripos($value, 'out-of-school') !== false;
+                }
+
+                return strcasecmp($value, $status) === 0;
+            }));
         }
         if ($ageFilter !== '') {
-            [$amin, $amax] = explode('-', $ageFilter);
-            $dMax = date('Y-m-d', strtotime('-' . (int)$amin . ' years'));
-            $dMin = date('Y-m-d', strtotime('-' . (int)$amax . ' years'));
-            $hw[] = "h.date_of_birth <= '{$dMax}' AND h.date_of_birth >= '{$dMin}'";
-            $mw[] = "m.date_of_birth <= '{$dMax}' AND m.date_of_birth >= '{$dMin}'";
-        }
-        // Status filter — apply in SQL via occupation keyword
-        if ($status !== '') {
-            $statusSqlMap = [
-                'Student'       => "UPPER(h.occupation) LIKE '%STUDENT%'",
-                'Employed'      => "UPPER(h.occupation) NOT LIKE '%STUDENT%' AND UPPER(h.occupation) NOT LIKE '%UNEMPLOY%' AND h.occupation IS NOT NULL AND h.occupation != '' AND UPPER(h.occupation) != 'NONE'",
-                'Unemployed'    => "UPPER(h.occupation) LIKE '%UNEMPLOY%'",
-                'Out-of-School' => "(UPPER(h.occupation) LIKE '%OUT-OF-SCHOOL%' OR UPPER(h.occupation) LIKE '%OSY%')",
-            ];
-            $statusMemberMap = [
-                'Student'       => "UPPER(m.occupation) LIKE '%STUDENT%'",
-                'Employed'      => "UPPER(m.occupation) NOT LIKE '%STUDENT%' AND UPPER(m.occupation) NOT LIKE '%UNEMPLOY%' AND m.occupation IS NOT NULL AND m.occupation != '' AND UPPER(m.occupation) != 'NONE'",
-                'Unemployed'    => "UPPER(m.occupation) LIKE '%UNEMPLOY%'",
-                'Out-of-School' => "(UPPER(m.occupation) LIKE '%OUT-OF-SCHOOL%' OR UPPER(m.occupation) LIKE '%OSY%')",
-            ];
-            if (isset($statusSqlMap[$status])) {
-                $hw[] = $statusSqlMap[$status];
-                $mw[] = $statusMemberMap[$status];
-            }
+            [$amin, $amax] = array_pad(explode('-', $ageFilter), 2, '');
+            $amin = (int) $amin;
+            $amax = (int) $amax;
+            $youth = array_values(array_filter($youth, static function ($r) use ($amin, $amax) {
+                $age = $r['age'] ?? null;
+
+                return is_numeric($age) && (int) $age >= $amin && (int) $age <= $amax;
+            }));
         }
 
-        $hwSql = ' WHERE ' . implode(' AND ', $hw);
-        $mwSql = ' WHERE ' . implode(' AND ', $mw);
-
-        // ── UNION: heads + members ────────────────────────────────────────────
-        $headSql = "SELECT
-                'head'         AS source,
-                h.household_no AS id,
-                h.last_name, h.first_name, h.middle_name,
-                h.date_of_birth, h.gender, h.civil_status,
-                h.occupation, h.contact_number, h.zone, h.household_no
-            FROM households h{$hwSql}";
-
-        $memberSql = "SELECT
-                'member'       AS source,
-                m.id           AS id,
-                m.last_name, m.first_name, m.middle_name,
-                m.date_of_birth, m.gender,
-                ''             AS civil_status,
-                m.occupation,
-                ''             AS contact_number,
-                h2.zone, m.household_no
-            FROM household_members m
-            INNER JOIN households h2 ON h2.household_no = m.household_no{$mwSql}";
-
-        $union = "({$headSql}) UNION ALL ({$memberSql}) ORDER BY last_name ASC, first_name ASC";
+        usort($youth, static function (array $a, array $b): int {
+            return [strtoupper((string) ($a['last_name'] ?? '')), strtoupper((string) ($a['first_name'] ?? ''))]
+                <=> [strtoupper((string) ($b['last_name'] ?? '')), strtoupper((string) ($b['first_name'] ?? ''))];
+        });
 
         $perPage = 15;
         $page    = max(1, (int) ($_GET['page'] ?? 1));
-        $offset  = ($page - 1) * $perPage;
-
-        $total = (int) $db->query("SELECT COUNT(*) AS c FROM ({$union}) AS t")->getRow()->c;
-        $rows  = $db->query("{$union} LIMIT {$perPage} OFFSET {$offset}")->getResultArray();
-
-        foreach ($rows as &$y) {
-            $y['age'] = \App\Models\SkYouthModel::calcAge($y['date_of_birth']);
-            $occ      = strtolower($y['occupation'] ?? '');
-            if (str_contains($occ, 'student'))                                         $y['economic_status'] = 'Student';
-            elseif (str_contains($occ, 'unemploy'))                                    $y['economic_status'] = 'Unemployed';
-            elseif (str_contains($occ, 'out-of-school') || str_contains($occ, 'osy')) $y['economic_status'] = 'Out-of-School';
-            elseif (! empty($occ) && $occ !== 'none' && $occ !== 'n/a')               $y['economic_status'] = 'Employed';
-            else                                                                        $y['economic_status'] = '—';
-        }
-        unset($y);
-
-        // ── Stats (always full unfiltered youth population) ───────────────────
-        $baseHw = ["h.date_of_birth IS NOT NULL", "h.date_of_birth <= '{$youthMax}'", "h.date_of_birth >= '{$youthMin}'"];
-        $baseMw = ["m.date_of_birth IS NOT NULL", "m.date_of_birth <= '{$youthMax}'", "m.date_of_birth >= '{$youthMin}'"];
-        $baseHeadSql   = "SELECT h.date_of_birth, h.gender, h.occupation FROM households h WHERE " . implode(' AND ', $baseHw);
-        $baseMemberSql = "SELECT m.date_of_birth, m.gender, m.occupation FROM household_members m INNER JOIN households h2 ON h2.household_no = m.household_no WHERE " . implode(' AND ', $baseMw);
-        $allYouth      = $db->query("({$baseHeadSql}) UNION ALL ({$baseMemberSql})")->getResultArray();
-
-        $statsTotal    = count($allYouth);
-        $statsMale     = count(array_filter($allYouth, fn($r) => strtolower($r['gender'] ?? '') === 'male'));
-        $statsFemale   = count(array_filter($allYouth, fn($r) => strtolower($r['gender'] ?? '') === 'female'));
-        $statsStudents = count(array_filter($allYouth, fn($r) => stripos($r['occupation'] ?? '', 'student') !== false));
-        $statsOos      = count(array_filter(
-            $allYouth,
-            fn($r) =>
-            stripos($r['occupation'] ?? '', 'out-of-school') !== false ||
-                stripos($r['occupation'] ?? '', 'osy') !== false
-        ));
+        $total   = count($youth);
+        $rows    = array_slice($youth, ($page - 1) * $perPage, $perPage);
 
         return view('dashboard/sk/profiling', [
             'youth'       => $rows,
@@ -165,6 +102,44 @@ class SkController extends BaseController
             'profilingOpen' => $this->profilingWindow()['open'],
             'profilingClose' => $this->profilingWindow()['close'],
         ]);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function mergedYouthRoster(): array
+    {
+        $db       = \Config\Database::connect();
+        $youthMax = date('Y-m-d', strtotime('-15 years'));
+        $youthMin = date('Y-m-d', strtotime('-30 years'));
+
+        $headSql = "SELECT
+                'head'         AS source,
+                h.household_no AS id,
+                h.last_name, h.first_name, h.middle_name,
+                h.date_of_birth, h.gender, h.civil_status,
+                h.occupation, h.contact_number, h.zone, h.household_no
+            FROM households h
+            WHERE h.date_of_birth IS NOT NULL
+              AND h.date_of_birth <= '{$youthMax}'
+              AND h.date_of_birth >= '{$youthMin}'";
+
+        $memberSql = "SELECT
+                'member'       AS source,
+                m.id           AS id,
+                m.last_name, m.first_name, m.middle_name,
+                m.date_of_birth, m.gender,
+                ''             AS civil_status,
+                m.occupation,
+                ''             AS contact_number,
+                h2.zone, m.household_no
+            FROM household_members m
+            INNER JOIN households h2 ON h2.household_no = m.household_no
+            WHERE m.date_of_birth IS NOT NULL
+              AND m.date_of_birth <= '{$youthMax}'
+              AND m.date_of_birth >= '{$youthMin}'";
+
+        $rows = $db->query("({$headSql}) UNION ALL ({$memberSql})")->getResultArray();
+
+        return $this->model->overlayCensusYouth($rows);
     }
 
     // ── View single youth ─────────────────────────────────────────────────────
@@ -260,7 +235,10 @@ class SkController extends BaseController
                 'full_name' => trim((string) (($self['first_name'] ?? '') . ' ' . ($self['last_name'] ?? ''))),
                 'label' => 'Resident',
                 'is_minor' => false,
-                'data' => $this->buildResidentProfileData($self, $household, $members, $user, $selfIsHead),
+                'data' => array_merge(
+                    $this->buildResidentProfileData($self, $household, $members, $user, $selfIsHead),
+                    ['user_id' => $userId]
+                ),
             ];
         }
 
@@ -289,11 +267,10 @@ class SkController extends BaseController
                     }
                 }
             }
-            $existing = $this->model
-                ->where('first_name', strtoupper(trim((string) ($pick['data']['first_name'] ?? ''))))
-                ->where('last_name', strtoupper(trim((string) ($pick['data']['last_name'] ?? ''))))
-                ->orderBy('id', 'DESC')
-                ->first();
+            $existing = $this->model->matchProfile(
+                $pick['data'],
+                ($pick['id'] ?? '') === 'self' ? $userId : null
+            );
             if ($existing) {
                 $youth = array_merge($pick['data'], $existing);
             }
@@ -500,7 +477,10 @@ class SkController extends BaseController
                     }
                 }
             }
-            if ($target) $post = array_merge($post, $this->buildResidentProfileData($target, $household, $members, $user, $isHead));
+            if ($target) {
+                $post = array_merge($this->buildResidentProfileData($target, $household, $members, $user, $isHead), $post);
+            }
+            $post['user_id'] = $userId;
         } else {
             foreach ($members as $member) {
                 $memberId = 'child_' . ($member['id'] ?? md5(($member['first_name'] ?? '') . ':' . ($member['last_name'] ?? '') . ':' . ($member['date_of_birth'] ?? '')));
@@ -510,7 +490,10 @@ class SkController extends BaseController
                 }
             }
 
-            if ($target) $post = array_merge($post, $this->buildResidentProfileData($target, $household, $members));
+            if ($target) {
+                $post = array_merge($this->buildResidentProfileData($target, $household, $members), $post);
+            }
+            unset($post['user_id']);
         }
 
         $age = SkYouthModel::calcAge($post['date_of_birth'] ?? null);
@@ -609,9 +592,8 @@ class SkController extends BaseController
             }
         }
 
-        $this->model->insert([
+        $payload = [
             'user_id'                 => ! empty($post['user_id']) ? (int) $post['user_id'] : null,
-            'photo_path'              => null,
             'last_name'              => strtoupper(trim($post['last_name']   ?? '')),
             'first_name'             => strtoupper(trim($post['first_name']  ?? '')),
             'middle_name'            => strtoupper(trim($post['middle_name'] ?? '')) ?: null,
@@ -650,9 +632,28 @@ class SkController extends BaseController
             'issue_3'                => $post['issue_3']         ?? null,
             'suggestions'            => $post['suggestions']     ?? null,
             'recorded_by'            => $recordedBy,
-        ]);
+        ];
+
+        $existingId = $this->findExistingYouthId($post);
+        if ($existingId) {
+            $this->model->update($existingId, $payload);
+            $this->model->resetProfileIndexes();
+
+            return $existingId;
+        }
+
+        $this->model->insert($payload + ['photo_path' => null]);
+        $this->model->resetProfileIndexes();
 
         return (int) $this->model->getInsertID();
+    }
+
+    /** @param array<string, mixed> $post */
+    private function findExistingYouthId(array $post): ?int
+    {
+        $matched = $this->model->matchProfile($post, ! empty($post['user_id']) ? (int) $post['user_id'] : null);
+
+        return $matched ? (int) $matched['id'] : null;
     }
 
     // ── Show edit form ────────────────────────────────────────────────────────
@@ -714,8 +715,16 @@ class SkController extends BaseController
             return redirect()->to($redirect)->with('error', 'Only youth ages 15 to 30 may submit the SK Profiling form, except for a parent submitting a minor child profile.');
         }
 
+        $existing = $this->model->find($id);
+        $linkedUserId = ! empty($post['user_id'])
+            ? (int) $post['user_id']
+            : (int) ($existing['user_id'] ?? 0);
+        if (in_array($role, ['resident', 'council'], true) && ($post['profile_option'] ?? 'self') === 'self') {
+            $linkedUserId = (int) session()->get('user_id') ?: $linkedUserId;
+        }
+
         $this->model->update($id, [
-            'user_id'                 => ! empty($post['user_id']) ? (int) $post['user_id'] : null,
+            'user_id'                 => $linkedUserId > 0 ? $linkedUserId : null,
             'last_name'              => strtoupper(trim($post['last_name']   ?? '')),
             'first_name'             => strtoupper(trim($post['first_name']  ?? '')),
             'middle_name'            => strtoupper(trim($post['middle_name'] ?? '')) ?: null,
@@ -754,6 +763,7 @@ class SkController extends BaseController
             'issue_3'                => $post['issue_3']         ?? null,
             'suggestions'            => $post['suggestions']     ?? null,
         ]);
+        $this->model->resetProfileIndexes();
 
         if (in_array($role, ['resident', 'council'], true)) {
             $skUser = (new \App\Models\UserModel())
@@ -866,7 +876,7 @@ class SkController extends BaseController
             'youth_profiling',
             'Youth Profiling ' . ucfirst($action),
             $name . ' has ' . $action . ' a youth profiling record.',
-            '/sk/profiling'
+            '/sk/profiling?search=' . rawurlencode($name)
         );
     }
 

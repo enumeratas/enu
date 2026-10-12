@@ -42,6 +42,11 @@
                     <i class="fas fa-check-circle"></i> <?= session()->getFlashdata('success') ?>
                 </div>
             <?php endif; ?>
+            <?php if (session()->getFlashdata('error')): ?>
+                <div class="db-alert db-alert--error" style="margin-bottom:16px;">
+                    <i class="fas fa-exclamation-circle"></i> <?= esc(session()->getFlashdata('error')) ?>
+                </div>
+            <?php endif; ?>
 
             <!-- Stats -->
             <div class="db-stats" style="margin-bottom:24px;">
@@ -72,9 +77,9 @@
                             value="<?= esc($search) ?>">
                     </div>
                     <div class="db-toolbar-actions">
-                        <?php if (in_array($role, ['admin', 'secretary'], true)): ?>
-                            <link rel="prefetch" href="/<?= esc($role) ?>/blotter/new">
-                            <a href="/<?= esc($role) ?>/blotter/new" class="db-btn db-btn--primary"><i class="fas fa-plus"></i> Create Report</a>
+                        <?php if (session_role() === 'secretary'): ?>
+                            <link rel="prefetch" href="/secretary/blotter/new">
+                            <a href="/secretary/blotter/new" class="db-btn db-btn--primary"><i class="fas fa-plus"></i> Create Report</a>
                         <?php endif; ?>
                         <select class="db-filter-select" name="status" onchange="this.form.submit()">
                             <option value="">All Status</option>

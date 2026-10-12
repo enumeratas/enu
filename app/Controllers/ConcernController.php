@@ -154,6 +154,11 @@ class ConcernController extends BaseController
 
     public function storePublic()
     {
+        $role = session_role();
+        if (in_array($role, ['captain', 'admin', 'council'], true)) {
+            return redirect()->to('/' . $role . '/concerns')->with('error', 'Only the secretary can create appointments.');
+        }
+
         $fullName        = trim($this->request->getPost('full_name')         ?? '');
         $email           = trim($this->request->getPost('email')             ?? '');
         $rawContactNumber = $this->request->getPost('contact_number');
@@ -439,6 +444,10 @@ class ConcernController extends BaseController
         $concern = $this->model->find($id);
         if (! $concern) {
             return redirect()->to('/' . $role . '/notifications')->with('error', 'Concern not found.');
+        }
+
+        if (session_role() !== 'secretary' && empty($concern['appointment_date'])) {
+            return redirect()->back()->with('error', 'Only the secretary can create appointments.');
         }
 
         $newDate = $this->request->getPost('appointment_date');
@@ -1135,7 +1144,7 @@ class ConcernController extends BaseController
 
         return $db->table('users')
             ->select('id')
-            ->where('LOWER(email)', strtolower($email), false)
+            ->where('LOWER(email) = ' . $db->escape(strtolower($email)), null, false)
             ->where('role', 'resident')
             ->get()->getRowArray() ?: null;
     }

@@ -26,6 +26,7 @@
         'Employed'      => 'background:#eef0fb;color:#1d2448;border:1px solid #d0d8f5;',
         'Unemployed'    => 'background:#fff8f0;color:#b7600a;border:1px solid #fde8c8;',
         'Out-of-School' => 'background:#fff0f1;color:#c0392b;border:1px solid #fad4d4;',
+        'Self-Employed' => 'background:#eef0fb;color:#1d2448;border:1px solid #d0d8f5;',
         '—'             => 'background:#f5f6fa;color:#9aa0b4;border:1px solid #e2e5ef;',
     ];
 

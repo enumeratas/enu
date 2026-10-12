@@ -308,8 +308,9 @@
                 </button>
             </div>
             <?php $formRole = session()->get('role') === 'admin' ? 'admin' : 'secretary'; ?>
-            <form action="/<?= esc($formRole) ?>/clearance/store-secretary" method="post">
+            <form action="/<?= esc($formRole) ?>/clearance/store-secretary" method="post" id="secretaryClearanceForm" data-offline-sync="clearance_request" data-offline-verified="1" novalidate>
                 <?= csrf_field() ?>
+                <p data-offline-sync-status aria-live="polite" style="font-size:12px;color:#667085;margin:0 22px;display:block;"></p>
                 <div class="db-modal-body" style="padding:22px 24px;display:flex;flex-direction:column;gap:16px;">
                     <div class="db-form-group db-form-group--full">
                         <label for="secretaryResidentSearch">Resident Account <span style="color:#c0392b;">*</span></label>
@@ -328,6 +329,7 @@
                             </div>
                         </div>
                         <input type="hidden" name="resident_user_id" id="secretaryResidentId" value="" required>
+                        <input type="hidden" name="resident_name" id="secretaryResidentName" value="">
                         <?php if (empty($residentAccounts)): ?>
                             <small style="color:#c0392b;">No active resident accounts are available.</small>
                         <?php else: ?>
@@ -848,6 +850,7 @@
             selectedResidentId = id;
             document.getElementById('secretaryResidentSearch').value = name;
             document.getElementById('secretaryResidentId').value = id;
+            document.getElementById('secretaryResidentName').value = name;
             closeResidentDropdown();
             updateSecretaryDocuments(id);
         }
@@ -893,6 +896,7 @@
         function selectSecretaryResident(name) {
             const resident = secretaryResidents.find(item => item.name.toLowerCase() === name.trim().toLowerCase());
             document.getElementById('secretaryResidentId').value = resident ? resident.id : '';
+            document.getElementById('secretaryResidentName').value = resident ? resident.name : '';
             updateSecretaryDocuments(resident ? resident.id : '');
         }
 

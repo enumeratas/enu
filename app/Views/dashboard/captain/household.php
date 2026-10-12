@@ -843,7 +843,6 @@
                     <div style="flex:1;"></div>
                     <button type="button" class="pf-page-btn pf-page-btn--outline" onclick="closeModal('editHeadModal')">Cancel</button>
                     <button type="submit" class="pf-page-btn pf-page-btn--primary" id="editSaveBtn"><i class="fas fa-save"></i> Save Changes</button>
-                    <button type="submit" class="pf-page-btn pf-page-btn--outline" id="editDraftBtn" name="save_mode" value="draft"><i class="fas fa-file-alt"></i> Save as Draft</button>
                 </div>
             </form>
         </div>
@@ -2227,9 +2226,8 @@
             const editHeadForm = document.getElementById('editHeadForm');
             if (editHeadForm) {
                 editHeadForm.addEventListener('submit', function(e) {
-                    const savingDraft = !!(e.submitter && e.submitter.id === 'editDraftBtn');
                     const modeField = document.getElementById('editSaveModeField');
-                    if (modeField) modeField.value = savingDraft ? 'draft' : 'complete';
+                    if (modeField) modeField.value = 'complete';
                     const idChecks = [{
                             cb: 'input[name="is_4ps"]',
                             file: 'input[name="id_4ps"]',
@@ -2250,7 +2248,7 @@
                         },
                     ];
                     let idErrors = [];
-                    if (!savingDraft) idChecks.forEach(cfg => {
+                    idChecks.forEach(cfg => {
                         const cbEl = editHeadForm.querySelector(cfg.cb);
                         if (cbEl && cbEl.checked) {
                             const fileEl = editHeadForm.querySelector(cfg.file);

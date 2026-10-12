@@ -669,6 +669,7 @@
                                 </p>
                             </div>
 
+                            <?php if (session_role() === 'secretary' || ! empty($c['appointment_date'])): ?>
                             <div style="margin-top:16px;padding-top:16px;border-top:1px solid #f0f2f8;">
                                 <button type="button" id="scheduleConcernToggle"
                                     onclick="toggleConcernSchedule()"
@@ -736,6 +737,7 @@
                                     </form>
                                 </div>
                             </div>
+                            <?php endif; ?>
 
                             <!-- Approve form -->
                             <form id="approveForm"

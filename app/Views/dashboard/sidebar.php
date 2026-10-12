@@ -100,7 +100,6 @@ $menus = [
         ['icon' => 'fas fa-tachometer-alt', 'label' => 'Dashboard',         'key' => 'dashboard',      'href' => '/sk/dashboard'],
         ['divider' => 'Youth'],
         ['icon' => 'fas fa-id-card',         'label' => 'SK Profiling',     'key' => 'profiling',      'href' => '/sk/profiling'],
-        ['icon' => 'fas fa-bullhorn',        'label' => 'Brgy Activities',  'key' => 'activities',     'href' => '/sk/activities'],
         ['icon' => 'fas fa-calendar-alt',    'label' => 'Programs & Events', 'key' => 'programs',      'href' => '/sk/programs'],
         ['icon' => 'fas fa-chart-bar',       'label' => 'Reports',           'key' => 'reports',       'href' => '/sk/reports'],
         ['divider' => 'Services'],

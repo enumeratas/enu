@@ -23,7 +23,7 @@
             return marked;
         }
         var action = String(form.getAttribute('action') || '');
-        if (/\/clearance\/store(?:\/|$|\?)/i.test(action) || form.id === 'clearanceForm') {
+        if (/\/clearance\/store(?:-secretary)?(?:\/|$|\?)/i.test(action) || form.id === 'clearanceForm' || form.id === 'secretaryClearanceForm') {
             return 'clearance_request';
         }
         if (/\/blotter\/store(?:\/|$|\?)/i.test(action) || form.id === 'blotterForm') {
@@ -37,7 +37,7 @@
             return operation === 'clearance_request';
         }
         if (role === 'admin' || role === 'secretary') {
-            return operation === 'blotter_submission';
+            return operation === 'blotter_submission' || operation === 'clearance_request';
         }
         return false;
     }
@@ -218,6 +218,20 @@
                 return false;
             }
         }
+        if (form.id === 'secretaryClearanceForm') {
+            var resident = form.querySelector('[name="resident_user_id"]');
+            var documentType = form.querySelector('input[name="document_type"]:checked:not(:disabled)');
+            var staffPurpose = form.querySelector('[name="purpose"]');
+            if (!resident || String(resident.value || '').trim() === '' || !documentType || !staffPurpose || staffPurpose.value.trim() === '') {
+                showStatus(
+                    !resident || String(resident.value || '').trim() === ''
+                        ? 'Choose a resident before saving this request.'
+                        : (!documentType ? 'Choose a document type before saving this request.' : 'Enter a purpose before saving this request.'),
+                    'wait'
+                );
+                return false;
+            }
+        }
         if (form.id === 'clearanceForm') {
             var chosen = form.querySelector('input[name="document_type"]:checked:not(:disabled)');
             var purpose = form.querySelector('[name="purpose"]');
@@ -325,7 +339,7 @@
     function entrySummary(operation, fields) {
         if (operation === 'clearance_request') {
             return {
-                name: fieldText(fields, 'for_member') || 'You',
+                name: fieldText(fields, 'for_member') || fieldText(fields, 'resident_name') || 'Resident',
                 relationship: fieldText(fields, 'member_relationship'),
                 document: fieldText(fields, 'document_type') || 'Document request',
                 purpose: fieldText(fields, 'purpose') || '—'
@@ -398,6 +412,21 @@
     }
 
     function paintPendingClearance(summary) {
+        var path = window.location.pathname.replace(/\/index\.php/, '');
+        var staffBody = document.querySelector('#clearanceTable tbody');
+        if (staffBody && /^\/(admin|secretary)\/clearance\/?$/.test(path)) {
+            if (staffBody.querySelector('td[colspan]')) {
+                staffBody.innerHTML = '';
+            }
+            var staffRow = document.createElement('tr');
+            staffRow.setAttribute('data-offline-pending', '1');
+            staffRow.innerHTML = '<td></td><td></td><td>1 request</td><td><span class="db-badge db-badge--pending">Waiting to send</span></td><td>Saved on this device</td><td>—</td>';
+            staffRow.cells[0].innerHTML = '<div style="font-weight:600;font-size:13px;"></div>';
+            staffRow.cells[0].querySelector('div').textContent = summary.name || 'Resident';
+            staffRow.cells[1].textContent = summary.document || 'Document request';
+            staffBody.insertBefore(staffRow, staffBody.firstChild);
+            return;
+        }
         var tableBody = document.querySelector('#requestsTable tbody');
         if (!tableBody) {
             return;
@@ -626,6 +655,7 @@
             pages.push('/resident/clearance');
         }
         if (role === 'admin' || role === 'secretary') {
+            pages.push('/' + role + '/clearance');
             pages.push('/' + role + '/blotter');
             pages.push('/' + role + '/blotter/new');
         }

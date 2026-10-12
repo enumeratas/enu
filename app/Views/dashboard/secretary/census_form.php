@@ -541,7 +541,7 @@
                                         <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose one ID or birth certificate</span><span class="pf-file-name">No file selected</span></span>
                                         <input type="file" name="spouse_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input">
                                     </label>
-                                    <div class="pf-file-hint">Required when a spouse is recorded. PDF, JPG, or PNG - max 5 MB. Use Save as Draft if the document is not available yet.</div>
+                                    <div class="pf-file-hint">Required when a spouse is recorded. PDF, JPG, or PNG - max 5 MB.</div>
                                 </div>
                             </div>
 
@@ -603,9 +603,6 @@
                             </a>
                             <button class="pf-page-btn pf-page-btn--primary" id="saveBtn" type="submit" style="display:none;">
                                 <i class="fas fa-save"></i> Save Record
-                            </button>
-                            <button class="pf-page-btn pf-page-btn--outline" id="draftBtn" name="save_mode" value="draft" type="submit" style="display:none;">
-                                <i class="fas fa-file-alt"></i> Save as Draft
                             </button>
                         </div>
 
@@ -690,17 +687,6 @@
                             <input type="file" name="child_id_senior[]" accept="image/*,application/pdf" style="width:100%;margin-top:5px;font-size:11px;">
                         </div>
             </div>
-            <div class="pf-member-doc">
-                <div class="pf-id-upload" data-id-block>
-                    <label class="pf-id-label"><i class="fas fa-id-card"></i> This child&#39;s ID or Birth Certificate</label>
-                    <label class="pf-file-drop">
-                        <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
-                        <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this child&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                        <input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
-                    </label>
-                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. Use Save as Draft if it is not available yet.</div>
-                </div>
-            </div>
             </div>
             <button type="button" class="pf-member-del" onclick="removeRow(this)"><i class="fas fa-times"></i></button>
         </div>';
@@ -753,17 +739,6 @@
                         <input type="file" name="other_id_senior[]" accept="image/*,application/pdf" style="width:100%;margin-top:5px;font-size:11px;">
                     </div>
                 </div>
-            <div class="pf-member-doc">
-                <div class="pf-id-upload" data-id-block>
-                    <label class="pf-id-label"><i class="fas fa-id-card"></i> This member&#39;s ID or Birth Certificate</label>
-                    <label class="pf-file-drop">
-                        <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
-                        <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this member&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                        <input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
-                    </label>
-                    <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. Use Save as Draft if it is not available yet.</div>
-                </div>
-            </div>
             </div>
             <button type="button" class="pf-member-del" onclick="removeRow(this)"><i class="fas fa-times"></i></button>
         </div>';
@@ -1301,8 +1276,6 @@
             document.getElementById('prevBtn').style.display = step > 1 ? '' : 'none';
             document.getElementById('nextBtn').style.display = step < 2 ? '' : 'none';
             document.getElementById('saveBtn').style.display = step === 2 ? '' : 'none';
-            const draftBtn = document.getElementById('draftBtn');
-            if (draftBtn) draftBtn.style.display = step === 2 ? '' : 'none';
             window.scrollTo({
                 top: 0,
                 behavior: 'smooth'
@@ -1383,17 +1356,6 @@
                             </div>
                         </div>
                         </div>
-                        <div class="pf-member-doc">
-                            <div class="pf-id-upload" data-id-block>
-                                <label class="pf-id-label"><i class="fas fa-id-card"></i> This child&#39;s ID or Birth Certificate</label>
-                                <label class="pf-file-drop">
-                                    <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
-                                    <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this child&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                                    <input type="file" name="child_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
-                                </label>
-                                <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. Use Save as Draft if it is not available yet.</div>
-                            </div>
-                        </div>
                     </div>
                     <button type="button" class="pf-member-del" onclick="removeRow(this)"><i class="fas fa-times"></i></button>
                 </div>`);
@@ -1432,17 +1394,6 @@
                     <div id="other_pwd_type_wrap_${i}" style="display:none;margin-top:6px;">
                         <input type="text" class="pf-ctrl" name="other_pwd_type[]" placeholder="Specify disability (e.g. Visual, Hearing...)" maxlength="120">
                     </div>
-                    </div>
-                    <div class="pf-member-doc">
-                        <div class="pf-id-upload" data-id-block>
-                            <label class="pf-id-label"><i class="fas fa-id-card"></i> This member&#39;s ID or Birth Certificate</label>
-                            <label class="pf-file-drop">
-                                <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
-                                <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose this member&#39;s image or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                                <input type="file" name="other_supporting_doc[]" accept="image/*,application/pdf" class="pf-file pf-file-input">
-                            </label>
-                            <div class="pf-file-hint"><i class="fas fa-info-circle"></i> PDF, JPG, or PNG - max 5 MB. Use Save as Draft if it is not available yet.</div>
-                        </div>
                     </div>
                     </div>
                     <button type="button" class="pf-member-del" onclick="removeRow(this)"><i class="fas fa-times"></i></button>
@@ -1674,8 +1625,7 @@
         // ── Form submit validation ────────────────────────────────────────────
         document.getElementById('censusForm').addEventListener('submit', function(e) {
             const saveModeField = document.getElementById('saveModeField');
-            const savingDraft = !!(e.submitter && e.submitter.id === 'draftBtn');
-            if (saveModeField) saveModeField.value = savingDraft ? 'draft' : 'complete';
+            if (saveModeField) saveModeField.value = 'complete';
             const onFamilyStep = document.getElementById('step2') && document.getElementById('step2').classList.contains('active');
             if (!onFamilyStep) {
                 e.preventDefault();
@@ -1738,7 +1688,7 @@
             ];
             let idErrors = [];
             let firstMissingWrap = null;
-            if (!savingDraft) idChecks.forEach(cfg => {
+            idChecks.forEach(cfg => {
                 const cbEl = document.querySelector(cfg.cb);
                 if (cbEl && cbEl.checked) {
                     const fileEl = document.querySelector(cfg.file);
@@ -1790,19 +1740,17 @@
             const prevErr = document.getElementById('idUploadsError');
             if (prevErr) prevErr.remove();
 
-            if (!savingDraft) {
-                document.querySelectorAll('#childrenRows .pf-member-card').forEach(row => {
-                    const last = row.querySelector('input[name="child_last_name[]"]');
-                    const occ = row.querySelector('input[name="child_occupation[]"]');
-                    const work = row.querySelector('input[name="child_work[]"]');
-                    if (last && last.value.trim() !== '' && occ && occ.value.trim().toUpperCase() === 'WORKING STUDENT' && work && work.value.trim() === '') {
-                        e.preventDefault();
-                        goTo(2);
-                        alert('Specify the work of each working student. That work is saved on the census record.');
-                    }
-                });
-                if (e.defaultPrevented) return;
-            }
+            document.querySelectorAll('#childrenRows .pf-member-card').forEach(row => {
+                const last = row.querySelector('input[name="child_last_name[]"]');
+                const occ = row.querySelector('input[name="child_occupation[]"]');
+                const work = row.querySelector('input[name="child_work[]"]');
+                if (last && last.value.trim() !== '' && occ && occ.value.trim().toUpperCase() === 'WORKING STUDENT' && work && work.value.trim() === '') {
+                    e.preventDefault();
+                    goTo(2);
+                    alert('Specify the work of each working student. That work is saved on the census record.');
+                }
+            });
+            if (e.defaultPrevented) return;
 
             // Solo Parent requires at least one child
             const isSoloParent = document.querySelector('input[name="is_solo_parent"]')?.checked;

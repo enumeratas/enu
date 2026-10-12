@@ -1683,44 +1683,32 @@ class UIController extends BaseController
         $youthMin = date('Y-m-d', strtotime('-30 years'));
 
         // UNION: household heads + members aged 15–30
-        $headSql = "SELECT h.date_of_birth, h.gender, h.occupation, h.last_name, h.first_name, h.zone, h.created_at, 'head' AS source, h.household_no AS rid
+        $headSql = "SELECT h.date_of_birth, h.gender, h.occupation, h.last_name, h.first_name, h.zone, h.created_at, 'head' AS source, h.household_no AS rid, h.household_no
             FROM households h
             WHERE h.date_of_birth IS NOT NULL AND h.date_of_birth <= '{$youthMax}' AND h.date_of_birth >= '{$youthMin}'";
 
-        $memberSql = "SELECT m.date_of_birth, m.gender, m.occupation, m.last_name, m.first_name, h2.zone, m.created_at, 'member' AS source, m.id AS rid
+        $memberSql = "SELECT m.date_of_birth, m.gender, m.occupation, m.last_name, m.first_name, h2.zone, m.created_at, 'member' AS source, m.id AS rid, m.household_no
             FROM household_members m
             INNER JOIN households h2 ON h2.household_no = m.household_no
             WHERE m.date_of_birth IS NOT NULL AND m.date_of_birth <= '{$youthMax}' AND m.date_of_birth >= '{$youthMin}'";
 
-        $allYouth = $db->query("({$headSql}) UNION ALL ({$memberSql})")->getResultArray();
+        $allYouth = (new \App\Models\SkYouthModel())->overlayCensusYouth(
+            $db->query("({$headSql}) UNION ALL ({$memberSql})")->getResultArray()
+        );
 
         $total    = count($allYouth);
-        $male     = count(array_filter($allYouth, fn($r) => strtolower(trim($r['gender'] ?? '')) === 'male'));
-        $female   = count(array_filter($allYouth, fn($r) => strtolower(trim($r['gender'] ?? '')) === 'female'));
-        $oos      = count(array_filter($allYouth, fn($r) =>
-        stripos($r['occupation'] ?? '', 'out-of-school') !== false ||
-            stripos($r['occupation'] ?? '', 'osy') !== false));
-        $employed = count(array_filter($allYouth, fn($r) => (function ($occ) {
-            $o = strtolower(trim($occ ?? ''));
-            return $o !== '' && $o !== 'none' && $o !== 'n/a' && $o !== '-'
-                && strpos($o, 'student') === false
-                && strpos($o, 'unemploy') === false
-                && strpos($o, 'out-of-school') === false
-                && strpos($o, 'osy') === false;
-        })($r['occupation'])));
+        $male     = count(array_filter($allYouth, fn($r) => strtolower(trim((string) ($r['gender'] ?? ''))) === 'male'));
+        $female   = count(array_filter($allYouth, fn($r) => strtolower(trim((string) ($r['gender'] ?? ''))) === 'female'));
+        $oos      = count(array_filter($allYouth, fn($r) => stripos((string) ($r['economic_status'] ?? ''), 'out-of-school') !== false));
+        $employed = count(array_filter($allYouth, fn($r) => in_array($r['economic_status'] ?? '', ['Employed', 'Self-Employed'], true)));
 
-        // Recent 5 youth sorted by created_at
-        usort($allYouth, fn($a, $b) => strcmp($b['created_at'] ?? '', $a['created_at'] ?? ''));
+        usort($allYouth, static function (array $a, array $b): int {
+            return strcmp((string) ($b['profile_updated_at'] ?? $b['created_at'] ?? ''), (string) ($a['profile_updated_at'] ?? $a['created_at'] ?? ''));
+        });
         $recentYouth = array_slice($allYouth, 0, 5);
         foreach ($recentYouth as &$y) {
-            $dob = $y['date_of_birth'] ?? null;
-            $y['age'] = !empty($dob) ? (int) date_diff(date_create($dob), date_create('today'))->y : '—';
-            $occ = strtolower(trim($y['occupation'] ?? ''));
-            if (str_contains($occ, 'student'))                                             $y['status'] = 'Student';
-            elseif (str_contains($occ, 'unemploy'))                                        $y['status'] = 'Unemployed';
-            elseif (str_contains($occ, 'out-of-school') || str_contains($occ, 'osy'))      $y['status'] = 'Out-of-School';
-            elseif ($occ !== '' && $occ !== 'none' && $occ !== 'n/a' && $occ !== '-')      $y['status'] = 'Employed';
-            else                                                                            $y['status'] = '—';
+            $y['age']    = $y['age'] ?? '—';
+            $y['status'] = ($y['economic_status'] ?? '') !== '' ? $y['economic_status'] : '—';
         }
         unset($y);
 
@@ -1735,7 +1723,7 @@ class UIController extends BaseController
                 'female'   => $female,
                 'oos'      => $oos,
                 'employed' => $employed,
-                'students' => count(array_filter($allYouth, fn($r) => stripos(trim($r['occupation'] ?? ''), 'student') !== false)),
+                'students' => count(array_filter($allYouth, fn($r) => strcasecmp((string) ($r['economic_status'] ?? ''), 'Student') === 0)),
                 'programs' => $progCounts['Active'],
             ],
             'recentYouth' => $recentYouth,
@@ -1777,21 +1765,22 @@ class UIController extends BaseController
         $youthProfile = null;
         if ($youthMember) {
             $profileModel = new \App\Models\SkYouthModel();
-            $youthProfile = $profileModel
-                ->where('first_name', $youthMember['first_name'] ?? '')
-                ->where('last_name', $youthMember['last_name'] ?? '')
-                ->where('date_of_birth', $youthMember['date_of_birth'] ?? null)
-                ->orderBy('updated_at', 'DESC')
-                ->first();
-
-            if (! $youthProfile) {
-                $user = (new \App\Models\UserModel())
-                    ->where('first_name', $youthMember['first_name'] ?? '')
-                    ->where('last_name', $youthMember['last_name'] ?? '')
-                    ->where('household_no', $household['household_no'])
-                    ->first();
-                if ($user) $youthProfile = $profileModel->where('user_id', $user['id'])->orderBy('updated_at', 'DESC')->first();
+            $first = \App\Models\SkYouthModel::normalizeName($youthMember['first_name'] ?? '');
+            $last  = \App\Models\SkYouthModel::normalizeName($youthMember['last_name'] ?? '');
+            $linkedUserId = null;
+            foreach ((new \App\Models\UserModel())->where('household_no', $household['household_no'])->findAll() as $account) {
+                if (
+                    \App\Models\SkYouthModel::normalizeName($account['first_name'] ?? '') === $first
+                    && \App\Models\SkYouthModel::normalizeName($account['last_name'] ?? '') === $last
+                ) {
+                    $linkedUserId = (int) $account['id'];
+                    break;
+                }
             }
+            $youthProfile = $profileModel->matchProfile(
+                $youthMember + ['household_no' => $household['household_no']],
+                $linkedUserId
+            );
         }
 
         return view('dashboard/sk/print_profile', [
@@ -1857,29 +1846,30 @@ class UIController extends BaseController
 
         // UNION: household heads + members aged 15–30
         // Members now include gender (column exists in household_members)
-        $headSql = "SELECT h.date_of_birth, h.gender, h.occupation
+        $headSql = "SELECT h.date_of_birth, h.gender, h.occupation, h.first_name, h.last_name, h.household_no
             FROM households h
             WHERE h.date_of_birth IS NOT NULL
               AND h.date_of_birth <= '{$youthMax}'
               AND h.date_of_birth >= '{$youthMin}'";
 
-        $memberSql = "SELECT m.date_of_birth, m.gender, m.occupation
+        $memberSql = "SELECT m.date_of_birth, m.gender, m.occupation, m.first_name, m.last_name, m.household_no
             FROM household_members m
             INNER JOIN households h2 ON h2.household_no = m.household_no
             WHERE m.date_of_birth IS NOT NULL
               AND m.date_of_birth <= '{$youthMax}'
               AND m.date_of_birth >= '{$youthMin}'";
 
-        $allYouth = $db->query("({$headSql}) UNION ALL ({$memberSql})")->getResultArray();
+        $allYouth = (new \App\Models\SkYouthModel())->overlayCensusYouth(
+            $db->query("({$headSql}) UNION ALL ({$memberSql})")->getResultArray()
+        );
 
-        // Helper to classify occupation into status
-        $classifyStatus = function (string $occ): string {
-            $o = strtolower(trim($occ));
-            if (str_contains($o, 'student'))                                         return 'Student';
-            if (str_contains($o, 'unemploy'))                                        return 'Unemployed';
-            if (str_contains($o, 'out-of-school') || str_contains($o, 'osy'))        return 'Out-of-School';
-            if ($o !== '' && $o !== 'none' && $o !== 'n/a' && $o !== '-')            return 'Employed';
-            return '';
+        $classifyStatus = static function (array $youth): string {
+            $status = trim((string) ($youth['economic_status'] ?? ''));
+            if ($status === 'Self-Employed') {
+                return 'Employed';
+            }
+
+            return $status === '—' ? '' : $status;
         };
 
         // Age group buckets: 15–17, 18–24, 25–30
@@ -1910,8 +1900,8 @@ class UIController extends BaseController
             if (empty($dob)) continue;
             $age = (int) date_diff(date_create($dob), date_create('today'))->y;
 
-            $g = strtolower(trim($y['gender'] ?? ''));
-            $s = $classifyStatus($y['occupation'] ?? '');
+            $g = strtolower(trim((string) ($y['gender'] ?? '')));
+            $s = $classifyStatus($y);
 
             foreach ($groups as $label => $range) {
                 if ($age >= $range['min'] && $age <= $range['max']) {

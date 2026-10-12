@@ -322,9 +322,11 @@
                                 <i class="fas fa-times"></i> Clear
                             </a>
                         <?php endif; ?>
+                        <?php if (session_role() === 'secretary'): ?>
                         <button type="button" class="db-btn" style="background:linear-gradient(135deg,#e67e22,#ca6f1e);color:#fff;border:none;" onclick="openAppointmentForm()">
                             <i class="fas fa-calendar-plus"></i> Create Appointment
                         </button>
+                        <?php endif; ?>
                     </div>
                 </div>
             </form>
@@ -483,6 +485,7 @@
     </div><!-- /.db-main -->
 
     <!-- ── Quick appointment request form ── -->
+    <?php if (session_role() === 'secretary'): ?>
     <div id="appointmentFormModal" class="db-modal-overlay" onclick="if (event.target === this) closeAppointmentForm()" style="display:none;align-items:center;justify-content:center;position:fixed;inset:0;z-index:1000;background:rgba(18,23,48,.55);padding:20px;">
         <div style="width:min(620px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 18px 50px rgba(18,23,48,.22);">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid #f0f2f8;">
@@ -593,6 +596,9 @@
             }
         });
 
+    </script>
+    <?php endif; ?>
+    <script>
         document.querySelectorAll('.db-nav-item').forEach(i =>
             i.addEventListener('click', () => document.getElementById('sidebar').classList.remove('open'))
         );

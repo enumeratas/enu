@@ -102,6 +102,8 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
     $routes->post('chatbot/api/return-to-ai',               'ChatbotController::returnToAI');
     $routes->post('chatbot/api/close-support',              'ChatbotController::closeSupportConversation');
     $routes->get('blotter',                      'BlotterController::adminIndex/captain');
+    $routes->get('blotter/new',                  'BlotterController::createSecretary');
+    $routes->post('blotter/store',               'BlotterController::storeSecretary');
     $routes->get('blotter/(:num)',               'BlotterController::show/$1');
     $routes->post('blotter/status/(:num)',        'BlotterController::updateStatus/$1');
     $routes->post('blotter/summons/(:num)',       'BlotterController::sendSummons/$1');
@@ -744,15 +746,6 @@ $routes->group('/sk', ['filter' => ['auth', 'role:sk']], function ($routes) use 
     $routes->post('profiling/photo/(:num)',  'SkController::uploadPhoto/$1');
     $routes->post('profiling/delete/(:num)', 'SkController::delete/$1');
     $routes->post('profiling/schedule',   'SkController::saveProfilingWindow');
-
-    $routes->get('activities',                              'BarangayActivityController::index');
-    $routes->get('activities/new',                          'BarangayActivityController::create');
-    $routes->get('activities/edit/(:num)',                  'BarangayActivityController::edit/$1');
-    $routes->post('activities/store',                       'BarangayActivityController::store');
-    $routes->post('activities/update/(:num)',               'BarangayActivityController::update/$1');
-    $routes->post('activities/delete/(:num)',               'BarangayActivityController::delete/$1');
-    $routes->get('activities/registrations/(:num)',         'BarangayActivityController::registrations/$1');
-    $routes->post('activities/registrations/update/(:num)', 'BarangayActivityController::updateRegistration/$1');
 
     $routes->get('programs',              'SkController::programs');
     $routes->get('programs/new',          'SkController::programForm');
