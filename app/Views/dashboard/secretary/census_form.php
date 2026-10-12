@@ -1574,7 +1574,11 @@
                     ['first_name', 'First Name'],
                     ['date_of_birth', 'Date of Birth'],
                     ['place_of_birth', 'Place of Birth'],
+                    ['religion', 'Religion'],
                     ['occupation', 'Occupation'],
+                    ['contact_number', 'Contact Number'],
+                    ['educational_attainment', 'Educational Attainment'],
+                    ['zone', 'Zone / Purok'],
                     ['years_of_residency', 'Years of Residency'],
                 ];
 
@@ -1589,7 +1593,10 @@
                     const parent = field.closest('div');
                     const label = parent ? parent.querySelector('.pf-label') : null;
 
-                    const empty = field.value.trim() === '' || field.value === '0';
+                    const value = field.value.trim();
+                    const empty = name === 'contact_number'
+                        ? !/^\d{11}$/.test(value)
+                        : (value === '' || value === '0');
                     if (empty) {
                         setFieldError(field, label);
                         if (!firstError) firstError = field;
@@ -1621,6 +1628,26 @@
             if (banner) banner.style.display = 'none';
             return true;
         }
+
+        // Hidden required fields on the other step block the browser
+        // without showing a message. Bring that step forward first.
+        document.getElementById('saveBtn').addEventListener('click', function(event) {
+            const form = document.getElementById('censusForm');
+            if (!form || form.checkValidity()) return;
+            event.preventDefault();
+            const invalid = form.querySelector(':invalid');
+            if (invalid && invalid.closest('#step1')) {
+                goTo(1);
+                validateStep(1);
+            } else if (invalid && invalid.closest('#step2')) {
+                goTo(2);
+            }
+            window.setTimeout(function() {
+                if (invalid && typeof invalid.reportValidity === 'function') {
+                    invalid.reportValidity();
+                }
+            }, 40);
+        });
 
         // ── Form submit validation ────────────────────────────────────────────
         document.getElementById('censusForm').addEventListener('submit', function(e) {
