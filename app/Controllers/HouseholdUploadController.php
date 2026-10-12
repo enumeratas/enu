@@ -52,22 +52,28 @@ class HouseholdUploadController extends BaseController
             return $this->fileMissing();
         }
 
+        $filename = basename($path) ?: 'document';
         $localPaths = [FCPATH . $path, WRITEPATH . $path];
         foreach ($localPaths as $localPath) {
             if (is_file($localPath)) {
-                $mimeType = mime_content_type($localPath) ?: 'application/octet-stream';
-                return $this->response
-                    ->setContentType($mimeType)
-                    ->setBody((string) file_get_contents($localPath));
+                $detected = mime_content_type($localPath);
+                $mimeType = (is_string($detected) && $detected !== '' && $detected !== 'application/octet-stream')
+                    ? $detected
+                    : $this->mimeFromName($filename);
+
+                return $this->inlineFile((string) file_get_contents($localPath), $mimeType, $filename);
             }
         }
 
         $storage = new HouseholdUploadStorage();
         $object = $storage->download($path);
         if ($object !== null) {
-            return $this->response
-                ->setContentType($object['mime'])
-                ->setBody($object['body']);
+            $mimeType = (string) ($object['mime'] ?? '');
+            if ($mimeType === '' || $mimeType === 'application/octet-stream') {
+                $mimeType = $this->mimeFromName($filename);
+            }
+
+            return $this->inlineFile((string) $object['body'], $mimeType, $filename);
         }
 
         $signedUrl = $storage->signedUrl($path);
@@ -76,6 +82,29 @@ class HouseholdUploadController extends BaseController
         }
 
         return $this->fileMissing();
+    }
+
+    private function inlineFile(string $body, string $mimeType, string $filename)
+    {
+        $safeName = str_replace(['"', "\r", "\n"], '', $filename);
+
+        return $this->response
+            ->setContentType($mimeType)
+            ->setHeader('Content-Disposition', 'inline; filename="' . $safeName . '"')
+            ->setHeader('Cache-Control', 'private, max-age=3600')
+            ->setBody($body);
+    }
+
+    private function mimeFromName(string $filename): string
+    {
+        return match (strtolower(pathinfo($filename, PATHINFO_EXTENSION))) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png'         => 'image/png',
+            'gif'         => 'image/gif',
+            'webp'        => 'image/webp',
+            'pdf'         => 'application/pdf',
+            default       => 'application/octet-stream',
+        };
     }
 
     private function fileMissing()

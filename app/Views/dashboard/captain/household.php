@@ -4,12 +4,16 @@
 <head>
     <meta charset="UTF-8">
     <?php
-    $ownershipDocumentPath = \App\Controllers\HouseholdUploadController::normalizeUploadPath($head['ownership_document_path'] ?? null);
-    $ownershipDocumentUrl = '';
-    if ($ownershipDocumentPath !== '') {
-        $ownershipRoutePath = preg_replace('#^uploads/#i', '', ltrim($ownershipDocumentPath, '/'));
-        $ownershipDocumentUrl = site_url('household-files/' . implode('/', array_map('rawurlencode', explode('/', $ownershipRoutePath))));
-    }
+    $householdFileUrl = static function (?string $path): string {
+        $normalized = \App\Controllers\HouseholdUploadController::normalizeUploadPath($path);
+        if ($normalized === '') {
+            return '';
+        }
+        $route = preg_replace('#^uploads/#i', '', ltrim($normalized, '/'));
+
+        return '/household-files/' . implode('/', array_map('rawurlencode', explode('/', (string) $route)));
+    };
+    $ownershipDocumentUrl = $householdFileUrl($head['ownership_document_path'] ?? null);
     ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Household Members - Bacolod BIS</title>
@@ -41,14 +45,7 @@
 
     // Education options
     $eduOptions = ['No Formal Education', 'Elementary Level', 'Elementary Graduate', 'High School Level', 'High School Graduate', 'College Level', 'College Graduate', 'Vocational / Tech-Voc', 'Post Graduate'];
-    $censusDocUrl = static function (?string $path): string {
-        $normalized = \App\Controllers\HouseholdUploadController::normalizeUploadPath($path);
-        if ($normalized === '') {
-            return '';
-        }
-        $route = preg_replace('#^uploads/#i', '', ltrim($normalized, '/'));
-        return site_url('household-files/' . implode('/', array_map('rawurlencode', explode('/', $route))));
-    };
+    $censusDocUrl = $householdFileUrl;
     ?>
 
     <div class="db-main">
@@ -294,18 +291,17 @@
 
             <?php
             $householdUploads = [];
-            $addHouseholdUpload = static function (array &$uploads, string $person, string $document, ?string $path): void {
+            $addHouseholdUpload = static function (array &$uploads, string $person, string $document, ?string $path) use ($householdFileUrl): void {
                 $normalizedPath = \App\Controllers\HouseholdUploadController::normalizeUploadPath($path);
                 if ($normalizedPath === '') {
                     return;
                 }
 
-                $routePath = preg_replace('#^uploads/#i', '', ltrim($normalizedPath, '/'));
                 $extension = strtolower(pathinfo($normalizedPath, PATHINFO_EXTENSION));
                 $uploads[] = [
                     'person'     => $person,
                     'document'   => $document,
-                    'path'       => site_url('household-files/' . implode('/', array_map('rawurlencode', explode('/', $routePath)))),
+                    'path'       => $householdFileUrl($path),
                     'is_image'   => in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true),
                     'extension'  => strtoupper($extension ?: 'FILE'),
                 ];
