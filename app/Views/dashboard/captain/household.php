@@ -68,6 +68,13 @@
                     <i class="fas fa-exclamation-circle"></i> <?= session()->getFlashdata('error') ?>
                 </div>
             <?php endif; ?>
+            <?php if (($head['approval_status'] ?? '') === 'pending' && can_role('secretary', 'captain', 'admin')): ?>
+                <div class="db-alert" style="margin-bottom:16px;background:#fffbf0;border:1px solid #ffe08a;color:#7a4200;">
+                    <i class="fas fa-clipboard-check"></i>
+                    This census record is waiting for review. Authorized barangay personnel must verify the information before it can be approved.
+                    <a href="/<?= esc(session_role()) ?>/census/review/<?= esc($householdId) ?>" style="margin-left:8px;font-weight:700;color:#7a4200;">Open review</a>
+                </div>
+            <?php endif; ?>
 
             <!-- Head card -->
             <div class="hh-head-card <?= !empty($head['is_deceased']) ? 'hh-head-card--deceased' : '' ?>">
@@ -433,6 +440,9 @@
                                         <span class="hh-rel-badge<?= $isFormerHead ? ' hh-rel-badge--former' : '' ?>">
                                             <?= esc($relLabel) ?>
                                         </span>
+                                        <?php if (! empty($m['marital_status'])): ?>
+                                            <div style="font-size:11px;color:#6b7291;margin-top:3px;"><?= esc($m['marital_status']) ?></div>
+                                        <?php endif; ?>
                                     </td>
                                     <td><?= $mDob ?></td>
                                     <td><?= $mAge ?></td>
@@ -579,8 +589,8 @@
                                 <div>
                                     <div class="pf-label">Civil Status</div>
                                     <select class="pf-ctrl" name="civil_status">
-                                        <?php foreach (['Single', 'Married', 'Widowed', 'Separated', 'Annulled'] as $cs): ?>
-                                            <option <?= ($head['civil_status'] ?? '') === $cs ? 'selected' : '' ?>><?= $cs ?></option>
+                                        <?php foreach (civil_status_options() as $cs): ?>
+                                            <option <?= ($head['civil_status'] ?? '') === $cs ? 'selected' : '' ?>><?= esc($cs) ?></option>
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
@@ -991,10 +1001,13 @@
                                                 <option>Female</option>
                                             </select>
                                         </div>
-                                        <div class="pf-field pf-field--inline pf-field--sm">
+                                        <div class="pf-field pf-field--inline pf-field--civil">
                                             <div class="pf-field-label">Civil Status</div>
-                                            <input type="hidden" name="child_marital_status[]" value="Single">
-                                            <label class="pf-married-toggle"><input type="checkbox" onchange="toggleChildMarried(this)"><span>Married</span></label>
+                                            <select class="pf-input" name="child_marital_status[]" onchange="syncMinorChildCivilStatus(this.closest('.pf-member-card'))">
+                                                <?php foreach (civil_status_options() as $cs): ?>
+                                                    <option<?= $cs === 'Single' ? ' selected' : '' ?>><?= esc($cs) ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
                                         </div>
                                         <div class="pf-field pf-field--inline">
                                             <div class="pf-field-label">Occupation</div>
@@ -1229,7 +1242,7 @@
                         <div class="pf-field-row pf-cols-3">
                             <div class="pf-field">
                                 <div class="pf-field-label">Relationship to Head</div>
-                                <select class="pf-input" name="relationship" id="em_relationship" required>
+                                <select class="pf-input" name="relationship" id="em_relationship" required onchange="syncEditMemberCivilStatus()">
                                     <option value="">— Select —</option>
                                     <option value="spouse">Spouse</option>
                                     <option value="child">Child</option>
@@ -1247,7 +1260,15 @@
                             </div>
                             <div class="pf-field">
                                 <div class="pf-field-label">Date of Birth</div>
-                                <div class="pf-date-wrap"><input type="date" class="pf-input pf-date-input" name="date_of_birth" id="em_dob"><i class="fas fa-calendar-alt pf-date-icon"></i></div>
+                                <div class="pf-date-wrap"><input type="date" class="pf-input pf-date-input" name="date_of_birth" id="em_dob" onchange="syncEditMemberCivilStatus()"><i class="fas fa-calendar-alt pf-date-icon"></i></div>
+                            </div>
+                            <div class="pf-field">
+                                <div class="pf-field-label">Civil Status</div>
+                                <select class="pf-input" name="marital_status" id="em_civil_status" onchange="syncEditMemberCivilStatus()">
+                                    <?php foreach (civil_status_options() as $cs): ?>
+                                        <option><?= esc($cs) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
                             <div class="pf-field">
                                 <div class="pf-field-label">Occupation</div>
@@ -1357,13 +1378,17 @@
         }
 
         #modalChildrenRows .pf-member-fields> :nth-child(5),
-        #modalChildrenRows .pf-member-fields> :nth-child(6),
-        #modalChildrenRows .pf-member-fields> :nth-child(7) {
+        #modalChildrenRows .pf-member-fields> :nth-child(6) {
             grid-column: span 2;
         }
 
+        #modalChildrenRows .pf-member-fields> :nth-child(7),
         #modalChildrenRows .pf-member-fields> :nth-child(8) {
-            grid-column: span 4;
+            grid-column: span 3;
+        }
+
+        .pf-field--civil {
+            flex: 0 0 160px;
         }
 
         #modalChildrenRows .pf-member-fields> :nth-child(9),
@@ -2158,6 +2183,15 @@
             document.getElementById('em_suffix').value = m.suffix || '';
             document.getElementById('em_relationship').value = m.relationship || '';
             document.getElementById('em_dob').value = m.date_of_birth || '';
+            const emCivil = document.getElementById('em_civil_status');
+            if (emCivil) {
+                const savedCivil = m.marital_status || 'Single';
+                if (!Array.from(emCivil.options).some(function(opt) { return opt.value === savedCivil || opt.text === savedCivil; })) {
+                    emCivil.add(new Option(savedCivil, savedCivil));
+                }
+                emCivil.value = savedCivil;
+                syncEditMemberCivilStatus();
+            }
             document.getElementById('em_occupation').value = m.occupation || '';
             const emWork = document.getElementById('em_work');
             if (emWork) emWork.value = m.work_detail || '';
@@ -2361,10 +2395,15 @@
                             <div class="pf-field-label">Gender</div>
                             <select class="pf-input" name="child_gender[]"><option value="">—Select—</option><option>Male</option><option>Female</option></select>
                         </div>
-                        <div class="pf-field pf-field--inline pf-field--sm">
+                        <div class="pf-field pf-field--inline pf-field--civil">
                             <div class="pf-field-label">Civil Status</div>
-                            <input type="hidden" name="child_marital_status[]" value="Single">
-                            <label class="pf-married-toggle"><input type="checkbox" onchange="toggleChildMarried(this)"><span>Married</span></label>
+                            <select class="pf-input" name="child_marital_status[]" onchange="syncMinorChildCivilStatus(this.closest('.pf-member-card'))">
+                                <option selected>Single</option>
+                                <option>Married</option>
+                                <option>Widowed</option>
+                                <option>Separated</option>
+                                <option>Annulled</option>
+                            </select>
                         </div>
                         <div class="pf-field pf-field--inline">
                             <div class="pf-field-label">Occupation</div>
@@ -2476,11 +2515,48 @@
             btn.closest('.pf-member-card').remove();
         }
 
-        function toggleChildMarried(checkbox) {
-            const row = checkbox.closest('.pf-member-card');
-            const status = row ? row.querySelector('input[name="child_marital_status[]"]') : null;
-            if (status) status.value = checkbox.checked ? 'Married' : 'Single';
+        function isMinorDate(value) {
+            if (!value) return false;
+            const birthDate = new Date(value + 'T00:00:00');
+            if (Number.isNaN(birthDate.getTime())) return false;
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const birthdayPassed = today.getMonth() > birthDate.getMonth() ||
+                (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+            if (!birthdayPassed) age--;
+            return age < 18;
         }
+
+        function syncMinorChildCivilStatus(row) {
+            const dob = row?.querySelector('input[name="child_dob[]"]');
+            const status = row?.querySelector('select[name="child_marital_status[]"]');
+            if (!dob || !status) return;
+
+            const minor = isMinorDate(dob.value);
+            Array.from(status.options).forEach(function(opt) {
+                opt.disabled = minor && opt.value !== 'Single';
+            });
+            if (minor) status.value = 'Single';
+        }
+
+        function syncEditMemberCivilStatus() {
+            const civil = document.getElementById('em_civil_status');
+            const dob = document.getElementById('em_dob');
+            const relationship = document.getElementById('em_relationship');
+            if (!civil || !dob || !relationship) return;
+
+            const minorChild = relationship.value === 'child' && isMinorDate(dob.value);
+            Array.from(civil.options).forEach(function(opt) {
+                opt.disabled = minorChild && opt.value !== 'Single';
+            });
+            if (minorChild) civil.value = 'Single';
+        }
+
+        document.addEventListener('change', function(e) {
+            if (e.target.name === 'child_dob[]') {
+                syncMinorChildCivilStatus(e.target.closest('.pf-member-card'));
+            }
+        });
 
         // Occupation quick-pick: toggle grade field visibility
         function setOcc(btn, value) {
@@ -2647,8 +2723,8 @@
                             <select name="new_civil_status" id="sep_civil_status"
                                 style="width:100%;padding:9px 12px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:inherit;outline:none;">
                                 <option value="">— Unchanged —</option>
-                                <?php foreach (['Single', 'Married', 'Widowed', 'Separated', 'Annulled'] as $cs): ?>
-                                    <option><?= $cs ?></option>
+                                <?php foreach (civil_status_options() as $cs): ?>
+                                    <option><?= esc($cs) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>

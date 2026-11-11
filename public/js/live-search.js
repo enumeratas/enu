@@ -38,6 +38,9 @@
             }
             request = new AbortController();
             try {
+                if (!navigator.onLine) {
+                    return;
+                }
                 const response = await fetch(url, {
                     signal: request.signal,
                     cache: 'no-store',

@@ -11,6 +11,7 @@ use App\Models\HouseholdMemberModel;
 use App\Models\NotificationModel;
 use App\Models\UserModel;
 use App\Libraries\EmailService;
+use App\Libraries\TransactionMailer;
 
 class ClearanceController extends BaseController
 {
@@ -34,33 +35,38 @@ class ClearanceController extends BaseController
 
     private function notifyClearanceByEmail(array $request, string $status, string $remarks = ''): void
     {
-        if (! (new BarangaySettingsModel())->enabled('email_notifications')) {
-            return;
-        }
-
         if (empty($request['user_id'])) {
             return;
         }
 
         try {
             $user = (new UserModel())->find((int) $request['user_id']);
-            $email = trim($user['email'] ?? '');
-            if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            if (! is_array($user)) {
                 return;
             }
-
+            $email = trim((string) ($user['email'] ?? ''));
             $name = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: ($user['username'] ?? 'Resident');
             $estimatedRelease = ! empty($request['est_release_date'])
-                ? date('M d, Y', strtotime($request['est_release_date']))
+                ? date('M d, Y', strtotime((string) $request['est_release_date']))
                 : '';
+            $recordId = (int) ($request['id'] ?? 0);
+            $document = (string) ($request['document_type'] ?? 'clearance document');
+            $key = $recordId > 0
+                ? 'clearance:' . $recordId . ':' . strtolower($status)
+                : 'clearance:user:' . (int) $request['user_id'] . ':' . strtolower($status) . ':' . sha1($document . '|' . $remarks);
 
-            (new EmailService())->sendClearanceUpdate(
+            (new TransactionMailer())->deliver(
+                $key,
                 $email,
                 $name,
-                $request['document_type'] ?? 'clearance document',
-                $status,
-                $remarks,
-                $estimatedRelease
+                static fn (EmailService $mail): bool => $mail->sendClearanceUpdate(
+                    $email,
+                    $name,
+                    $document,
+                    $status,
+                    $remarks,
+                    $estimatedRelease
+                )
             );
         } catch (\Throwable $e) {
             log_message('error', 'Clearance update email failed: ' . $e->getMessage());
@@ -71,6 +77,7 @@ class ClearanceController extends BaseController
 
     public function residentIndex()
     {
+        \App\Libraries\PendingRequestExpiry::sweep();
         $userId    = (int) session()->get('user_id');
         $userModel = new UserModel();
         $user      = $userModel->find($userId);
@@ -281,6 +288,7 @@ class ClearanceController extends BaseController
                         $this->clearanceLinkForUser($userId)
                     );
                     $this->notifyClearanceByEmail([
+                        'id'               => (int) $this->model->getInsertID(),
                         'user_id'          => $userId,
                         'document_type'    => $docType,
                         'est_release_date' => null,
@@ -331,13 +339,18 @@ class ClearanceController extends BaseController
                 'est_release_date'    => $estRelease,
             ]);
 
+            $requestId = (int) $this->model->getInsertID();
             $saved = [
+                'id'               => $requestId,
                 'user_id'          => $userId,
                 'document_type'    => $docType,
                 'est_release_date' => $estRelease,
                 'resident_name'    => trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')),
             ];
-            $autoApproved = $this->autoApproveIfEnabled((int) $this->model->getInsertID(), $saved);
+            $autoApproved = $this->autoApproveIfEnabled($requestId, $saved);
+            if (! $autoApproved) {
+                $this->notifyClearanceByEmail($saved, 'submitted');
+            }
             $this->emailStaffClearance($saved, $autoApproved ? 'auto_approved' : 'submitted');
 
             $role = match (session()->get('role')) {
@@ -478,13 +491,15 @@ class ClearanceController extends BaseController
                 'est_release_date'    => $estRelease,
             ]);
 
+            $requestId = (int) $this->model->getInsertID();
             $saved = [
+                'id'               => $requestId,
                 'user_id'          => $userId,
                 'document_type'    => $docType,
                 'est_release_date' => $estRelease,
                 'resident_name'    => $residentName,
             ];
-            $autoApproved = $this->autoApproveIfEnabled((int) $this->model->getInsertID(), $saved, (int) session()->get('user_id'));
+            $autoApproved = $this->autoApproveIfEnabled($requestId, $saved, (int) session()->get('user_id'));
 
             if (! $autoApproved) {
                 NotificationModel::push(
@@ -494,6 +509,7 @@ class ClearanceController extends BaseController
                     'A secretary filed a ' . $docType . ' request for your account.',
                     $this->clearanceLinkForUser($userId)
                 );
+                $this->notifyClearanceByEmail($saved, 'submitted');
             }
 
             $this->emailStaffClearance($saved, $autoApproved ? 'auto_approved' : 'submitted');
@@ -512,13 +528,16 @@ class ClearanceController extends BaseController
 
     public function adminIndex(string $role)
     {
+        \App\Libraries\PendingRequestExpiry::sweep();
         $db = \Config\Database::connect();
 
         // Stats
         $model    = $this->model;
         $pending  = $model->where('status', 'pending')->countAllResults();
         $approved = $model->where('status', 'approved')->countAllResults();
+        $released = $model->where('status', 'released')->countAllResults();
         $rejected = $model->where('status', 'rejected')->countAllResults();
+        $expired  = $model->where('status', 'expired')->countAllResults();
         $total    = $model->countAll();
 
         // Filters
@@ -538,7 +557,9 @@ class ClearanceController extends BaseController
                 COUNT(cr.id) AS total_requests,
                 SUM(cr.status = 'pending')  AS pending_count,
                 SUM(cr.status = 'approved') AS approved_count,
+                SUM(cr.status = 'released') AS released_count,
                 SUM(cr.status = 'rejected') AS rejected_count,
+                SUM(cr.status = 'expired')  AS expired_count,
                 GROUP_CONCAT(DISTINCT cr.document_type ORDER BY cr.document_type SEPARATOR ', ') AS document_types,
                 MAX(cr.created_at) AS latest_filed
             ")
@@ -660,7 +681,9 @@ class ClearanceController extends BaseController
             'residents'           => $residents,
             'pending'             => $pending,
             'approved'            => $approved,
+            'released'            => $released,
             'rejected'            => $rejected,
+            'expired'             => $expired,
             'total'               => $total,
             'filteredTotal'       => $filteredTotal,
             'perPage'             => $perPage,
@@ -811,13 +834,15 @@ class ClearanceController extends BaseController
         $req = $this->model->find($id);
 
         if (! $req || $req['status'] !== 'pending') {
-            return redirect()->back()->with('error', 'Only pending requests can be approved.');
+            return redirect()->to($this->clearanceDeskUrl(is_array($req) ? $req : null))
+                ->with('error', 'Only pending requests can be approved.');
         }
 
         $this->markApproved($id, (int) session()->get('user_id'), $req);
         $this->emailStaffClearance($req, 'approved');
 
-        return redirect()->back()->with('success', 'Request approved.');
+        return redirect()->to($this->clearanceDeskUrl($req))
+            ->with('success', 'Request approved. It remains in Clearance until the document is released.');
     }
 
     /**
@@ -857,6 +882,7 @@ class ClearanceController extends BaseController
             return;
         }
 
+        $req['id'] = $id;
         $req['est_release_date'] = $snapshotDate;
         $document = $req['document_type'] ?? 'clearance';
         $estDate  = ' Estimated release: ' . date('M d, Y', strtotime($snapshotDate)) . '.';
@@ -918,16 +944,19 @@ class ClearanceController extends BaseController
             ->get()
             ->getResultArray();
 
-        $mail = new EmailService();
+        $mailer = new TransactionMailer();
+        $recordId = (int) ($req['id'] ?? 0);
         foreach ($staff as $person) {
             $email = trim((string) ($person['email'] ?? ''));
-            if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                continue;
-            }
-
             $name = trim(($person['first_name'] ?? '') . ' ' . ($person['last_name'] ?? '')) ?: 'Staff';
+            $key = 'clearance-staff:' . ($recordId > 0 ? (string) $recordId : sha1($subject . '|' . $who)) . ':' . $event . ':' . strtolower($email);
             try {
-                $mail->sendStaffNotice($email, $name, $subject, $message);
+                $mailer->deliver(
+                    $key,
+                    $email,
+                    $name,
+                    static fn (EmailService $mail): bool => $mail->sendStaffNotice($email, $name, $subject, $message)
+                );
             } catch (\Throwable $e) {
                 log_message('error', 'Staff clearance email failed: ' . $e->getMessage());
             }
@@ -941,7 +970,8 @@ class ClearanceController extends BaseController
         $req = $this->model->find($id);
 
         if (! $req || $req['status'] !== 'approved') {
-            return redirect()->back()->with('error', 'Only approved requests can be released.');
+            return redirect()->to($this->clearanceDeskUrl(is_array($req) ? $req : null))
+                ->with('error', 'Only approved requests can be released.');
         }
 
         $snapshot = $this->buildReleasedDocumentSnapshot($req);
@@ -965,10 +995,12 @@ class ClearanceController extends BaseController
                 'Your ' . $req['document_type'] . ' is ready and has been released. Please visit the barangay hall if you have not yet received it.',
                 $this->clearanceLinkForUser((int) $req['user_id'])
             );
+            $req['id'] = $id;
             $this->notifyClearanceByEmail($req, 'released');
         }
 
-        return redirect()->back()->with('success', 'Request marked as released.');
+        return redirect()->to($this->clearanceDeskUrl($req))
+            ->with('success', 'Document released. The record stays in Clearance.');
     }
 
     private function buildReleasedDocumentSnapshot(array $request): array
@@ -1010,16 +1042,16 @@ class ClearanceController extends BaseController
 
     public function reject(int $id)
     {
-        $role    = session()->get('role');
         $remarks = trim($this->request->getPost('remarks') ?? '');
         $req     = $this->model->find($id);
 
         if (! $req || $req['status'] !== 'pending') {
-            return redirect()->back()->with('error', 'Only pending requests can be rejected.');
+            return redirect()->to($this->clearanceDeskUrl(is_array($req) ? $req : null))
+                ->with('error', 'Only pending requests can be rejected.');
         }
 
         if ($remarks === '') {
-            return redirect()->back()->with('error', 'A rejection note is required.');
+            return redirect()->to($this->clearanceDeskUrl($req))->with('error', 'A rejection note is required.');
         }
 
         $this->model->update($id, [
@@ -1039,10 +1071,30 @@ class ClearanceController extends BaseController
                 'Your ' . $req['document_type'] . ' request could not be approved.' . $reasonPart . ' Please visit the barangay hall for assistance.',
                 $this->clearanceLinkForUser((int) $req['user_id'])
             );
+            $req['id'] = $id;
             $this->notifyClearanceByEmail($req, 'rejected', $remarks);
         }
 
-        return redirect()->back()->with('success', 'Request rejected.');
+        return redirect()->to($this->clearanceDeskUrl($req))->with('success', 'Request rejected. It remains in Clearance.');
+    }
+
+    /**
+     * Keep approval and release on the clearance record that was just updated.
+     *
+     * @param array<string, mixed>|null $request
+     */
+    private function clearanceDeskUrl(?array $request = null): string
+    {
+        $role = session_role();
+        if (! in_array($role, ['admin', 'secretary', 'captain'], true)) {
+            $role = 'secretary';
+        }
+
+        $userId = (int) ($request['user_id'] ?? 0);
+
+        return $userId > 0
+            ? '/' . $role . '/clearance/request/' . $userId
+            : '/' . $role . '/clearance';
     }
 
     public function cancel(int $id)

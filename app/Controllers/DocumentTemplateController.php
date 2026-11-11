@@ -239,9 +239,14 @@ class DocumentTemplateController extends BaseController
      */
     public function reportFrontPageSettings()
     {
+        $role = session_role();
+        if (! in_array($role, ['admin', 'captain', 'secretary'], true)) {
+            $role = 'secretary';
+        }
+
         return view('dashboard/secretary/report_front_page', [
             'reportFrontPage' => $this->settingsModel->getReportFrontPageSettings(),
-            'role'           => 'secretary',
+            'role'            => $role,
         ]);
     }
 

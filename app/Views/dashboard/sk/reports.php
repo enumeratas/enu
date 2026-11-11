@@ -105,6 +105,18 @@
             display: none;
         }
 
+        .sk-orientation {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sk-orientation span {
+            font-size: 12px;
+            font-weight: 700;
+            color: #4a5068;
+        }
+
         @media print {
             .db-sidebar,
             .db-topbar,
@@ -205,13 +217,18 @@
                     </button>
                 </form>
                 <div class="sk-rpt-actions">
+                    <div class="sk-orientation" role="group" aria-label="Page orientation">
+                        <span>Orientation</span>
+                        <button class="db-btn db-btn--primary" type="button" data-sk-orientation="portrait" aria-pressed="true" onclick="setSkReportOrientation('portrait')">Portrait</button>
+                        <button class="db-btn db-btn--outline" type="button" data-sk-orientation="landscape" aria-pressed="false" onclick="setSkReportOrientation('landscape')">Landscape</button>
+                    </div>
                     <button class="db-btn db-btn--outline" type="button" onclick="window.print()">
                         <i class="fas fa-print"></i> Print
                     </button>
-                    <a class="db-btn db-btn--outline" href="<?= esc($exportBase) ?>/export?year=<?= (int) $filterYear ?>" target="_blank">
+                    <a class="db-btn db-btn--outline" data-sk-print-link href="<?= esc($exportBase) ?>/export?year=<?= (int) $filterYear ?>&amp;orientation=portrait" target="_blank">
                         <i class="fas fa-eye"></i> Preview
                     </a>
-                    <a class="db-btn db-btn--primary" href="<?= esc($exportBase) ?>/download?year=<?= (int) $filterYear ?>">
+                    <a class="db-btn db-btn--primary" data-sk-print-link href="<?= esc($exportBase) ?>/download?year=<?= (int) $filterYear ?>&amp;orientation=portrait">
                         <i class="fas fa-file-pdf"></i> Download PDF
                     </a>
                 </div>
@@ -380,6 +397,40 @@
 
         </div>
     </div>
+    <style id="skReportPageSize">
+        @media print {
+            @page { size: A4 portrait; margin: 0.55in 0.5in 0.5in 0.5in; }
+        }
+    </style>
+    <script>
+        function setSkReportOrientation(orientation) {
+            var next = orientation === 'landscape' ? 'landscape' : 'portrait';
+            var style = document.getElementById('skReportPageSize');
+            style.textContent = '@media print { @page { size: A4 ' + next + '; margin: 0.55in 0.5in 0.5in 0.5in; } }';
+            document.querySelectorAll('[data-sk-orientation]').forEach(function (button) {
+                var active = button.getAttribute('data-sk-orientation') === next;
+                button.classList.toggle('db-btn--primary', active);
+                button.classList.toggle('db-btn--outline', !active);
+                button.setAttribute('aria-pressed', active ? 'true' : 'false');
+            });
+            document.querySelectorAll('[data-sk-print-link]').forEach(function (link) {
+                var url = new URL(link.getAttribute('href'), window.location.origin);
+                url.searchParams.set('orientation', next);
+                link.setAttribute('href', url.pathname + url.search);
+            });
+            try {
+                sessionStorage.setItem('skReportOrientation', next);
+            } catch (error) {}
+        }
+
+        (function () {
+            var saved = 'portrait';
+            try {
+                saved = sessionStorage.getItem('skReportOrientation') || 'portrait';
+            } catch (error) {}
+            setSkReportOrientation(saved);
+        })();
+    </script>
 </body>
 
 </html>

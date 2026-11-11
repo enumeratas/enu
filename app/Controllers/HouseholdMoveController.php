@@ -321,6 +321,18 @@ class HouseholdMoveController extends BaseController
             return redirect()->to('/' . $role . '/moves')->with('error', 'Move could not be applied: ' . $result['message']);
         }
 
+        if (! empty($move['requested_by'])) {
+            (new \App\Libraries\TransactionMailer())->noticeUser(
+                (int) $move['requested_by'],
+                'household-move:' . $id . ':approved',
+                'Household move approved',
+                'Household move approved',
+                'Your household move request was approved and applied.',
+                ['Status' => 'Approved'],
+                'Open Household Moves in the Barangay Information System to review the updated record.'
+            );
+        }
+
         return redirect()->to('/' . $role . '/moves')->with('success', 'Move approved. ' . $result['message']);
     }
 
@@ -357,6 +369,15 @@ class HouseholdMoveController extends BaseController
                 'Household move rejected',
                 'Your household move request was rejected' . ($reason !== '' ? ': ' . $reason : '.'),
                 '/' . $requesterRole . '/moves'
+            );
+            (new \App\Libraries\TransactionMailer())->noticeUser(
+                (int) $move['requested_by'],
+                'household-move:' . $id . ':rejected',
+                'Household move not approved',
+                'Household move not approved',
+                'Your household move request was not approved.' . ($reason !== '' ? ' ' . $reason : ''),
+                ['Status' => 'Not approved', 'Note' => $reason],
+                'Open Household Moves in the Barangay Information System or visit the barangay hall if the request should be filed again.'
             );
         }
 

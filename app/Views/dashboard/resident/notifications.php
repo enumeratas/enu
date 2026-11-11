@@ -263,6 +263,7 @@
         'clearance_approved' => ['style' => 'success', 'icon' => 'fas fa-check-circle'],
         'clearance_rejected' => ['style' => 'danger',  'icon' => 'fas fa-times-circle'],
         'clearance_released' => ['style' => 'success', 'icon' => 'fas fa-file-check'],
+        'clearance_expired'  => ['style' => 'warning', 'icon' => 'fas fa-history'],
         'household_approved' => ['style' => 'success', 'icon' => 'fas fa-home'],
         'household_rejected' => ['style' => 'danger',  'icon' => 'fas fa-home'],
         'event_reminder'     => ['style' => 'event',   'icon' => 'fas fa-calendar-alt'],

@@ -1,4 +1,11 @@
-const CACHE_NAME = 'bis-app-shell-v14';
+const CACHE_NAME = 'bis-app-shell-v16';
+let networkOnline = true;
+
+readMetaSafe('online').then((value) => {
+  if (value === '0' || value === '1') {
+    networkOnline = value !== '0';
+  }
+});
 const APP_SHELL = [
   '/manifest.webmanifest',
   '/js/resident-offline.js',
@@ -8,7 +15,70 @@ const APP_SHELL = [
   '/bacolod.png'
 ];
 
-function offlineBlockedResponse() {
+function blotterHome(path) {
+  return String(path || '').indexOf('/admin/') === 0 ? '/admin/blotter' : '/secretary/blotter';
+}
+
+function isBlotterNavigationPath(path) {
+  return /^\/(admin|secretary)\/blotter(?:\/|$)/.test(path || '');
+}
+
+function offlineBlockedResponse(path) {
+  const blotterPath = isBlotterNavigationPath(path);
+  const listUrl = blotterHome(path);
+  const recovery = blotterPath ? `
+    <p style="margin-top:14px;">Returning to the previous blotter page saved on this device.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;">
+      <button id="bisOfflineBack" type="button" style="border:0;border-radius:8px;background:#16325c;color:#fff;padding:10px 14px;font-weight:700;cursor:pointer;">Back to previous page</button>
+      <a href="${listUrl}" style="display:inline-block;border-radius:8px;background:#eef2ff;color:#16325c;padding:10px 14px;font-weight:700;text-decoration:none;">Blotter reports</a>
+    </div>
+    <script>
+      (function () {
+        var listUrl = ${JSON.stringify(listUrl)};
+        function currentPath() {
+          return location.pathname.replace(/\\/index\\.php/, '').replace(/\\/+$/, '') || '/';
+        }
+        function readTrail() {
+          try {
+            var trail = JSON.parse(sessionStorage.getItem('bis_blotter_nav_trail') || '[]');
+            return Array.isArray(trail) ? trail : [];
+          } catch (error) {
+            return [];
+          }
+        }
+        function previousUrl() {
+          var trail = readTrail();
+          var current = currentPath();
+          var at = trail.lastIndexOf(current);
+          if (at > 0) return trail[at - 1];
+          if (at === -1 && trail.length && trail[trail.length - 1] !== current) return trail[trail.length - 1];
+          return '';
+        }
+        function go(url) {
+          location.replace(url);
+        }
+        var target = previousUrl() || listUrl;
+        var current = currentPath();
+        var guard = '';
+        try { guard = sessionStorage.getItem('bis_offline_nav_guard') || ''; } catch (error) {}
+        if (target && target !== current && guard !== target) {
+          try { sessionStorage.setItem('bis_offline_nav_guard', target); } catch (error) {}
+          go(target);
+          return;
+        }
+        var button = document.getElementById('bisOfflineBack');
+        if (button) {
+          button.addEventListener('click', function () {
+            if (history.length > 1) {
+              history.back();
+              return;
+            }
+            go(listUrl);
+          });
+        }
+      })();
+    </script>` : '';
+
   return new Response(`<!doctype html>
   <html lang="en">
   <head>
@@ -27,17 +97,79 @@ function offlineBlockedResponse() {
     <div class="box">
       <div class="badge">OFFLINE MODE</div>
       <h1>Page not available while offline</h1>
-      <p>Login and other modules stay online-only. After you sign in, clearance requests and blotter reports opened on this device can be saved offline and sent when the internet returns.</p>
+      <p>Login and other modules stay online-only. Blotter cases and clearance requests opened while signed in on this device stay available offline. New reports and case updates are saved here and sent when the internet returns.</p>
+      ${recovery}
     </div>
   </body>
   </html>`, {
     status: 200,
-    headers: { 'Content-Type': 'text/html; charset=utf-8' }
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'private, max-age=0'
+    }
   });
 }
 
 function appPath(url) {
   return String(url.pathname || '').replace(/^\/index\.php/, '') || '/';
+}
+
+async function materializeResponse(response) {
+  if (!response) {
+    return response;
+  }
+  try {
+    const headers = new Headers();
+    response.headers.forEach((value, key) => {
+      if (/^(set-cookie|set-cookie2|content-encoding|content-length|content-security-policy|report-to|nel)$/i.test(key)) {
+        return;
+      }
+      try {
+        headers.append(key, value);
+      } catch (error) {
+        // Skip headers the response constructor will not accept.
+      }
+    });
+    headers.set('Cache-Control', 'private, max-age=0');
+    headers.delete('Pragma');
+    const body = await response.clone().blob();
+    return new Response(body, {
+      status: response.status || 200,
+      statusText: response.statusText || 'OK',
+      headers
+    });
+  } catch (error) {
+    return response;
+  }
+}
+
+async function asOfflineDocument(response) {
+  const materialized = await materializeResponse(response);
+  const type = materialized && materialized.headers ? (materialized.headers.get('Content-Type') || '') : '';
+  if (!materialized || !/text\/html/i.test(type)) {
+    return materialized;
+  }
+  try {
+    let html = await materialized.text();
+    if (html.indexOf('name="bis-offline-snapshot"') === -1) {
+      html = html.replace('<head>', '<head><meta name="bis-offline-snapshot" content="1">');
+    }
+    const headers = new Headers(materialized.headers);
+    headers.delete('Content-Length');
+    return new Response(html, {
+      status: materialized.status,
+      statusText: materialized.statusText,
+      headers
+    });
+  } catch (error) {
+    return materialized;
+  }
+}
+
+function fetchWithTimeout(request, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(request, { signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
 function canCacheResponse(response) {
@@ -72,7 +204,9 @@ function isOfflineModulePath(path) {
   return /^\/resident\/clearance\/?$/.test(path)
     || /^\/(admin|secretary)\/clearance\/?$/.test(path)
     || /^\/(admin|secretary)\/blotter\/?$/.test(path)
-    || /^\/(admin|secretary)\/blotter\/new\/?$/.test(path);
+    || /^\/(admin|secretary)\/blotter\/new\/?$/.test(path)
+    || /^\/(admin|secretary)\/blotter\/\d+\/?$/.test(path)
+    || /^\/(admin|secretary)\/pii\/directory\/residents\/?$/.test(path);
 }
 
 function offlinePagesForRole(role) {
@@ -110,10 +244,9 @@ async function storeOfflinePage(userId, request, response) {
     return;
   }
   const cache = await caches.open(userCacheName(userId));
-  const copy = response.clone();
-  await cache.put(request, copy.clone()).catch(() => undefined);
+  const stored = await materializeResponse(response.clone());
   const variants = requestVariants(request);
-  await Promise.all(variants.map((href) => cache.put(href, copy.clone()).catch(() => undefined)));
+  await Promise.all(variants.map((href) => cache.put(href, stored.clone()).catch(() => undefined)));
 }
 
 async function matchOfflinePage(request, userId) {
@@ -121,9 +254,25 @@ async function matchOfflinePage(request, userId) {
     return null;
   }
   const cache = await caches.open(userCacheName(userId));
-  const candidates = [request].concat(requestVariants(request));
-  for (const candidate of candidates) {
-    const hit = await cache.match(candidate, { ignoreSearch: true }).catch(() => null);
+  const url = new URL(request.url);
+  const path = appPath(url).replace(/\/+$/, '') || '/';
+  const exactUrls = [
+    url.origin + path + url.search,
+    url.origin + path + '/' + url.search,
+    url.origin + '/index.php' + path + url.search
+  ];
+  for (const candidate of exactUrls) {
+    const hit = await cache.match(candidate, { ignoreVary: true }).catch(() => null);
+    if (hit) {
+      return hit;
+    }
+  }
+  if (/\/pii\/directory\//.test(path)) {
+    return null;
+  }
+  const looseUrls = [url.origin + path, url.origin + path + '/', url.origin + '/index.php' + path];
+  for (const candidate of looseUrls) {
+    const hit = await cache.match(candidate, { ignoreVary: true, ignoreSearch: true }).catch(() => null);
     if (hit) {
       return hit;
     }
@@ -169,6 +318,10 @@ function readMeta(key) {
   })).catch(() => '');
 }
 
+function readMetaSafe(key) {
+  return readMeta(key);
+}
+
 function writeMeta(key, value) {
   return metaDb().then((db) => new Promise((resolve) => {
     const request = db.transaction('meta', 'readwrite').objectStore('meta').put(value, key);
@@ -195,6 +348,10 @@ self.addEventListener('message', (event) => {
   if (data.type === 'bis-prefetch' && data.userId) {
     event.waitUntil(prefetchOfflinePages(String(data.userId), data.pages || offlinePagesForRole(data.role)));
   }
+  if (data.type === 'bis-network') {
+    networkOnline = data.online !== '0' && data.online !== false;
+    event.waitUntil(writeMeta('online', networkOnline ? '1' : '0'));
+  }
   if (data.type === 'bis-logout' && data.userId) {
     event.waitUntil(Promise.all([
       caches.delete(userCacheName(data.userId)),
@@ -211,11 +368,16 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
+  event.waitUntil(Promise.all([
     caches.keys().then((keys) => Promise.all(
       keys.filter((key) => key.indexOf('bis-app-shell-') === 0 && key !== CACHE_NAME).map((key) => caches.delete(key))
-    ))
-  );
+    )),
+    readMeta('online').then((value) => {
+      if (value === '0' || value === '1') {
+        networkOnline = value !== '0';
+      }
+    })
+  ]));
   self.clients.claim();
 });
 
@@ -239,10 +401,14 @@ self.addEventListener('fetch', (event) => {
       fetch(request).then((response) => {
         if (canCacheResponse(response)) {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => undefined);
+          caches.open(CACHE_NAME).then((cache) => cache.put(request.url, copy)).catch(() => undefined);
         }
         return response;
-      }).catch(() => caches.match(request))
+      }).catch(async () => {
+        const cached = await caches.match(request.url, { ignoreVary: true })
+          || await caches.match(request, { ignoreVary: true });
+        return cached || new Response('', { status: 504, statusText: 'Offline' });
+      })
     );
     return;
   }
@@ -254,9 +420,19 @@ self.addEventListener('fetch', (event) => {
   if (isSessionRequest(request)) {
     event.respondWith((async () => {
       const userId = await readMeta('userId');
+      const modulePath = Boolean(userId && isOfflineModulePath(path));
+      const cached = modulePath ? await matchOfflinePage(request, userId) : null;
+      if (modulePath && isNavigationRequest && !networkOnline) {
+        if (cached) {
+          return asOfflineDocument(cached);
+        }
+        return offlineBlockedResponse(path);
+      }
       try {
-        const response = await fetch(request);
-        if (userId && isOfflineModulePath(path)) {
+        const response = modulePath && isNavigationRequest
+          ? await fetchWithTimeout(request, cached ? 2500 : 8000)
+          : await fetch(request);
+        if (modulePath && canCacheResponse(response) && !isAuthRedirectResponse(response)) {
           const toCache = response.clone();
           event.waitUntil((async () => {
             await storeOfflinePage(userId, request, toCache);
@@ -266,16 +442,16 @@ self.addEventListener('fetch', (event) => {
             }
           })());
         }
+        if (isNavigationRequest && response.redirected) {
+          return materializeResponse(response);
+        }
         return response;
       } catch (error) {
-        if (userId && isOfflineModulePath(path)) {
-          const cached = await matchOfflinePage(request, userId);
-          if (cached) {
-            return cached;
-          }
+        if (cached) {
+          return isNavigationRequest ? asOfflineDocument(cached) : materializeResponse(cached);
         }
         if (isNavigationRequest) {
-          return offlineBlockedResponse();
+          return offlineBlockedResponse(path);
         }
         return new Response('', { status: 503, statusText: 'Offline' });
       }
@@ -296,7 +472,7 @@ self.addEventListener('fetch', (event) => {
         return cached;
       }
       if (isNavigationRequest) {
-        return offlineBlockedResponse();
+        return offlineBlockedResponse(path);
       }
       return new Response('', { status: 503, statusText: 'Offline' });
     })

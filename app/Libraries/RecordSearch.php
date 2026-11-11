@@ -70,6 +70,38 @@ class RecordSearch
     }
 
     /**
+     * Match a resident by full name in any order, account username or email, and birth date.
+     *
+     * @param list<string|null> $dates
+     */
+    public static function personMatches(string $raw, string $name, string $account = '', array $dates = []): bool
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return true;
+        }
+
+        $text = trim($name . ' ' . $account);
+        if (self::matches($raw, $text, $dates)) {
+            return true;
+        }
+
+        $tokens = preg_split('/[\s,]+/', strtolower($raw), -1, PREG_SPLIT_NO_EMPTY);
+        if ($tokens === false || $tokens === []) {
+            return false;
+        }
+
+        $haystack = strtolower($text);
+        foreach ($tokens as $token) {
+            if (! str_contains($haystack, $token)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * @param list<string|null> $dates
      */
     public static function matches(string $raw, string $text, array $dates = []): bool

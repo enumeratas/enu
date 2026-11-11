@@ -43,9 +43,10 @@ class ReportsExportController extends BaseController
     public function skDownload()
     {
         $year = $this->skReportYear();
+        $orientation = $this->reportOrientation();
         $dompdf = new Dompdf();
         $dompdf->loadHtml($this->renderSkReport());
-        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->setPaper('A4', $orientation);
         $dompdf->render();
 
         return $this->response->download(
@@ -64,6 +65,11 @@ class ReportsExportController extends BaseController
         return $year;
     }
 
+    private function reportOrientation(): string
+    {
+        return strtolower((string) $this->request->getGet('orientation')) === 'landscape' ? 'landscape' : 'portrait';
+    }
+
     private function renderSkReport(): string
     {
         $year = $this->skReportYear();
@@ -74,6 +80,7 @@ class ReportsExportController extends BaseController
             $ui->buildSkReportData($year),
             [
                 'filterYear' => $year,
+                'orientation' => $this->reportOrientation(),
                 'reportFrontPage' => $settings,
             ]
         ));

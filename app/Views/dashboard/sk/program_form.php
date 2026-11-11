@@ -58,6 +58,11 @@
 
         return $value === '' ? '' : substr($value, 0, 10);
     };
+    $timeValue = static function (string $key) use ($field): string {
+        $value = trim($field($key));
+
+        return strlen($value) >= 5 ? substr($value, 0, 5) : '';
+    };
     $postedTypes = old('req_type', null, false);
     $postedLabels = old('req_label', null, false);
     if (is_array($postedTypes) && is_array($postedLabels)) {
@@ -147,6 +152,16 @@
                         <div>
                             <label class="sk-form-label" for="programVenue">Venue <span class="sk-required">*</span></label>
                             <input class="sk-form-input" id="programVenue" name="venue" type="text" required maxlength="255" value="<?= esc($field('venue')) ?>" placeholder="e.g. Barangay Hall">
+                        </div>
+                    </div>
+                    <div class="sk-form-row">
+                        <div>
+                            <label class="sk-form-label" for="programStartTime">Start time</label>
+                            <input class="sk-form-input" id="programStartTime" name="start_time" type="time" value="<?= esc($timeValue('start_time')) ?>">
+                        </div>
+                        <div>
+                            <label class="sk-form-label" for="programEndTime">End time</label>
+                            <input class="sk-form-input" id="programEndTime" name="end_time" type="time" value="<?= esc($timeValue('end_time')) ?>">
                         </div>
                     </div>
                     <div class="sk-form-row">

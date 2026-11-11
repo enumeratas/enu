@@ -339,11 +339,13 @@
         (function() {
             'use strict';
 
-            /* ── Resident data loaded after render (not present in page HTML) ─ */
+            /* ── Resident directory. Cached with the page so search still works offline. ─ */
             let RESIDENTS = [];
             const RESIDENT_DATA = {};
-            fetch('/secretary/pii/directory/residents', {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            const rolePrefix = (location.pathname.match(/^\/(admin|secretary)(?=\/)/) || [null, 'secretary'])[1];
+            fetch('/' + rolePrefix + '/pii/directory/residents', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
             }).then(r => r.json()).then(rows => {
                 RESIDENTS = Array.isArray(rows) ? rows : [];
             }).catch(() => { RESIDENTS = []; });
@@ -421,6 +423,11 @@
                 ).slice(0, 10);
 
                 if (!matches.length) {
+                    if (!navigator.onLine && RESIDENTS.length === 0) {
+                        list.innerHTML = '<div class="bl-ac-item" style="cursor:default;">Resident list is not on this device yet. Type the name and save the report anyway.</div>';
+                        list.classList.add('open');
+                        return;
+                    }
                     closeList(type);
                     return;
                 }
@@ -448,39 +455,53 @@
             }
 
             /* ── Select a resident ──────────────────────────────────────────── */
-            async function selectResident(type, resId) {
+            function residentFromDirectory(resId) {
+                const row = RESIDENTS.find(item => Number(item.id) === Number(resId));
+                if (!row) return null;
+                const zone = String(row.zone || '').trim();
+                return {
+                    name: row.name || row.display || '',
+                    email: row.email || '',
+                    address: zone ? zone + ', Bacolod City, Bacolod' : 'Bacolod City, Bacolod',
+                };
+            }
+
+            function applyResident(type, resId, data) {
                 const c = cfg[type];
-                if (!RESIDENT_DATA[resId]) {
-                    try {
-                        const res = await fetch('/secretary/pii/resident/' + resId, {
-                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                        });
-                        if (!res.ok) return;
-                        RESIDENT_DATA[resId] = await res.json();
-                    } catch (e) {
-                        return;
-                    }
-                }
-                const data = RESIDENT_DATA[resId];
-                if (!data) return;
-
                 party[type].residentId = resId;
-
                 c.userIdInput.value = resId;
-                c.nameInput.value = data.name;
+                c.nameInput.value = data.name || '';
                 c.nameInput.readOnly = true;
-
-                c.emailInput.value = data.email;
+                c.emailInput.value = data.email || '';
                 c.emailInput.readOnly = true;
-
-                c.addrInput.value = data.address;
+                c.addrInput.value = data.address || '';
                 c.addrInput.readOnly = false;
-
-                // Show the Change button
                 c.clearBtn.style.display = '';
-
                 closeList(type);
                 runValidation();
+            }
+
+            async function selectResident(type, resId) {
+                const immediate = residentFromDirectory(resId);
+                if (immediate) {
+                    RESIDENT_DATA[resId] = immediate;
+                    applyResident(type, resId, immediate);
+                }
+                if (!navigator.onLine) {
+                    return;
+                }
+                try {
+                    const res = await fetch('/' + rolePrefix + '/pii/resident/' + resId, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        credentials: 'same-origin'
+                    });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    RESIDENT_DATA[resId] = data;
+                    applyResident(type, resId, data);
+                } catch (e) {
+                    // Directory details are already on the form.
+                }
             }
 
             /* ── Clear resident link when user edits the name manually ──────── */

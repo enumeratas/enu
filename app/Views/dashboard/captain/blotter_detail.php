@@ -199,8 +199,9 @@
                         </div>
                         <div id="narrativeContent" style="margin-top:14px;">
                             <?php if ($role === 'secretary'): ?>
-                                <form action="/secretary/blotter/narrative/<?= $r['id'] ?>" method="post">
+                                <form action="/secretary/blotter/narrative/<?= $r['id'] ?>" method="post" data-offline-sync="blotter_narrative">
                                     <?= csrf_field() ?>
+                                    <p data-offline-sync-status aria-live="polite" style="font-size:12px;color:#667085;margin:0 0 10px;"></p>
                                     <div class="bl-form-group">
                                         <label>Complainant's Narrative</label>
                                         <textarea name="complainant_narrative" class="bl-textarea" rows="6" required><?= esc($r['complainant_narrative'] ?? $r['narrative'] ?? '') ?></textarea>
@@ -231,8 +232,9 @@
                         </div>
                         <div id="hearingNarrativeContent" style="margin-top:14px;">
                             <?php if ($role === 'secretary'): ?>
-                                <form action="/secretary/blotter/hearing-narrative/<?= $r['id'] ?>" method="post">
+                                <form action="/secretary/blotter/hearing-narrative/<?= $r['id'] ?>" method="post" data-offline-sync="blotter_hearing">
                                     <?= csrf_field() ?>
+                                    <p data-offline-sync-status aria-live="polite" style="font-size:12px;color:#667085;margin:0 0 10px;"></p>
                                     <div class="bl-form-group">
                                         <label>Complainant's Hearing Narrative</label>
                                         <textarea name="hearing_complainant_narrative" class="bl-textarea" rows="6" placeholder="Record what the complainant stated during the hearing..."><?= esc($r['hearing_complainant_narrative'] ?? '') ?></textarea>
@@ -261,8 +263,9 @@
                     <!-- Update status -->
                     <div class="bl-card">
                         <h4 class="bl-card-title"><i class="fas fa-tasks"></i> Update Status</h4>
-                        <form action="/<?= $role ?>/blotter/status/<?= $r['id'] ?>" method="post">
+                        <form action="/<?= $role ?>/blotter/status/<?= $r['id'] ?>" method="post" data-offline-sync="blotter_status">
                             <?= csrf_field() ?>
+                            <p data-offline-sync-status aria-live="polite" style="font-size:12px;color:#667085;margin:0 0 10px;"></p>
                             <div class="bl-form-group">
                                 <label>Status</label>
                                 <select name="status" class="bl-select">
@@ -327,8 +330,9 @@
 
                             <!-- Reschedule form (hidden by default) -->
                             <div id="rescheduleForm" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid #f0f2f8;">
-                                <form action="/<?= $role ?>/blotter/reschedule/<?= $r['id'] ?>" method="post">
+                                <form action="/<?= $role ?>/blotter/reschedule/<?= $r['id'] ?>" method="post" data-offline-sync="blotter_reschedule">
                                     <?= csrf_field() ?>
+                                    <p data-offline-sync-status aria-live="polite" style="font-size:12px;color:#667085;margin:0 0 10px;"></p>
                                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
                                         <div class="bl-form-group" style="margin:0;">
                                             <label>New Date <span style="color:#c0392b;">*</span></label>
@@ -374,8 +378,9 @@
                             </div>
                         <?php endif; ?>
 
-                        <form action="/<?= $role ?>/blotter/summons/<?= $r['id'] ?>" method="post">
+                        <form action="/<?= $role ?>/blotter/summons/<?= $r['id'] ?>" method="post" data-offline-sync="blotter_summons">
                             <?= csrf_field() ?>
+                            <p data-offline-sync-status aria-live="polite" style="font-size:12px;color:#667085;margin:0 0 10px;"></p>
 
                             <!-- Complainant (auto-filled) -->
                             <div style="background:#f8f9fc;border:1px solid #e8ecf4;border-radius:10px;padding:14px 16px;margin-bottom:12px;">
@@ -586,12 +591,16 @@
             }
 
             async function fetchSlots(date) {
-                if (slotCache[date]) return slotCache[date];
+                if (Object.prototype.hasOwnProperty.call(slotCache, date)) return slotCache[date];
                 try {
                     const res = await fetch('/public/blotter/busy-slots?date=' + encodeURIComponent(date));
+                    if (!res.ok) throw new Error('unavailable');
                     const data = await res.json();
                     slotCache[date] = data.slots || [];
                 } catch (e) {
+                    if (!navigator.onLine) {
+                        return Object.assign([], { offline: true });
+                    }
                     slotCache[date] = [];
                 }
                 return slotCache[date];
@@ -608,6 +617,9 @@
                     // Remove existing feedback
                     if (feedbackEl) {
                         feedbackEl.style.display = 'none';
+                        feedbackEl.style.background = '#fff0f1';
+                        feedbackEl.style.borderColor = '#fad4d4';
+                        feedbackEl.style.color = '#c0392b';
                         feedbackEl.innerHTML = '';
                     }
                     if (submitBtn) submitBtn.disabled = false;
@@ -615,6 +627,18 @@
                     if (!date || !time) return;
 
                     const slots = await fetchSlots(date);
+                    if (slots.offline) {
+                        if (feedbackEl) {
+                            feedbackEl.style.background = '#fff8e8';
+                            feedbackEl.style.borderColor = '#f1d89d';
+                            feedbackEl.style.color = '#8a5b00';
+                            feedbackEl.innerHTML =
+                                '<i class="fas fa-wifi" style="margin-right:5px;"></i>' +
+                                '<span>Schedule conflicts will be checked when the connection returns. You can still save this hearing on this device.</span>';
+                            feedbackEl.style.display = 'flex';
+                        }
+                        return;
+                    }
                     const conflicting = slots.filter(s => overlaps(time, s.start, s.end));
 
                     if (conflicting.length === 0) return;

@@ -8,7 +8,7 @@
     <style>
         @page {
             size: A4 portrait;
-            margin: 16mm 16mm 16mm 16mm;
+            margin: <?= ($mode ?? 'screen') === 'pdf' ? '12mm 14mm 12mm 14mm' : '14mm 16mm 14mm 16mm' ?>;
         }
 
         * {
@@ -62,13 +62,12 @@
         .tb-btn--back { background: rgba(255, 255, 255, .16); }
 
         .sheet {
-            width: 210mm;
-            min-height: 297mm;
-            margin: <?= ($mode ?? 'screen') === 'pdf' ? '0 auto' : '78px auto 32px' ?>;
+            width: <?= ($mode ?? 'screen') === 'pdf' ? '100%' : '210mm' ?>;
+            min-height: <?= ($mode ?? 'screen') === 'pdf' ? '0' : '297mm' ?>;
+            margin: <?= ($mode ?? 'screen') === 'pdf' ? '0' : '78px auto 32px' ?>;
             background: #fff;
-            padding: 16mm 16mm 14mm;
+            padding: <?= ($mode ?? 'screen') === 'pdf' ? '0' : '16mm 16mm 14mm' ?>;
             box-shadow: <?= ($mode ?? 'screen') === 'pdf' ? 'none' : '0 8px 28px rgba(20,28,56,.12)' ?>;
-            position: relative;
         }
 
         .header-table,
@@ -77,12 +76,14 @@
         .sig-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
         }
 
         .seal {
             width: 78px;
             height: 78px;
-            object-fit: contain;
+            max-width: 78px;
+            max-height: 78px;
         }
 
         .header-center {
@@ -110,14 +111,17 @@
         }
 
         .office-bar {
-            display: inline-block;
+            display: block;
+            width: 100%;
             margin-top: 6pt;
-            padding: 3pt 14pt;
+            padding: 3pt 8pt;
             border-top: 1.5px solid #111;
             border-bottom: 1.5px solid #111;
             font-size: 10.5pt;
             font-weight: bold;
-            letter-spacing: .6px;
+            letter-spacing: .4px;
+            text-align: center;
+            white-space: nowrap;
         }
 
         .rule {
@@ -224,6 +228,59 @@
             color: #444;
         }
 
+        <?php if (($mode ?? 'screen') === 'pdf'): ?>
+        @page {
+            margin: 0;
+        }
+
+        .sheet {
+            width: auto;
+            min-height: 0;
+            margin: 12mm 14mm 11mm;
+            padding: 0;
+        }
+
+        .body {
+            font-size: 11.5pt;
+            line-height: 1.42;
+        }
+
+        .body p {
+            margin-bottom: 7pt;
+        }
+
+        .doc-form {
+            margin: 2pt 0 8pt;
+        }
+
+        .rule {
+            margin: 6pt 0 8pt;
+        }
+
+        .facts-wrap {
+            margin: 8pt 0;
+            padding: 6pt 8pt;
+        }
+
+        .note {
+            margin: 6pt 0 8pt;
+            padding: 6pt 8pt;
+            line-height: 1.35;
+        }
+
+        .sig-table {
+            margin-top: 12pt;
+        }
+
+        .sig-line {
+            margin: 14pt 14pt 3pt;
+        }
+
+        .footer {
+            margin-top: 10pt;
+        }
+        <?php endif; ?>
+
         @media print {
             body {
                 background: #fff;
@@ -280,10 +337,15 @@ $role = $role ?? 'captain';
 
     <div class="sheet">
         <table class="header-table">
+            <colgroup>
+                <col style="width:86px">
+                <col>
+                <col style="width:86px">
+            </colgroup>
             <tr>
                 <td style="width:90px;text-align:center;vertical-align:middle;">
                     <?php if ($barangaySeal !== ''): ?>
-                        <img class="seal" src="<?= esc($barangaySeal) ?>" alt="Barangay seal">
+                        <img class="seal" src="<?= esc($barangaySeal) ?>" alt="Barangay seal" width="78" height="78">
                     <?php endif; ?>
                 </td>
                 <td class="header-center">
@@ -295,7 +357,7 @@ $role = $role ?? 'captain';
                 </td>
                 <td style="width:90px;text-align:center;vertical-align:middle;">
                     <?php if ($municipalitySeal !== ''): ?>
-                        <img class="seal" src="<?= esc($municipalitySeal) ?>" alt="Municipal seal">
+                        <img class="seal" src="<?= esc($municipalitySeal) ?>" alt="Municipal seal" width="78" height="78">
                     <?php endif; ?>
                 </td>
             </tr>
@@ -307,8 +369,8 @@ $role = $role ?? 'captain';
 
         <table class="meta-table">
             <tr>
-                <td><strong>Case No.:</strong> <?= esc($caseNo) ?></td>
-                <td style="text-align:right;"><strong>Date Issued:</strong> <?= esc($today) ?></td>
+                <td style="width:42%;"><strong>Case No.:</strong> <?= esc($caseNo) ?></td>
+                <td style="width:58%;text-align:right;"><strong>Date Issued:</strong> <?= esc($today) ?></td>
             </tr>
         </table>
 

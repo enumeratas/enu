@@ -418,13 +418,13 @@
         }
 
         #childrenRows .pf-member-fields> :nth-child(5),
-        #childrenRows .pf-member-fields> :nth-child(6),
-        #childrenRows .pf-member-fields> :nth-child(7) {
+        #childrenRows .pf-member-fields> :nth-child(6) {
             grid-column: span 2;
         }
 
+        #childrenRows .pf-member-fields> :nth-child(7),
         #childrenRows .pf-member-fields> :nth-child(8) {
-            grid-column: span 4;
+            grid-column: span 3;
         }
 
         #childrenRows .pf-member-fields> :nth-child(9),

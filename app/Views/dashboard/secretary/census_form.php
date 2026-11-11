@@ -149,11 +149,9 @@
                                     <div>
                                         <div class="pf-label">Civil Status</div>
                                         <select class="pf-ctrl" name="civil_status">
-                                            <option>Single</option>
-                                            <option>Married</option>
-                                            <option>Widowed</option>
-                                            <option>Separated</option>
-                                            <option>Annulled</option>
+                                            <?php foreach (civil_status_options() as $cs): ?>
+                                                <option><?= esc($cs) ?></option>
+                                            <?php endforeach; ?>
                                         </select>
                                     </div>
                                 </div>
@@ -534,15 +532,6 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="pf-id-upload" style="margin-top:12px;" data-id-block data-id-key="spouse_support">
-                                    <label class="pf-id-label"><i class="fas fa-id-card"></i> Spouse ID or Birth Certificate</label>
-                                    <label class="pf-file-drop">
-                                        <span class="pf-file-drop-icon"><i class="fas fa-cloud-upload-alt"></i></span>
-                                        <span class="pf-file-drop-copy"><span class="pf-file-drop-title">Choose one ID or birth certificate</span><span class="pf-file-name">No file selected</span></span>
-                                        <input type="file" name="spouse_supporting_doc" accept="image/*,application/pdf" class="pf-file pf-file-input">
-                                    </label>
-                                    <div class="pf-file-hint">Required when a spouse is recorded. PDF, JPG, or PNG - max 5 MB.</div>
-                                </div>
                             </div>
 
                             <!-- Children -->
@@ -644,7 +633,7 @@
                 <div class="pf-field-xs"><div class="pf-label">Suffix</div><select class="pf-ctrl" name="child_suffix[]"><option value="">—NONE—</option><option>Jr</option><option>Sr</option><option>II</option><option>III</option></select></div>
                 <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="child_dob[]"><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
                 <div class="pf-field-xs"><div class="pf-label">Gender</div><select class="pf-ctrl" name="child_gender[]"><option value="">—Select—</option><option>Male</option><option>Female</option></select></div>
-                <div class="pf-field-sm"><div class="pf-label">Civil Status</div><input type="hidden" name="child_marital_status[]" value="Single"><label class="pf-married-toggle"><input type="checkbox" onchange="toggleChildMarried(this)"><span>Married</span></label></div>
+                <div class="pf-field-sm"><div class="pf-label">Civil Status</div><select class="pf-ctrl" name="child_marital_status[]" onchange="syncMinorChildCivilStatus(this.closest(\'.pf-member-card\'))"><option selected>Single</option><option>Married</option><option>Widowed</option><option>Separated</option><option>Annulled</option></select></div>
                 <div class="pf-field-wrap"><div class="pf-label">Occupation</div>
                     <div class="pf-occ-wrap">
                         <div class="pf-occ-pills">
@@ -1317,7 +1306,7 @@
                         <div class="pf-field-xs"><div class="pf-label">Suffix</div><select class="pf-ctrl" name="child_suffix[]"><option value="">—NONE—</option><option>Jr</option><option>Sr</option><option>II</option><option>III</option></select></div>
                         <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="child_dob[]"><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
                         <div class="pf-field-xs"><div class="pf-label">Gender</div><select class="pf-ctrl" name="child_gender[]"><option value="">—Select—</option><option>Male</option><option>Female</option></select></div>
-                        <div class="pf-field-sm"><div class="pf-label">Civil Status</div><input type="hidden" name="child_marital_status[]" value="Single"><label class="pf-married-toggle"><input type="checkbox" onchange="toggleChildMarried(this)"><span>Married</span></label></div>
+                        <div class="pf-field-sm"><div class="pf-label">Civil Status</div><select class="pf-ctrl" name="child_marital_status[]" onchange="syncMinorChildCivilStatus(this.closest(\'.pf-member-card\'))"><option selected>Single</option><option>Married</option><option>Widowed</option><option>Separated</option><option>Annulled</option></select></div>
                         <div class="pf-field-wrap"><div class="pf-label">Occupation</div>
                             <div class="pf-occ-wrap">
                                 <div class="pf-occ-pills">
@@ -1404,19 +1393,6 @@
             btn.closest('.pf-member-card').remove();
         }
 
-        function toggleChildMarried(checkbox) {
-            const row = checkbox.closest('.pf-member-card');
-            const status = row ? row.querySelector('input[name="child_marital_status[]"]') : null;
-            const dob = row ? row.querySelector('input[name="child_dob[]"]') : null;
-            if (dob && isMinorDate(dob.value)) {
-                checkbox.checked = false;
-                if (status) status.value = 'Single';
-                showMinorCivilStatusError(row);
-                return;
-            }
-            if (status) status.value = checkbox.checked ? 'Married' : 'Single';
-        }
-
         function isMinorDate(value) {
             if (!value) return false;
             const birthDate = new Date(value + 'T00:00:00');
@@ -1435,24 +1411,23 @@
             error.className = 'minor-civil-status-error';
             error.style.cssText = 'display:block;color:#c0392b;font-size:11px;margin-top:4px;';
             error.textContent = 'Under 18: Please confirm the Civil Status?';
-            const statusField = row.querySelector('input[name="child_marital_status[]"]');
+            const statusField = row.querySelector('select[name="child_marital_status[]"]');
             if (statusField?.parentElement) statusField.parentElement.appendChild(error);
         }
 
         function syncMinorChildCivilStatus(row) {
             const dob = row?.querySelector('input[name="child_dob[]"]');
-            const checkbox = row?.querySelector('.pf-married-toggle input[type="checkbox"]');
-            const status = row?.querySelector('input[name="child_marital_status[]"]');
-            if (!dob || !checkbox || !status) return true;
+            const status = row?.querySelector('select[name="child_marital_status[]"]');
+            if (!dob || !status) return true;
 
             const minor = isMinorDate(dob.value);
+            Array.from(status.options).forEach(function(opt) {
+                opt.disabled = minor && opt.value !== 'Single';
+            });
             if (minor) {
-                checkbox.checked = false;
-                checkbox.disabled = true;
                 status.value = 'Single';
                 showMinorCivilStatusError(row);
             } else {
-                checkbox.disabled = false;
                 const error = row.querySelector('.minor-civil-status-error');
                 if (error) error.remove();
             }

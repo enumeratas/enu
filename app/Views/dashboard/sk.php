@@ -31,8 +31,7 @@
     ];
 
     $username = esc(session()->get('username') ?? 'SK Official');
-    $hour     = (int) date('G');
-    $greeting = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good evening');
+    $greeting = day_greeting();
     ?>
 
     <div class="db-main">

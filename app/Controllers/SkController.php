@@ -9,6 +9,10 @@ class SkController extends BaseController
 {
     protected SkYouthModel $model;
 
+    private ?string $lastYouthSaveError = null;
+
+    private ?string $accountSyncWarning = null;
+
     public function __construct()
     {
         $this->model = new SkYouthModel();
@@ -127,7 +131,7 @@ class SkController extends BaseController
                 m.id           AS id,
                 m.last_name, m.first_name, m.middle_name,
                 m.date_of_birth, m.gender,
-                ''             AS civil_status,
+                m.marital_status AS civil_status,
                 m.occupation,
                 ''             AS contact_number,
                 h2.zone, m.household_no
@@ -256,6 +260,15 @@ class SkController extends BaseController
             return redirect()->to($role === 'council' ? '/council/dashboard' : '/resident/dashboard')->with('error', 'No valid profile option found in your household census record.');
         }
 
+        foreach ($options as $index => $option) {
+            $linkedId = ($option['id'] ?? '') === 'self' ? $userId : null;
+            $savedProfileRow = $this->model->matchProfile($option['data'], $linkedId);
+            if ($savedProfileRow) {
+                $options[$index]['data'] = array_merge($option['data'], $savedProfileRow);
+                $options[$index]['profile_id'] = (int) ($savedProfileRow['id'] ?? 0);
+            }
+        }
+
         $youth = $savedProfile ?? [];
         if (empty($youth['id'])) {
             $pick = $options[0];
@@ -289,14 +302,7 @@ class SkController extends BaseController
 
     protected function buildResidentProfileData(array $target, ?array $household, array $members, array $user = [], bool $isHead = false): array
     {
-        $age = SkYouthModel::calcAge($target['date_of_birth'] ?? null);
-        $ageGroup = '';
-        if ($age !== null) {
-            if ($age >= 15 && $age <= 17) $ageGroup = '15-17';
-            elseif ($age >= 18 && $age <= 21) $ageGroup = '18-21';
-            elseif ($age >= 22 && $age <= 24) $ageGroup = '22-24';
-            elseif ($age >= 25 && $age <= 30) $ageGroup = '25-30';
-        }
+        $ageGroup = SkYouthModel::ageGroupFor($target['date_of_birth'] ?? null) ?? '';
 
         $parents = ['mother' => null, 'father' => null];
         foreach ($members as $member) {
@@ -378,6 +384,28 @@ class SkController extends BaseController
             'father_occupation' => $fatherOccupation,
         ]);
 
+        $data['date_of_birth'] = SkYouthModel::profileDate($data['date_of_birth'] ?? null) ?? '';
+        $gender = SkYouthModel::normalizeChoice($data['gender'] ?? '', SkYouthModel::GENDERS);
+        if ($gender !== null) {
+            $data['gender'] = $gender;
+        }
+        $education = SkYouthModel::educationChoice($data['educational_background'] ?? null);
+        if ($education !== null) {
+            $data['educational_background'] = $education;
+        }
+        $civil = SkYouthModel::normalizeChoice((string) ($data['civil_status'] ?? ''), SkYouthModel::CIVIL_STATUSES);
+        if ($civil !== null) {
+            $data['civil_status'] = $civil;
+        }
+        $income = SkYouthModel::normalizeChoice((string) ($data['monthly_income'] ?? ''), SkYouthModel::INCOME_BRACKETS);
+        if ($income !== null) {
+            $data['monthly_income'] = $income;
+        }
+        $economic = SkYouthModel::normalizeChoice((string) ($data['economic_status'] ?? ''), SkYouthModel::ECONOMIC_STATUSES);
+        if ($economic !== null) {
+            $data['economic_status'] = $economic;
+        }
+
         return $data;
     }
 
@@ -422,7 +450,10 @@ class SkController extends BaseController
             $accounts[] = [
                 'id' => (int) $account['id'],
                 'label' => trim($account['last_name'] . ', ' . $account['first_name'] . ' ' . ($account['middle_name'] ?? '')) . ' — ' . $account['email'],
-                'data' => $this->buildResidentProfileData($target, $household, $members, $account, $isHead),
+                'data' => $this->withSavedYouthProfile(
+                    $this->buildResidentProfileData($target, $household, $members, $account, $isHead),
+                    (int) $account['id']
+                ),
             ];
         }
 
@@ -515,24 +546,23 @@ class SkController extends BaseController
         }
 
         $recordId = $this->storeYouthRecord($post, (int) $skUser['id'], $redirectBase);
-        $this->notifySkProfilingUpdate($skUser, $post, 'submitted');
+        if ($recordId < 1) {
+            session()->setFlashdata('error', $this->lastYouthSaveError ?? 'The profile could not be saved. Check the date of birth and sex, then try again.');
+
+            return $this->residentProfilingForm(null, $post, $selectedProfile);
+        }
+
         $saved = $this->model->find($recordId) ?: ['id' => $recordId];
-        $post = array_merge($saved, $post, ['id' => $recordId]);
-        $post['organizations'] = ! empty($post['org_name']) ? json_encode(array_map(
-            static fn($index) => [
-                'name' => $post['org_name'][$index] ?? '',
-                'position' => $post['org_position'][$index] ?? '',
-                'year' => $post['org_year'][$index] ?? '',
-            ],
-            array_keys($post['org_name'] ?? [])
-        )) : ($saved['organizations'] ?? null);
-        $post['health_concerns'] = ! empty($post['health']) ? json_encode((array) $post['health']) : ($saved['health_concerns'] ?? null);
-        $post['social_inclusion'] = ! empty($post['social']) ? json_encode((array) $post['social']) : ($saved['social_inclusion'] ?? null);
-        return $this->residentProfilingForm(
-            'Changes saved.',
-            $post,
-            $selectedProfile
+        $message = $this->finishYouthSave(
+            $recordId,
+            $this->buildYouthPayload($post, ! empty($post['user_id']) ? (int) $post['user_id'] : null),
+            $saved['photo_path'] ?? null
         );
+        $this->notifySkProfilingUpdate($skUser, $post, 'submitted');
+        $saved = $this->model->find($recordId) ?: $saved;
+        $post = array_merge($post, $saved, ['id' => $recordId]);
+
+        return $this->residentProfilingForm($message, $post, $selectedProfile);
     }
 
     public function store()
@@ -558,94 +588,57 @@ class SkController extends BaseController
 
         $recordedBy = session()->get('user_id');
         $recordId = $this->storeYouthRecord($post, (int) $recordedBy, '/sk/profiling');
+        if ($recordId < 1) {
+            return redirect()->to('/sk/profiling/add')
+                ->with('error', $this->lastYouthSaveError ?? 'The profile could not be saved. Check the date of birth and sex, then try again.');
+        }
 
-        return redirect()->to('/sk/profiling/edit/' . $recordId)
-            ->with('success', 'Profile saved. You can now upload a photo.');
+        $saved = $this->model->find($recordId) ?: ['id' => $recordId];
+        $message = $this->finishYouthSave(
+            $recordId,
+            $this->buildYouthPayload($post, ! empty($post['user_id']) ? (int) $post['user_id'] : null),
+            $saved['photo_path'] ?? null
+        );
+
+        return redirect()->to('/sk/profiling/edit/' . $recordId)->with('success', $message);
     }
 
     protected function storeYouthRecord(array $post, int $recordedBy, string $redirectUrl): int
     {
-        // Derive age group from DOB
-        $age      = SkYouthModel::calcAge($post['date_of_birth'] ?? null);
-        $ageGroup = '';
-        if ($age !== null) {
-            if ($age >= 15 && $age <= 17)      $ageGroup = '15-17';
-            elseif ($age >= 18 && $age <= 21)  $ageGroup = '18-21';
-            elseif ($age >= 22 && $age <= 24)  $ageGroup = '22-24';
-            elseif ($age >= 25 && $age <= 30)  $ageGroup = '25-30';
-        }
-
-        // Derive economic status
-        $edu    = $post['educational_background'] ?? '';
-        $status = $post['economic_status'] ?? SkYouthModel::statusLabel($edu);
-
-        // Encode JSON fields
-        $orgs    = [];
-        if (! empty($post['org_name'])) {
-            foreach ($post['org_name'] as $i => $name) {
-                if (empty($name)) continue;
-                $orgs[] = [
-                    'name'     => $name,
-                    'position' => $post['org_position'][$i] ?? '',
-                    'year'     => $post['org_year'][$i]     ?? '',
-                ];
-            }
-        }
-
-        $payload = [
-            'user_id'                 => ! empty($post['user_id']) ? (int) $post['user_id'] : null,
-            'last_name'              => strtoupper(trim($post['last_name']   ?? '')),
-            'first_name'             => strtoupper(trim($post['first_name']  ?? '')),
-            'middle_name'            => strtoupper(trim($post['middle_name'] ?? '')) ?: null,
-            'suffix'                 => $post['suffix']          ?? null,
-            'date_of_birth'          => $post['date_of_birth']   ?? null,
-            'place_of_birth'         => $post['place_of_birth']  ?? null,
-            'gender'                 => $post['gender']          ?? null,
-            'religion'               => $post['religion']        ?? null,
-            'citizenship'            => $post['citizenship']     ?? 'Filipino',
-            'contact_number'         => $post['contact_number']  ?? null,
-            'email'                  => $post['email']           ?? null,
-            'address'                => $post['address']         ?? null,
-            'zone'                   => $post['zone']            ?? null,
-            'months_in_brgy'         => $post['months_in_brgy']  ?? null,
-            'skills'                 => $post['skills']          ?? null,
-            'hobbies'                => $post['hobbies']         ?? null,
-            'mother_name'            => $post['mother_name']     ?? null,
-            'mother_occupation'      => $post['mother_occupation'] ?? null,
-            'father_name'            => $post['father_name']     ?? null,
-            'father_occupation'      => $post['father_occupation'] ?? null,
-            'organizations'          => ! empty($orgs) ? json_encode($orgs) : null,
-            'age_group'              => $ageGroup ?: null,
-            'civil_status'           => $post['civil_status']    ?? null,
-            'educational_background' => $edu                     ?: null,
-            'school_type'            => $post['school_type']     ?? null,
-            'school_detail'          => $post['school_detail']   ?? null,
-            'governance'             => $post['governance']       ?? null,
-            'health_concerns'        => ! empty($post['health'])  ? json_encode((array)$post['health'])  : null,
-            'social_inclusion'       => ! empty($post['social'])  ? json_encode((array)$post['social'])  : null,
-            'economic_status'        => $status,
-            'monthly_income'         => $post['monthly_income']  ?? null,
-            'advocacy'               => $post['advocacy']        ?? null,
-            'volunteer'              => $post['volunteer']       ?? null,
-            'issue_1'                => $post['issue_1']         ?? null,
-            'issue_2'                => $post['issue_2']         ?? null,
-            'issue_3'                => $post['issue_3']         ?? null,
-            'suggestions'            => $post['suggestions']     ?? null,
-            'recorded_by'            => $recordedBy,
-        ];
-
+        $payload = $this->buildYouthPayload($post, ! empty($post['user_id']) ? (int) $post['user_id'] : null);
         $existingId = $this->findExistingYouthId($post);
-        if ($existingId) {
-            $this->model->update($existingId, $payload);
+
+        try {
+            if ($existingId) {
+                $saved = $this->model->update($existingId, $payload);
+                if ($saved === false) {
+                    $this->lastYouthSaveError = $this->youthSaveError();
+
+                    return 0;
+                }
+                $this->model->resetProfileIndexes();
+
+                return $existingId;
+            }
+
+            $inserted = $this->model->insert($payload + [
+                'photo_path'  => null,
+                'recorded_by' => $recordedBy > 0 ? $recordedBy : null,
+            ]);
+            if ($inserted === false) {
+                $this->lastYouthSaveError = $this->youthSaveError();
+
+                return 0;
+            }
             $this->model->resetProfileIndexes();
 
-            return $existingId;
+            return (int) $this->model->getInsertID();
+        } catch (\Throwable $e) {
+            log_message('error', 'SK youth profile save failed: ' . $e->getMessage());
+            $this->lastYouthSaveError = 'The profile could not be saved. Check the date of birth and sex, then try again.';
+
+            return 0;
         }
-
-        $this->model->insert($payload + ['photo_path' => null]);
-        $this->model->resetProfileIndexes();
-
-        return (int) $this->model->getInsertID();
     }
 
     /** @param array<string, mixed> $post */
@@ -677,30 +670,6 @@ class SkController extends BaseController
         $allowMinorProfile = in_array($role, ['resident', 'council'], true)
             && ! in_array($post['profile_option'] ?? 'self', ['self', ''], true);
 
-        $age      = SkYouthModel::calcAge($post['date_of_birth'] ?? null);
-        $ageGroup = '';
-        if ($age !== null) {
-            if ($age >= 15 && $age <= 17)      $ageGroup = '15-17';
-            elseif ($age >= 18 && $age <= 21)  $ageGroup = '18-21';
-            elseif ($age >= 22 && $age <= 24)  $ageGroup = '22-24';
-            elseif ($age >= 25 && $age <= 30)  $ageGroup = '25-30';
-        }
-
-        $edu    = $post['educational_background'] ?? '';
-        $status = $post['economic_status'] ?? SkYouthModel::statusLabel($edu);
-
-        $orgs = [];
-        if (! empty($post['org_name'])) {
-            foreach ($post['org_name'] as $i => $name) {
-                if (empty($name)) continue;
-                $orgs[] = [
-                    'name'     => $name,
-                    'position' => $post['org_position'][$i] ?? '',
-                    'year'     => $post['org_year'][$i]     ?? '',
-                ];
-            }
-        }
-
         if (in_array($role, ['resident', 'council'], true)) {
             $closedMessage = $this->profilingClosedMessage();
             if ($closedMessage !== null) {
@@ -710,12 +679,18 @@ class SkController extends BaseController
             }
         }
 
+        $age = SkYouthModel::calcAge($post['date_of_birth'] ?? null);
         if (($age === null || $age < 15 || $age > 30) && ! $allowMinorProfile) {
             $redirect = $role === 'resident' ? '/resident/sk-profiling' : ($role === 'council' ? '/council/sk-profiling' : '/sk/profiling');
+
             return redirect()->to($redirect)->with('error', 'Only youth ages 15 to 30 may submit the SK Profiling form, except for a parent submitting a minor child profile.');
         }
 
         $existing = $this->model->find($id);
+        if (! $existing) {
+            return redirect()->to('/sk/profiling')->with('error', 'Record not found.');
+        }
+
         $linkedUserId = ! empty($post['user_id'])
             ? (int) $post['user_id']
             : (int) ($existing['user_id'] ?? 0);
@@ -723,47 +698,26 @@ class SkController extends BaseController
             $linkedUserId = (int) session()->get('user_id') ?: $linkedUserId;
         }
 
-        $this->model->update($id, [
-            'user_id'                 => $linkedUserId > 0 ? $linkedUserId : null,
-            'last_name'              => strtoupper(trim($post['last_name']   ?? '')),
-            'first_name'             => strtoupper(trim($post['first_name']  ?? '')),
-            'middle_name'            => strtoupper(trim($post['middle_name'] ?? '')) ?: null,
-            'suffix'                 => $post['suffix']          ?? null,
-            'date_of_birth'          => $post['date_of_birth']   ?? null,
-            'place_of_birth'         => $post['place_of_birth']  ?? null,
-            'gender'                 => $post['gender']          ?? null,
-            'religion'               => $post['religion']        ?? null,
-            'citizenship'            => $post['citizenship']     ?? 'Filipino',
-            'contact_number'         => $post['contact_number']  ?? null,
-            'email'                  => $post['email']           ?? null,
-            'address'                => $post['address']         ?? null,
-            'zone'                   => $post['zone']            ?? null,
-            'months_in_brgy'         => $post['months_in_brgy']  ?? null,
-            'skills'                 => $post['skills']          ?? null,
-            'hobbies'                => $post['hobbies']         ?? null,
-            'mother_name'            => $post['mother_name']     ?? null,
-            'mother_occupation'      => $post['mother_occupation'] ?? null,
-            'father_name'            => $post['father_name']     ?? null,
-            'father_occupation'      => $post['father_occupation'] ?? null,
-            'organizations'          => ! empty($orgs) ? json_encode($orgs) : null,
-            'age_group'              => $ageGroup ?: null,
-            'civil_status'           => $post['civil_status']    ?? null,
-            'educational_background' => $edu                     ?: null,
-            'school_type'            => $post['school_type']     ?? null,
-            'school_detail'          => $post['school_detail']   ?? null,
-            'governance'             => $post['governance']       ?? null,
-            'health_concerns'        => ! empty($post['health'])  ? json_encode((array)$post['health'])  : null,
-            'social_inclusion'       => ! empty($post['social'])  ? json_encode((array)$post['social'])  : null,
-            'economic_status'        => $status,
-            'monthly_income'         => $post['monthly_income']  ?? null,
-            'advocacy'               => $post['advocacy']        ?? null,
-            'volunteer'              => $post['volunteer']       ?? null,
-            'issue_1'                => $post['issue_1']         ?? null,
-            'issue_2'                => $post['issue_2']         ?? null,
-            'issue_3'                => $post['issue_3']         ?? null,
-            'suggestions'            => $post['suggestions']     ?? null,
-        ]);
+        $payload = $this->buildYouthPayload($post, $linkedUserId > 0 ? $linkedUserId : null);
+        try {
+            $saved = $this->model->update($id, $payload);
+        } catch (\Throwable $e) {
+            log_message('error', 'SK youth profile update failed: ' . $e->getMessage());
+            $saved = false;
+            $this->lastYouthSaveError = 'The profile could not be saved. Check the date of birth and sex, then try again.';
+        }
+        if ($saved === false) {
+            $message = $this->lastYouthSaveError ?? $this->youthSaveError();
+            if (in_array($role, ['resident', 'council'], true)) {
+                session()->setFlashdata('error', $message);
+
+                return $this->residentProfilingForm(null, array_merge($existing, $post, ['id' => $id]), $post['profile_option'] ?? 'self');
+            }
+
+            return redirect()->to('/sk/profiling/edit/' . $id)->with('error', $message);
+        }
         $this->model->resetProfileIndexes();
+        $message = $this->finishYouthSave($id, $payload, $existing['photo_path'] ?? null);
 
         if (in_array($role, ['resident', 'council'], true)) {
             $skUser = (new \App\Models\UserModel())
@@ -775,23 +729,13 @@ class SkController extends BaseController
                 $this->notifySkProfilingUpdate($skUser, $post, 'updated');
             }
 
-            $post['id'] = $id;
-            $post['organizations'] = ! empty($post['org_name']) ? json_encode(array_map(
-                static fn($index) => [
-                    'name' => $post['org_name'][$index] ?? '',
-                    'position' => $post['org_position'][$index] ?? '',
-                    'year' => $post['org_year'][$index] ?? '',
-                ],
-                array_keys($post['org_name'])
-            )) : null;
-            $post['health_concerns'] = ! empty($post['health']) ? json_encode((array) $post['health']) : null;
-            $post['social_inclusion'] = ! empty($post['social']) ? json_encode((array) $post['social']) : null;
             $saved = $this->model->find($id) ?: ['id' => $id];
-            $post = array_merge($saved, $post, ['id' => $id]);
-            return $this->residentProfilingForm('Changes saved.', $post, $post['profile_option'] ?? 'self');
+            $post = array_merge($post, $saved, ['id' => $id]);
+
+            return $this->residentProfilingForm($message, $post, $post['profile_option'] ?? 'self');
         }
 
-        return redirect()->to('/sk/profiling/edit/' . $id)->with('success', 'Changes saved.');
+        return redirect()->to('/sk/profiling/edit/' . $id)->with('success', $message);
     }
 
     public function uploadPhoto(int $id)
@@ -803,12 +747,9 @@ class SkController extends BaseController
             return redirect()->to($fallback)->with('error', 'Youth profile not found.');
         }
 
-        $photoPath = $this->storeYouthPhoto($youth['photo_path'] ?? null);
-        if ($photoPath === ($youth['photo_path'] ?? null)) {
-            $file = $this->request->getFile('profile_photo');
-            $message = (! $file || $file->getError() === UPLOAD_ERR_NO_FILE)
-                ? 'Choose a photo first, then upload it.'
-                : 'Use a JPG, PNG, or WEBP photo up to 5 MB.';
+        $photo = $this->acceptPostedPhoto($youth['photo_path'] ?? null);
+        if (! $photo['uploaded']) {
+            $message = $photo['error'] ?? 'Choose a photo first, then upload it.';
             if (in_array($role, ['resident', 'council'], true)) {
                 session()->setFlashdata('error', $message);
                 return $this->residentProfilingForm(null, $youth, $this->request->getPost('profile_option') ?: 'self');
@@ -816,8 +757,8 @@ class SkController extends BaseController
             return redirect()->to('/sk/profiling/edit/' . $id)->with('error', $message);
         }
 
-        $this->model->update($id, ['photo_path' => $photoPath]);
-        $youth['photo_path'] = $photoPath;
+        $this->model->update($id, ['photo_path' => $photo['path']]);
+        $youth['photo_path'] = $photo['path'];
 
         if (in_array($role, ['resident', 'council'], true)) {
             return $this->residentProfilingForm('Photo uploaded.', $youth, $this->request->getPost('profile_option') ?: 'self');
@@ -880,18 +821,309 @@ class SkController extends BaseController
         );
     }
 
-    protected function storeYouthPhoto(?string $existingPath): ?string
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function withSavedYouthProfile(array $data, ?int $userId): array
+    {
+        $saved = $this->model->matchProfile($data, $userId);
+
+        return $saved ? array_merge($data, $saved) : $data;
+    }
+
+    /**
+     * @param array<string, mixed> $post
+     * @return array<string, mixed>
+     */
+    private function buildYouthPayload(array $post, ?int $fallbackUserId = null): array
+    {
+        $userId = ! empty($post['user_id']) ? (int) $post['user_id'] : (int) $fallbackUserId;
+        $orgs = [];
+        if (! empty($post['org_name']) && is_array($post['org_name'])) {
+            foreach ($post['org_name'] as $index => $name) {
+                $name = trim((string) $name);
+                if ($name === '') {
+                    continue;
+                }
+                $orgs[] = [
+                    'name'     => $name,
+                    'position' => $post['org_position'][$index] ?? '',
+                    'year'     => $post['org_year'][$index] ?? '',
+                ];
+            }
+        }
+
+        $dob = SkYouthModel::profileDate($post['date_of_birth'] ?? null);
+        $civil = SkYouthModel::normalizeChoice($post['civil_status'] ?? '', SkYouthModel::CIVIL_STATUSES)
+            ?? SkYouthModel::limitText($post['civil_status'] ?? '', 50);
+        $economic = SkYouthModel::normalizeChoice($post['economic_status'] ?? '', SkYouthModel::ECONOMIC_STATUSES)
+            ?? SkYouthModel::limitText($post['economic_status'] ?? '', 50);
+        $income = SkYouthModel::normalizeChoice($post['monthly_income'] ?? '', SkYouthModel::INCOME_BRACKETS)
+            ?? SkYouthModel::limitText($post['monthly_income'] ?? '', 80);
+
+        return [
+            'user_id'                => $userId > 0 ? $userId : null,
+            'last_name'              => strtoupper(trim((string) ($post['last_name'] ?? ''))),
+            'first_name'             => strtoupper(trim((string) ($post['first_name'] ?? ''))),
+            'middle_name'            => strtoupper(trim((string) ($post['middle_name'] ?? ''))) ?: null,
+            'suffix'                 => SkYouthModel::limitText($post['suffix'] ?? '', 10),
+            'date_of_birth'          => $dob,
+            'place_of_birth'         => SkYouthModel::limitText($post['place_of_birth'] ?? '', 150),
+            'gender'                 => SkYouthModel::normalizeChoice($post['gender'] ?? '', SkYouthModel::GENDERS),
+            'religion'               => SkYouthModel::limitText($post['religion'] ?? '', 80),
+            'citizenship'            => SkYouthModel::limitText($post['citizenship'] ?? '', 60) ?? 'Filipino',
+            'contact_number'         => SkYouthModel::limitText($post['contact_number'] ?? '', 20),
+            'email'                  => SkYouthModel::limitText($post['email'] ?? '', 150),
+            'address'                => SkYouthModel::limitText($post['address'] ?? '', 1000),
+            'zone'                   => SkYouthModel::limitText($post['zone'] ?? '', 50),
+            'months_in_brgy'         => SkYouthModel::limitText($post['months_in_brgy'] ?? '', 50),
+            'skills'                 => SkYouthModel::limitText($post['skills'] ?? '', 2000),
+            'hobbies'                => SkYouthModel::limitText($post['hobbies'] ?? '', 2000),
+            'mother_name'            => SkYouthModel::limitText($post['mother_name'] ?? '', 150),
+            'mother_occupation'      => SkYouthModel::limitText($post['mother_occupation'] ?? '', 100),
+            'father_name'            => SkYouthModel::limitText($post['father_name'] ?? '', 150),
+            'father_occupation'      => SkYouthModel::limitText($post['father_occupation'] ?? '', 100),
+            'organizations'          => $orgs !== [] ? json_encode($orgs) : null,
+            'age_group'              => SkYouthModel::ageGroupFor($dob),
+            'civil_status'           => $civil,
+            'educational_background' => SkYouthModel::educationChoice($post['educational_background'] ?? null),
+            'school_type'            => SkYouthModel::normalizeChoice($post['school_type'] ?? '', SkYouthModel::SCHOOL_TYPES),
+            'school_detail'          => SkYouthModel::limitText($post['school_detail'] ?? '', 200),
+            'governance'             => SkYouthModel::normalizeChoice($post['governance'] ?? '', SkYouthModel::GOVERNANCE_OPTIONS),
+            'health_concerns'        => SkYouthModel::encodeChoices($post['health'] ?? [], SkYouthModel::HEALTH_OPTIONS, true),
+            'social_inclusion'       => SkYouthModel::encodeChoices($post['social'] ?? [], SkYouthModel::SOCIAL_OPTIONS, true),
+            'economic_status'        => $economic,
+            'monthly_income'         => $income,
+            'advocacy'               => SkYouthModel::encodeChoices($post['advocacy'] ?? [], SkYouthModel::ADVOCACY_OPTIONS),
+            'volunteer'              => SkYouthModel::encodeChoices($post['volunteer'] ?? [], SkYouthModel::VOLUNTEER_OPTIONS),
+            'issue_1'                => SkYouthModel::limitText($post['issue_1'] ?? '', 200),
+            'issue_2'                => SkYouthModel::limitText($post['issue_2'] ?? '', 200),
+            'issue_3'                => SkYouthModel::limitText($post['issue_3'] ?? '', 200),
+            'suggestions'            => SkYouthModel::limitText($post['suggestions'] ?? '', 4000),
+        ];
+    }
+
+    private function youthSaveError(): string
+    {
+        $errors = $this->model->errors();
+        if (is_array($errors) && $errors !== []) {
+            return implode(' ', array_map('strval', $errors));
+        }
+
+        return 'The profile could not be saved. Check the date of birth and sex, then try again.';
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function finishYouthSave(int $id, array $payload, ?string $existingPhoto): string
+    {
+        $photo = $this->acceptPostedPhoto($existingPhoto);
+        $photoPath = $existingPhoto;
+        if ($photo['uploaded'] && ! empty($photo['path'])) {
+            $this->model->update($id, ['photo_path' => $photo['path']]);
+            $photoPath = $photo['path'];
+            $this->model->resetProfileIndexes();
+        }
+
+        $userId = (int) ($payload['user_id'] ?? 0);
+        if ($userId > 0) {
+            $this->syncYouthAccount($userId, $payload);
+        }
+
+        $message = $this->profilingSavedMessage($photoPath, $photo['uploaded'], $photo['error']);
+        if ($this->accountSyncWarning) {
+            $message .= ' ' . $this->accountSyncWarning;
+            $this->accountSyncWarning = null;
+        }
+
+        return $message;
+    }
+
+    private function profilingSavedMessage(?string $photoPath, bool $uploaded, ?string $photoError): string
+    {
+        if ($photoError) {
+            return 'Profile saved. The other information was saved. ' . $photoError;
+        }
+        if ($uploaded) {
+            return 'Profile saved. The photo and updated information are on this SK account.';
+        }
+        if (trim((string) $photoPath) !== '') {
+            return 'Changes saved. This SK account shows the updated profile.';
+        }
+
+        return 'Profile saved. You can keep editing the other information. A 2 × 2 photo is still needed to complete profiling.';
+    }
+
+    /**
+     * @return array{path: ?string, uploaded: bool, error: ?string}
+     */
+    private function acceptPostedPhoto(?string $existingPath): array
     {
         $file = $this->request->getFile('profile_photo');
-        if (! $file || ! $file->isValid() || $file->getError() === UPLOAD_ERR_NO_FILE) return $existingPath;
-        if ($file->getSize() > 5 * 1024 * 1024 || ! in_array($file->getMimeType(), ['image/jpeg', 'image/png', 'image/webp'], true)) return $existingPath;
+        if (! $file || $file->getError() === UPLOAD_ERR_NO_FILE) {
+            return ['path' => $existingPath, 'uploaded' => false, 'error' => null];
+        }
+
+        $invalid = 'Use a JPG, PNG, or WEBP photo up to 5 MB.';
+        if (
+            ! $file->isValid()
+            || $file->getSize() > 5 * 1024 * 1024
+            || ! in_array($file->getMimeType(), ['image/jpeg', 'image/png', 'image/webp'], true)
+        ) {
+            return ['path' => $existingPath, 'uploaded' => false, 'error' => $invalid];
+        }
 
         $directory = FCPATH . 'uploads/sk_profiles/';
-        if (! is_dir($directory)) mkdir($directory, 0755, true);
+        if (! is_dir($directory) && ! mkdir($directory, 0755, true) && ! is_dir($directory)) {
+            return ['path' => $existingPath, 'uploaded' => false, 'error' => $invalid];
+        }
+
         $fileName = $file->getRandomName();
-        $file->move($directory, $fileName);
-        if ($existingPath && is_file($directory . basename($existingPath))) @unlink($directory . basename($existingPath));
-        return 'sk_profiles/' . $fileName;
+        try {
+            $file->move($directory, $fileName);
+        } catch (\Throwable $e) {
+            log_message('error', 'SK profile photo upload failed: ' . $e->getMessage());
+
+            return ['path' => $existingPath, 'uploaded' => false, 'error' => $invalid];
+        }
+
+        if ($existingPath && is_file($directory . basename($existingPath))) {
+            @unlink($directory . basename($existingPath));
+        }
+
+        return ['path' => 'sk_profiles/' . $fileName, 'uploaded' => true, 'error' => null];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function syncYouthAccount(int $userId, array $payload): void
+    {
+        try {
+            $first = trim((string) ($payload['first_name'] ?? ''));
+            $last = trim((string) ($payload['last_name'] ?? ''));
+            if ($first === '' || $last === '') {
+                return;
+            }
+
+            $users = new \App\Models\UserModel();
+            $user = $users->find($userId);
+            if (! is_array($user)) {
+                return;
+            }
+
+            $this->syncCensusPerson($user, $payload);
+
+            $update = [
+                'first_name'     => $payload['first_name'] ?? $user['first_name'],
+                'last_name'      => $payload['last_name'] ?? $user['last_name'],
+                'middle_name'    => $payload['middle_name'] ?? null,
+                'contact_number' => $payload['contact_number'] ?? null,
+            ];
+            $email = trim((string) ($payload['email'] ?? ''));
+            if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $taken = $users->where('email', $email)->where('id !=', $userId)->first();
+                if (! $taken) {
+                    $update['email'] = $email;
+                }
+            }
+            $users->skipValidation(true)->update($userId, $update);
+
+            if ((int) session()->get('user_id') === $userId) {
+                $display = trim(
+                    ($update['first_name'] ?? '') . ' ' .
+                    (($update['middle_name'] ?? '') !== '' && ($update['middle_name'] ?? null) !== null ? $update['middle_name'] . ' ' : '') .
+                    ($update['last_name'] ?? '')
+                );
+                session()->set([
+                    'first_name'  => $update['first_name'],
+                    'last_name'   => $update['last_name'],
+                    'middle_name' => $update['middle_name'] ?? '',
+                    'full_name'   => preg_replace('/\s+/', ' ', $display) ?? $display,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'SK profile account sync failed for user ' . $userId . ': ' . $e->getMessage());
+            $this->accountSyncWarning = 'The profile was saved. The linked account could not be updated.';
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $user
+     * @param array<string, mixed> $payload
+     */
+    private function syncCensusPerson(array $user, array $payload): void
+    {
+        $householdNo = trim((string) ($user['household_no'] ?? ''));
+        if ($householdNo === '') {
+            return;
+        }
+
+        $person = [];
+        foreach (['first_name', 'last_name', 'middle_name'] as $field) {
+            $value = trim((string) ($payload[$field] ?? ''));
+            if ($value !== '') {
+                $person[$field] = $value;
+            }
+        }
+        if (! empty($payload['date_of_birth'])) {
+            $person['date_of_birth'] = $payload['date_of_birth'];
+        }
+        if (! empty($payload['gender'])) {
+            $person['gender'] = $payload['gender'];
+        }
+        $civil = SkYouthModel::normalizeChoice($payload['civil_status'] ?? '', SkYouthModel::CENSUS_CIVIL_STATUSES);
+
+        $oldFirst = trim((string) ($user['first_name'] ?? ''));
+        $oldLast = trim((string) ($user['last_name'] ?? ''));
+        if ($oldFirst === '' || $oldLast === '') {
+            return;
+        }
+
+        $db = \Config\Database::connect();
+        $household = $db->table('households')->where('household_no', $householdNo)->get()->getRowArray();
+        if (
+            $household
+            && strcasecmp(trim((string) ($household['first_name'] ?? '')), $oldFirst) === 0
+            && strcasecmp(trim((string) ($household['last_name'] ?? '')), $oldLast) === 0
+        ) {
+            $head = $person;
+            if ($civil !== null) {
+                $head['civil_status'] = $civil;
+            }
+            $contact = trim((string) ($payload['contact_number'] ?? ''));
+            if ($contact !== '') {
+                $head['contact_number'] = $contact;
+            }
+            if ($head !== []) {
+                $db->table('households')->where('household_no', $householdNo)->update($head);
+            }
+
+            return;
+        }
+
+        $matches = [];
+        foreach ($db->table('household_members')->where('household_no', $householdNo)->get()->getResultArray() as $member) {
+            if (
+                strcasecmp(trim((string) ($member['first_name'] ?? '')), $oldFirst) === 0
+                && strcasecmp(trim((string) ($member['last_name'] ?? '')), $oldLast) === 0
+            ) {
+                $matches[] = $member;
+            }
+        }
+        if (count($matches) !== 1) {
+            return;
+        }
+
+        $memberUpdate = $person;
+        if ($civil !== null) {
+            $memberUpdate['marital_status'] = $civil;
+        }
+        if ($memberUpdate !== []) {
+            $db->table('household_members')->where('id', (int) $matches[0]['id'])->update($memberUpdate);
+        }
     }
 
     // ── Delete youth ──────────────────────────────────────────────────────────
@@ -1239,6 +1471,32 @@ class SkController extends BaseController
         }
 
         return redirect()->to('/' . $role . '/profiling')->with('success', 'SK Profiling is open from ' . date('M d, Y', strtotime($open)) . ' to ' . date('M d, Y', strtotime($close)) . '.');
+    }
+
+    public function saveChairpersonName()
+    {
+        $role = (string) session()->get('role');
+        if (! in_array($role, ['sk', 'admin'], true)) {
+            return $this->response->setStatusCode(403)->setJSON([
+                'success' => false,
+                'message' => 'Only the SK can change the chairperson name.',
+            ]);
+        }
+
+        $name = trim((string) preg_replace('/\s+/', ' ', (string) $this->request->getPost('sk_chairperson_name')));
+        if (mb_strlen($name) > 120) {
+            $name = mb_substr($name, 0, 120);
+        }
+
+        $model = new \App\Models\BarangaySettingsModel();
+        if (! $model->saveValue('sk_chairperson_name', $name, 'SK Chairperson', 'identity', 312)) {
+            return $this->response->setStatusCode(500)->setJSON([
+                'success' => false,
+                'message' => 'The chairperson name could not be saved.',
+            ]);
+        }
+
+        return $this->response->setJSON(['success' => true, 'name' => $name]);
     }
 
     /** @return array{open: string, close: string} */

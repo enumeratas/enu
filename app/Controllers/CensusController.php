@@ -713,7 +713,6 @@ class CensusController extends BaseController
                 'id_senior',
                 'id_solo_parent',
                 'id_pwd',
-                'spouse_supporting_doc',
                 'spouse_id_pwd',
                 'spouse_id_senior',
             ] as $field
@@ -888,20 +887,6 @@ class CensusController extends BaseController
             ->update(['num_families' => max(2, $count)]);
     }
 
-    private function missingSupportingDocumentMessage(array $post): ?string
-    {
-        if (trim((string) ($post['spouse_last_name'] ?? '')) !== '') {
-            $spouseHas = $this->uploadIsPresent('spouse_supporting_doc')
-                || (($post['spouse_pwd'] ?? '0') === '1' && $this->uploadIsPresent('spouse_id_pwd'))
-                || (isset($post['spouse_senior']) && $this->uploadIsPresent('spouse_id_senior'));
-            if (! $spouseHas) {
-                return 'The spouse needs one ID or birth certificate.';
-            }
-        }
-
-        return null;
-    }
-
     private function missingWorkingStudentWork(array $post): ?string
     {
         foreach ((array) ($post['child_occupation'] ?? []) as $i => $occupation) {
@@ -995,12 +980,6 @@ class CensusController extends BaseController
         if ($spouse && ($this->request->getPost('spouse_senior') ?? '0') === '1') {
             $path = $this->_handleMemberIdUpload('spouse_id_senior', 'senior', $spouse['id']);
             $this->memberModel->update($spouse['id'], ['id_senior_path' => $path]);
-        }
-        if ($spouse) {
-            $spouseSupport = $this->_handleMemberIdUpload('spouse_supporting_doc', 'support', $spouse['id']);
-            if ($spouseSupport) {
-                $this->memberModel->update($spouse['id'], ['supporting_doc_path' => $spouseSupport]);
-            }
         }
 
         $childFileIndex = 0;
@@ -1124,10 +1103,6 @@ class CensusController extends BaseController
             return $this->censusFormError(implode(' ', $idErrors));
         }
         if (! $saveAsDraft) {
-            $documentError = $this->missingSupportingDocumentMessage($post);
-            if ($documentError !== null) {
-                return $this->censusFormError($documentError);
-            }
             $workError = $this->missingWorkingStudentWork($post);
             if ($workError !== null) {
                 return $this->censusFormError($workError);
@@ -1179,7 +1154,7 @@ class CensusController extends BaseController
             'date_of_birth'          => $post['date_of_birth']          ?? null,
             'place_of_birth'         => $post['place_of_birth']         ?? null,
             'gender'                 => $post['gender']                 ?? 'Male',
-            'civil_status'           => $post['civil_status']           ?? 'Single',
+            'civil_status'           => normalize_civil_status($post['civil_status'] ?? null),
             'nationality'            => $post['nationality']            ?? 'Filipino',
             'religion'               => $post['religion']               ?? null,
             'occupation'             => $post['occupation']             ?? null,
@@ -1328,7 +1303,7 @@ class CensusController extends BaseController
                     'suffix'                 => $post['child_suffix'][$i]      ?? null,
                     'date_of_birth'          => $post['child_dob'][$i]         ?? null,
                     'gender'                 => $post['child_gender'][$i]      ?? null,
-                    'marital_status'        => $post['child_marital_status'][$i] ?? 'Single',
+                    'marital_status'        => normalize_civil_status($post['child_marital_status'][$i] ?? null),
                     'occupation'             => $post['child_occupation'][$i]  ?? null,
                     'work_detail'            => strtoupper(trim((string) ($post['child_occupation'][$i] ?? ''))) === 'WORKING STUDENT'
                         ? strtoupper(trim((string) ($post['child_work'][$i] ?? '')))
@@ -1465,12 +1440,6 @@ class CensusController extends BaseController
             if ($savedSpouse && ($post['spouse_senior'] ?? '0') === '1') {
                 $spouseUpdate['id_senior_path'] = $this->_handleMemberIdUpload('spouse_id_senior', 'senior', (int) $savedSpouse['id']);
             }
-            if ($savedSpouse) {
-                $spouseSupport = $this->_handleMemberIdUpload('spouse_supporting_doc', 'support', (int) $savedSpouse['id']);
-                if ($spouseSupport) {
-                    $spouseUpdate['supporting_doc_path'] = $spouseSupport;
-                }
-            }
             if ($savedSpouse && $spouseUpdate !== []) {
                 $this->memberModel->update($savedSpouse['id'], $spouseUpdate);
             }
@@ -1580,8 +1549,9 @@ class CensusController extends BaseController
 
     public function sendResidentUpdateAuthorization()
     {
+        $residentsUrl = $this->residentsListUrl();
         if (! can_role('secretary', 'admin')) {
-            return redirect()->back()->with('error', 'Only the secretary can send census update authorizations.');
+            return redirect()->to($residentsUrl)->with('error', 'Only the secretary can send census update authorizations.');
         }
 
         $selected = $this->request->getPost('user_ids');
@@ -1594,44 +1564,135 @@ class CensusController extends BaseController
             $ids = array_map('intval', (array) $selected);
             $query->whereIn('id', $ids);
         } elseif (! $sendAll && empty($selected)) {
-            return redirect()->back()->with('error', 'Please select at least one resident to receive the update authorization.');
+            return redirect()->to($residentsUrl)->with('error', 'Please select at least one resident to receive the update authorization.');
         }
 
         $residents = $query->findAll();
         if (empty($residents)) {
-            return redirect()->back()->with('error', 'No active resident accounts were found to notify.');
+            return redirect()->to($residentsUrl)->with('error', 'No active resident accounts were found to notify.');
         }
 
-        $count = 0;
+        $queued = 0;
+        $skipped = 0;
+        $authIds = [];
         $authModel = new CensusUpdateAuthorizationModel();
+        $now = date('Y-m-d H:i:s');
         foreach ($residents as $resident) {
-            if (empty($resident['email'])) {
+            $email = trim((string) ($resident['email'] ?? ''));
+            if (! \App\Libraries\TransactionMailer::isDeliverableAddress($email)) {
+                $skipped++;
+                continue;
+            }
+
+            $existing = $authModel->where('user_id', (int) $resident['id'])
+                ->where('status', 'pending')
+                ->where('sent_at', null)
+                ->where('expires_at >', $now)
+                ->orderBy('id', 'DESC')
+                ->first();
+            if (is_array($existing)) {
+                $authIds[] = (int) $existing['id'];
+                $queued++;
                 continue;
             }
 
             $auth = $authModel->createForUser((int) $resident['id'], $resident['household_no'] ?? null, 7);
             if (! $auth) {
+                $skipped++;
                 continue;
             }
 
-            $link = site_url('census/update/' . $auth['token']);
-            $deadline = date('F j, Y', strtotime('+7 days'));
-            $fullName = trim(($resident['first_name'] ?? '') . ' ' . ($resident['last_name'] ?? ''));
+            $authIds[] = (int) $auth['id'];
+            $queued++;
+        }
 
-            $sent = (new \App\Libraries\EmailService())->sendCensusUpdateAuthorization(
-                $resident['email'],
-                $fullName ?: 'Resident',
-                $link,
-                $deadline
+        if ($queued === 0) {
+            return redirect()->to($residentsUrl)->with('error', 'No active residents with a valid email address were found.');
+        }
+
+        $started = $this->queueAuthorizationEmails($authIds);
+        $noun = $queued === 1 ? 'resident' : 'residents';
+        if (! $started) {
+            return redirect()->to($residentsUrl)->with(
+                'error',
+                'The authorization was saved for ' . $queued . ' ' . $noun . ', but email sending could not start. Stay on this page and try again.'
             );
+        }
 
-            if ($sent) {
-                $authModel->update($auth['id'], ['status' => 'sent', 'sent_at' => date('Y-m-d H:i:s')]);
-                $count++;
+        $message = 'Update authorization is being sent to ' . $queued . ' ' . $noun . '. This page stays open while the emails go out.';
+        if ($skipped > 0) {
+            $message .= ' ' . $skipped . ' account' . ($skipped === 1 ? '' : 's') . ' had no valid email address.';
+        }
+
+        return redirect()->to($residentsUrl)->with('success', $message);
+    }
+
+    /**
+     * @param list<int> $authIds
+     */
+    private function queueAuthorizationEmails(array $authIds): bool
+    {
+        $authIds = array_values(array_unique(array_filter(array_map('intval', $authIds), static fn(int $id): bool => $id > 0)));
+        if ($authIds === []) {
+            return false;
+        }
+
+        $dir = WRITEPATH . 'census-auth-queue';
+        if (! is_dir($dir) && ! mkdir($dir, 0775, true) && ! is_dir($dir)) {
+            return false;
+        }
+
+        $file = $dir . DIRECTORY_SEPARATOR . bin2hex(random_bytes(8)) . '.json';
+        if (file_put_contents($file, json_encode($authIds)) === false) {
+            return false;
+        }
+
+        $php = PHP_BINARY;
+        $spark = ROOTPATH . 'spark';
+        $quotedFile = escapeshellarg($file);
+        if (DIRECTORY_SEPARATOR === '\\') {
+            $command = 'cmd /C start /B "" ' . escapeshellarg($php) . ' ' . escapeshellarg($spark) . ' census:deliver-auth ' . $quotedFile;
+            $handle = @popen($command, 'r');
+            if (! is_resource($handle)) {
+                return false;
+            }
+            pclose($handle);
+
+            return true;
+        }
+
+        exec(escapeshellarg($php) . ' ' . escapeshellarg($spark) . ' census:deliver-auth ' . $quotedFile . ' > /dev/null 2>&1 &');
+
+        return true;
+    }
+
+    private function residentsListUrl(): string
+    {
+        $role = session_role() === 'admin' ? 'admin' : 'secretary';
+        $path = '/' . $role . '/residents';
+        $return = trim((string) $this->request->getPost('return_to'));
+        if ($return === '') {
+            return $path;
+        }
+
+        $parts = parse_url($return);
+        $returnPath = '/' . trim((string) ($parts['path'] ?? ''), '/');
+        if ($returnPath !== $path) {
+            return $path;
+        }
+
+        $allowed = [];
+        parse_str((string) ($parts['query'] ?? ''), $query);
+        foreach (['search', 'household_no', 'zone', 'account', 'age_group', 'page'] as $key) {
+            $value = $query[$key] ?? null;
+            if (is_string($value) && $value !== '') {
+                $allowed[$key] = $value;
             }
         }
 
-        return redirect()->back()->with('success', 'Sent census update authorization to ' . $count . ' resident' . ($count === 1 ? '' : 's') . '.');
+        $qs = http_build_query($allowed);
+
+        return $path . ($qs !== '' ? '?' . $qs : '');
     }
 
     private function censusPortal(string $page): string
@@ -1787,10 +1848,18 @@ class CensusController extends BaseController
             }
         }
 
+        $encodedNotes = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($encodedNotes === false) {
+            $encodedNotes = json_encode([
+                'household_no' => $household['household_no'],
+                'scope' => $payload['scope'] ?? 'head',
+                'confirm_only' => $confirmOnly,
+            ], JSON_UNESCAPED_UNICODE);
+        }
         (new CensusUpdateAuthorizationModel())->update($auth['id'], [
             'status'              => 'submitted',
             'submitted_at'        => date('Y-m-d H:i:s'),
-            'notes'               => json_encode($payload, JSON_UNESCAPED_UNICODE),
+            'notes'               => $encodedNotes,
             'proof_document_path' => $proofDocPath,
         ]);
 
@@ -1816,7 +1885,10 @@ class CensusController extends BaseController
     public function approveResidentUpdate(int $id)
     {
         if (! can_role('secretary', 'captain', 'admin')) {
-            return redirect()->back()->with('error', 'Only the Captain or Secretary can approve census updates.');
+            return redirect()->back()->with('error', 'Only authorized barangay personnel can approve census updates.');
+        }
+        if (! $this->censusInformationVerified()) {
+            return redirect()->back()->with('error', 'Review and verify the census information before approving this record.');
         }
 
         $authModel = new CensusUpdateAuthorizationModel();
@@ -1825,7 +1897,7 @@ class CensusController extends BaseController
             return redirect()->back()->with('error', 'No submitted census update request was found.');
         }
 
-        $payload = json_decode((string) $auth['notes'], true);
+        $payload = $this->decodeCensusNotes($auth['notes'] ?? null);
         if (is_array($payload)) {
             $this->applyResidentCensusPayload($payload, (int) ($auth['user_id'] ?? 0));
         }
@@ -1848,6 +1920,15 @@ class CensusController extends BaseController
                 'Census update approved',
                 'Your census information was reviewed and applied to the barangay record.',
                 $this->censusLinkForUser((int) $auth['user_id'])
+            );
+            (new \App\Libraries\TransactionMailer())->noticeUser(
+                (int) $auth['user_id'],
+                'census-update:' . $id . ':approved',
+                'Census update approved',
+                'Census update approved',
+                'Your census information was reviewed and applied to the barangay record.',
+                ['Status' => 'Approved'],
+                'Open the Barangay Information System to view your record. Visit the barangay hall during office hours if a detail still needs to be corrected.'
             );
         }
 
@@ -1886,6 +1967,15 @@ class CensusController extends BaseController
                 $reason !== '' ? $reason : 'Your census update was not approved. Please visit the barangay hall for help.',
                 $this->censusLinkForUser((int) $auth['user_id'])
             );
+            (new \App\Libraries\TransactionMailer())->noticeUser(
+                (int) $auth['user_id'],
+                'census-update:' . $id . ':rejected',
+                'Census update not approved',
+                'Census update not approved',
+                $reason !== '' ? $reason : 'Your census update was not approved. Please visit the barangay hall for help.',
+                ['Status' => 'Not approved', 'Note' => $reason],
+                'You can submit a corrected update when the barangay asks for one, or visit the barangay hall during office hours.'
+            );
         }
 
         return redirect()->back()->with('success', 'Census update request rejected.');
@@ -1903,16 +1993,82 @@ class CensusController extends BaseController
             return $this->response->setStatusCode(404)->setJSON(['ok' => false, 'message' => 'Update request not found.']);
         }
 
-        $payload = json_decode((string) ($auth['notes'] ?? ''), true);
-        if (! is_array($payload)) {
-            return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'message' => 'Payload could not be read.']);
+        $payload = $this->decodeCensusNotes($auth['notes'] ?? null);
+        $notice = null;
+        if ($payload === null) {
+            $notice = ($auth['status'] ?? '') === 'submitted'
+                ? 'The submitted form could not be compared field by field. The proof document is still available below.'
+                : 'This resident has not submitted census changes yet.';
+            $payload = [];
         }
 
         $confirmOnly = ! empty($payload['confirm_only']);
-        $scope = $payload['scope'] ?? 'head';
-        $householdNo = (string) ($payload['household_no'] ?? '');
+        $diff = $this->buildCensusUpdateFieldDiff($payload);
 
-        // ── Label map ─────────────────────────────────────────────────────
+        $proofUrl = ! empty($auth['proof_document_path'])
+            ? $this->censusUpdateProofUrl($id)
+            : '';
+        $proofExt = strtolower(pathinfo((string) ($auth['proof_document_path'] ?? ''), PATHINFO_EXTENSION));
+        $proofIsImage = $proofUrl !== '' && in_array($proofExt, ['jpg', 'jpeg', 'png', 'webp'], true);
+
+        // ── Resident name ─────────────────────────────────────────────────
+        $residentName = '';
+        if (! empty($auth['user_id'])) {
+            $userRow = (new UserModel())->find((int) $auth['user_id']);
+            if ($userRow) {
+                $residentName = trim(($userRow['first_name'] ?? '') . ' ' . ($userRow['last_name'] ?? ''));
+            }
+        }
+
+        return $this->response->setJSON([
+            'ok'            => true,
+            'diff'          => $diff,
+            'confirm_only'  => $confirmOnly,
+            'notice'        => $notice,
+            'proof_url'      => $proofUrl !== '' ? $proofUrl : null,
+            'proof_is_image' => $proofIsImage,
+            'resident_name' => $residentName,
+            'submitted_at'  => $auth['submitted_at'] ?? null,
+            'auth_id'       => $id,
+        ]);
+    }
+
+    private function decodeCensusNotes(mixed $notes): ?array
+    {
+        if (is_array($notes)) {
+            return $notes;
+        }
+
+        $raw = trim((string) $notes);
+        if ($raw === '') {
+            return null;
+        }
+        $raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw) ?? $raw;
+
+        $candidates = [$raw, html_entity_decode($raw, ENT_QUOTES | ENT_HTML5, 'UTF-8')];
+        if (str_contains($raw, '\\')) {
+            $candidates[] = stripslashes($raw);
+        }
+
+        foreach ($candidates as $candidate) {
+            $decoded = json_decode($candidate, true);
+            if (is_string($decoded)) {
+                $decoded = json_decode($decoded, true);
+            }
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return list<array{field: string, label: string, old: string, new: string}>
+     */
+    private function buildCensusUpdateFieldDiff(array $payload): array
+    {
         $labels = [
             'last_name'              => 'Last Name',
             'first_name'             => 'First Name',
@@ -1943,76 +2099,67 @@ class CensusController extends BaseController
             'is_pwd'                 => 'PWD',
             'pwd_type'               => 'PWD Type',
             'relationship'           => 'Relationship',
+            'water_source_level'     => 'Water Source Level',
+            'water_safety_managed'   => 'Safely Managed Water',
+            'sanitation_basic'       => 'Basic Sanitation',
+            'sanitation_managed'     => 'Managed Sanitation',
         ];
 
         $diff = [];
-
-        if ($scope === 'head' && $householdNo !== '') {
-            $current = $this->householdModel->find($householdNo);
-            $proposed = is_array($payload['household'] ?? null) ? $payload['household'] : $payload;
-            foreach ($proposed as $field => $newVal) {
-                if (! array_key_exists($field, $labels) || in_array($field, ['member_id', 'household_no', 'scope', 'confirm_only'], true)) {
-                    continue;
-                }
-                $oldVal = (string) ($current[$field] ?? '');
-                $newVal = (string) ($newVal ?? '');
-                if ($oldVal !== $newVal) {
-                    $diff[] = [
-                        'field' => $field,
-                        'label' => $labels[$field] ?? $field,
-                        'old'   => $oldVal,
-                        'new'   => $newVal,
-                    ];
-                }
+        $push = static function (string $field, string $label, string $old, string $new) use (&$diff): void {
+            if ($old !== $new) {
+                $diff[] = ['field' => $field, 'label' => $label, 'old' => $old, 'new' => $new];
             }
-        } elseif ($scope === 'member') {
+        };
+
+        $scope = (string) ($payload['scope'] ?? 'head');
+        $householdNo = (string) ($payload['household_no'] ?? '');
+
+        if ($scope === 'member') {
             $memberPayload = is_array($payload['member'] ?? null) ? $payload['member'] : [];
             $memberId = (int) ($memberPayload['member_id'] ?? 0);
-            $current = $memberId > 0 ? $this->memberModel->find($memberId) : null;
-            if ($current) {
-                foreach ($memberPayload as $field => $newVal) {
-                    if (! array_key_exists($field, $labels) || $field === 'member_id') {
-                        continue;
-                    }
-                    $oldVal = (string) ($current[$field] ?? '');
-                    $newVal = (string) ($newVal ?? '');
-                    if ($oldVal !== $newVal) {
-                        $diff[] = [
-                            'field' => $field,
-                            'label' => $labels[$field] ?? $field,
-                            'old'   => $oldVal,
-                            'new'   => $newVal,
-                        ];
-                    }
+            $current = $memberId > 0 ? ($this->memberModel->find($memberId) ?: []) : [];
+            foreach ($memberPayload as $field => $newVal) {
+                if (! is_string($field) || ! array_key_exists($field, $labels)) {
+                    continue;
                 }
+                $push($field, $labels[$field], (string) ($current[$field] ?? ''), (string) ($newVal ?? ''));
+            }
+
+            return $diff;
+        }
+
+        if ($householdNo !== '') {
+            $current = $this->householdModel->find($householdNo) ?: [];
+            $proposed = is_array($payload['household'] ?? null) ? $payload['household'] : $payload;
+            foreach ($proposed as $field => $newVal) {
+                if (! is_string($field) || ! array_key_exists($field, $labels)) {
+                    continue;
+                }
+                $push($field, $labels[$field], (string) ($current[$field] ?? ''), (string) ($newVal ?? ''));
             }
         }
 
-        $proofUrl = ! empty($auth['proof_document_path'])
-            ? $this->censusUpdateProofUrl($id)
-            : '';
-        $proofExt = strtolower(pathinfo((string) ($auth['proof_document_path'] ?? ''), PATHINFO_EXTENSION));
-        $proofIsImage = $proofUrl !== '' && in_array($proofExt, ['jpg', 'jpeg', 'png', 'webp'], true);
-
-        // ── Resident name ─────────────────────────────────────────────────
-        $residentName = '';
-        if (! empty($auth['user_id'])) {
-            $userRow = (new UserModel())->find((int) $auth['user_id']);
-            if ($userRow) {
-                $residentName = trim(($userRow['first_name'] ?? '') . ' ' . ($userRow['last_name'] ?? ''));
+        foreach ((array) ($payload['members'] ?? []) as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $memberId = (int) ($row['id'] ?? $row['member_id'] ?? 0);
+            $currentMember = $memberId > 0 ? ($this->memberModel->find($memberId) ?: []) : [];
+            $who = trim((string) (($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')));
+            if ($who === '' && $currentMember !== []) {
+                $who = trim((string) (($currentMember['first_name'] ?? '') . ' ' . ($currentMember['last_name'] ?? '')));
+            }
+            $prefix = $who !== '' ? $who . ' — ' : 'Member — ';
+            foreach ($row as $field => $newVal) {
+                if (! is_string($field) || ! array_key_exists($field, $labels)) {
+                    continue;
+                }
+                $push($field, $prefix . $labels[$field], (string) ($currentMember[$field] ?? ''), (string) ($newVal ?? ''));
             }
         }
 
-        return $this->response->setJSON([
-            'ok'            => true,
-            'diff'          => $diff,
-            'confirm_only'  => $confirmOnly,
-            'proof_url'      => $proofUrl !== '' ? $proofUrl : null,
-            'proof_is_image' => $proofIsImage,
-            'resident_name' => $residentName,
-            'submitted_at'  => $auth['submitted_at'] ?? null,
-            'auth_id'       => $id,
-        ]);
+        return $diff;
     }
 
     private function censusUpdateProofUrl(int $id): string
@@ -2152,79 +2299,16 @@ class CensusController extends BaseController
             return redirect()->back()->with('error', 'Census update request not found.');
         }
 
-        $payload     = json_decode((string) ($auth['notes'] ?? ''), true);
-        $confirmOnly = is_array($payload) && ! empty($payload['confirm_only']);
-        $scope       = is_array($payload) ? ($payload['scope'] ?? 'head') : 'head';
-        $householdNo = is_array($payload) ? (string) ($payload['household_no'] ?? '') : '';
-
-        $labels = [
-            'last_name'              => 'Last Name',
-            'first_name'             => 'First Name',
-            'middle_name'            => 'Middle Name',
-            'suffix'                 => 'Suffix',
-            'date_of_birth'          => 'Date of Birth',
-            'place_of_birth'         => 'Place of Birth',
-            'gender'                 => 'Gender',
-            'civil_status'           => 'Civil Status',
-            'marital_status'         => 'Civil Status',
-            'nationality'            => 'Nationality',
-            'religion'               => 'Religion',
-            'occupation'             => 'Occupation',
-            'monthly_income'         => 'Monthly Income (₱)',
-            'contact_number'         => 'Contact Number',
-            'educational_attainment' => 'Educational Attainment',
-            'philhealth_no'          => 'PhilHealth No.',
-            'registered_voter'       => 'Registered Voter',
-            'address'                => 'Address',
-            'zone'                   => 'Zone',
-            'years_of_residency'     => 'Years of Residency',
-            'house_ownership'        => 'House Ownership',
-            'num_families'           => 'No. of Families',
-            'is_4ps'                 => '4Ps Member',
-            'is_senior_citizen'      => 'Senior Citizen',
-            'is_solo_parent'         => 'Solo Parent',
-            'is_indigenous'          => 'Indigenous People',
-            'is_pwd'                 => 'PWD',
-            'pwd_type'               => 'PWD Type',
-            'relationship'           => 'Relationship',
-            'water_source_level'     => 'Water Source Level',
-            'water_safety_managed'   => 'Safely Managed Water',
-            'sanitation_basic'       => 'Basic Sanitation',
-            'sanitation_managed'     => 'Managed Sanitation',
-        ];
-
-        $diff = [];
-
-        if ($scope === 'head' && $householdNo !== '') {
-            $current  = $this->householdModel->find($householdNo);
-            $proposed = is_array($payload['household'] ?? null) ? $payload['household'] : (is_array($payload) ? $payload : []);
-            foreach ($proposed as $field => $newVal) {
-                if (! array_key_exists($field, $labels) || in_array($field, ['member_id', 'household_no', 'scope', 'confirm_only'], true)) {
-                    continue;
-                }
-                $oldVal = (string) ($current[$field] ?? '');
-                $newStr = (string) ($newVal ?? '');
-                if ($oldVal !== $newStr) {
-                    $diff[] = ['field' => $field, 'label' => $labels[$field], 'old' => $oldVal, 'new' => $newStr];
-                }
-            }
-        } elseif ($scope === 'member') {
-            $memberPayload = is_array($payload['member'] ?? null) ? $payload['member'] : [];
-            $memberId      = (int) ($memberPayload['member_id'] ?? 0);
-            $current       = $memberId > 0 ? $this->memberModel->find($memberId) : null;
-            if ($current) {
-                foreach ($memberPayload as $field => $newVal) {
-                    if (! array_key_exists($field, $labels) || $field === 'member_id') {
-                        continue;
-                    }
-                    $oldVal = (string) ($current[$field] ?? '');
-                    $newStr = (string) ($newVal ?? '');
-                    if ($oldVal !== $newStr) {
-                        $diff[] = ['field' => $field, 'label' => $labels[$field], 'old' => $oldVal, 'new' => $newStr];
-                    }
-                }
-            }
+        $payload     = $this->decodeCensusNotes($auth['notes'] ?? null);
+        $reviewNotice = null;
+        if ($payload === null) {
+            $reviewNotice = 'The submitted form could not be compared field by field. The proof document is still available below.';
+            $payload = [];
         }
+        $confirmOnly = ! empty($payload['confirm_only']);
+        $scope       = (string) ($payload['scope'] ?? 'head');
+        $householdNo = (string) ($payload['household_no'] ?? ($auth['household_no'] ?? ''));
+        $diff        = $this->buildCensusUpdateFieldDiff($payload);
 
         $proofUrl     = ! empty($auth['proof_document_path']) ? $this->censusUpdateProofUrl((int) $auth['id']) : '';
         $proofIsImage = false;
@@ -2255,13 +2339,46 @@ class CensusController extends BaseController
             'residentName' => $residentName,
             'proofUrl'     => $proofUrl,
             'proofIsImage' => $proofIsImage,
+            'reviewNotice' => $reviewNotice,
+        ]);
+    }
+
+    public function reviewHousehold(string $householdNo)
+    {
+        if (! can_role('secretary', 'captain', 'admin')) {
+            return redirect()->to('/' . session_role() . '/census')
+                ->with('error', 'Only authorized barangay personnel can review census records.');
+        }
+
+        $household = $this->householdModel->find($householdNo);
+        if (! $household) {
+            return redirect()->to('/' . session_role() . '/census')->with('error', 'Census record not found.');
+        }
+
+        $recorderName = '';
+        if (! empty($household['recorded_by'])) {
+            $recorder = (new UserModel())->find((int) $household['recorded_by']);
+            if (is_array($recorder)) {
+                $recorderName = trim(($recorder['first_name'] ?? '') . ' ' . ($recorder['last_name'] ?? ''));
+            }
+        }
+
+        return view('dashboard/secretary/census_review', [
+            'role'         => session_role(),
+            'household'    => $household,
+            'members'      => $this->memberModel->getByHousehold($householdNo),
+            'recorderName' => $recorderName,
         ]);
     }
 
     public function approveHousehold(string $householdNo)
     {
-        if (! can_role('secretary')) {
-            return redirect()->back()->with('error', 'Only the secretary can approve household records.');
+        if (! can_role('secretary', 'captain', 'admin')) {
+            return redirect()->back()->with('error', 'Only authorized barangay personnel can approve census records.');
+        }
+        if (! $this->censusInformationVerified()) {
+            return redirect()->to('/' . session_role() . '/census/review/' . $householdNo)
+                ->with('error', 'Review and verify the census information before approving this record.');
         }
 
         $household = $this->householdModel->find($householdNo);
@@ -2275,17 +2392,32 @@ class CensusController extends BaseController
                 (int) $household['recorded_by'],
                 'household_approved',
                 'Household Submission Approved',
-                'Your household record for ' . trim($household['first_name'] . ' ' . $household['last_name']) . ' has been approved by the secretary.',
+                'Your household record for ' . trim($household['first_name'] . ' ' . $household['last_name']) . ' was reviewed, verified, and approved.',
                 '/council/census'
             );
+            (new \App\Libraries\TransactionMailer())->noticeUser(
+                (int) $household['recorded_by'],
+                'household:' . $householdNo . ':approved',
+                'Household record approved',
+                'Household record approved',
+                'The household record for ' . trim($household['first_name'] . ' ' . $household['last_name']) . ' was reviewed, verified, and approved.',
+                ['Household' => trim($household['first_name'] . ' ' . $household['last_name']), 'Status' => 'Approved'],
+                'Open Census Records in the Barangay Information System to see the approved record.'
+            );
         }
-        return redirect()->back()->with('success', 'Household record approved.');
+        return redirect()->to('/' . session_role() . '/census')
+            ->with('success', 'Census record approved after the information was reviewed and verified.');
+    }
+
+    private function censusInformationVerified(): bool
+    {
+        return (string) $this->request->getPost('information_verified') === '1';
     }
 
     public function rejectHousehold(string $householdNo)
     {
-        if (! can_role('secretary')) {
-            return redirect()->back()->with('error', 'Only the secretary can reject household records.');
+        if (! can_role('secretary', 'captain', 'admin')) {
+            return redirect()->back()->with('error', 'Only authorized barangay personnel can reject census records.');
         }
 
         $household = $this->householdModel->find($householdNo);
@@ -2301,6 +2433,15 @@ class CensusController extends BaseController
                 'Household Submission Rejected',
                 'Your household record for ' . trim($household['first_name'] . ' ' . $household['last_name']) . ' was rejected by the secretary.',
                 '/council/census'
+            );
+            (new \App\Libraries\TransactionMailer())->noticeUser(
+                (int) $household['recorded_by'],
+                'household:' . $householdNo . ':rejected',
+                'Household record not approved',
+                'Household record not approved',
+                'The household record for ' . trim($household['first_name'] . ' ' . $household['last_name']) . ' was not approved.',
+                ['Household' => trim($household['first_name'] . ' ' . $household['last_name']), 'Status' => 'Not approved'],
+                'Review the record and visit the barangay hall if more information is required before it can be filed again.'
             );
         }
         return redirect()->back()->with('success', 'Household record rejected.');
@@ -2474,7 +2615,7 @@ class CensusController extends BaseController
             'date_of_birth'           => $post['date_of_birth']          ?? null,
             'place_of_birth'          => strtoupper($post['place_of_birth'] ?? ''),
             'gender'                  => $post['gender']                 ?? 'Male',
-            'civil_status'            => $post['civil_status']           ?? 'Single',
+            'civil_status'            => normalize_civil_status($post['civil_status'] ?? null),
             'nationality'             => strtoupper($post['nationality'] ?? 'FILIPINO'),
             'religion'                => strtoupper($post['religion']    ?? ''),
             'occupation'              => strtoupper($post['occupation']  ?? ''),
@@ -2737,7 +2878,7 @@ class CensusController extends BaseController
                     'suffix'                 => $post['child_suffix'][$i]      ?? null,
                     'date_of_birth'          => $post['child_dob'][$i]         ?? null,
                     'gender'                 => $post['child_gender'][$i]      ?? null,
-                    'marital_status'        => $post['child_marital_status'][$i] ?? 'Single',
+                    'marital_status'        => normalize_civil_status($post['child_marital_status'][$i] ?? null),
                     'occupation'             => strtoupper(trim($post['child_occupation'][$i]  ?? '')),
                     'work_detail'            => strtoupper(trim((string) ($post['child_occupation'][$i] ?? ''))) === 'WORKING STUDENT'
                         ? (strtoupper(trim((string) ($post['child_work'][$i] ?? ''))) ?: null)
@@ -2926,6 +3067,16 @@ class CensusController extends BaseController
                 ->withInput();
         }
 
+        $civilStatus = array_key_exists('marital_status', $post)
+            ? normalize_civil_status($post['marital_status'] ?? null)
+            : normalize_civil_status($current['marital_status'] ?? null);
+        $memberAge = $this->ageFromDate($post['date_of_birth'] ?? null);
+        if ($relationship === 'child' && $memberAge !== null && $memberAge < 18 && $civilStatus !== 'Single') {
+            return redirect()->back()
+                ->with('error', 'A child under 18 must have Civil Status set to Single.')
+                ->withInput();
+        }
+
         $isPwd = ($post['is_pwd'] ?? '0') === '1' ? 1 : 0;
         $isSenior = ($post['is_senior_citizen'] ?? '0') === '1' ? 1 : 0;
         $hasExistingPwdId = ! empty($current['id_pwd_path']);
@@ -2959,7 +3110,8 @@ class CensusController extends BaseController
             'middle_name'            => strtoupper($post['middle_name'] ?? ''),
             'suffix'                 => $post['suffix']                 ?? null,
             'date_of_birth'          => $post['date_of_birth']          ?? null,
-            'gender'                 => $post['gender']                 ?? null,
+            'gender'                 => array_key_exists('gender', $post) ? ($post['gender'] ?: null) : ($current['gender'] ?? null),
+            'marital_status'         => $civilStatus,
             'occupation'             => strtoupper($post['occupation']  ?? ''),
             'work_detail'            => strtoupper(trim((string) ($post['occupation'] ?? ''))) === 'WORKING STUDENT'
                 ? (array_key_exists('work_detail', $post)
@@ -3214,7 +3366,7 @@ class CensusController extends BaseController
             'suffix'                 => $member['suffix']       ?? null,
             'date_of_birth'          => $member['date_of_birth']        ?? null,
             'gender'                 => $member['gender']               ?? 'Male',
-            'civil_status'           => $req['new_civil_status'] ?? 'Single',
+            'civil_status'           => normalize_civil_status($req['new_civil_status'] ?? null),
             'nationality'            => 'Filipino',
             'occupation'             => $member['occupation']           ?? null,
             'monthly_income'         => $member['monthly_income']       ?? 0,
@@ -3588,7 +3740,10 @@ class CensusController extends BaseController
     public function approveMemberRequest(int $id)
     {
         if (! can_role('secretary', 'captain', 'admin')) {
-            return redirect()->back()->with('error', 'Only the Captain or Secretary can approve this request.');
+            return redirect()->back()->with('error', 'Only authorized barangay personnel can approve this request.');
+        }
+        if (! $this->censusInformationVerified()) {
+            return redirect()->back()->with('error', 'Review and verify the census information before approving this request.');
         }
 
         $result = $this->applyHouseholdMemberRequest($id, true);
@@ -3979,6 +4134,15 @@ class CensusController extends BaseController
                     $reason !== '' ? $reason : 'Your request to change a household member was not approved.',
                     $this->censusLinkForUser((int) $request['requested_by'])
                 );
+                (new \App\Libraries\TransactionMailer())->noticeUser(
+                    (int) $request['requested_by'],
+                    'member-request:' . $id . ':rejected',
+                    'Household member change not approved',
+                    'Household member change not approved',
+                    $reason !== '' ? $reason : 'Your request to change a household member was not approved.',
+                    ['Status' => 'Not approved', 'Note' => $reason],
+                    'Open Census Update in the Barangay Information System or visit the barangay hall if you need to file the request again.'
+                );
             }
 
             return ['ok' => true, 'message' => 'Member request rejected.'];
@@ -4028,6 +4192,15 @@ class CensusController extends BaseController
                 'Member change approved',
                 'Your request to ' . $type . ' a household member has been approved.',
                 $this->censusLinkForUser((int) $request['requested_by'])
+            );
+            (new \App\Libraries\TransactionMailer())->noticeUser(
+                (int) $request['requested_by'],
+                'member-request:' . $id . ':approved',
+                'Household member change approved',
+                'Household member change approved',
+                'Your request to ' . $type . ' a household member has been approved.',
+                ['Status' => 'Approved', 'Change' => ucfirst((string) $type)],
+                'Open Census Update in the Barangay Information System to see the updated household.'
             );
         }
 

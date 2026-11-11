@@ -223,7 +223,7 @@
             <div class="cud-card">
                 <div class="cud-head">
                     <h2>Submitted census updates</h2>
-                    <p>Approve or reject household and personal updates from residents. Changes take effect only after Captain or Secretary approval.</p>
+                    <p>Review the submitted information first. Changes take effect only after authorized barangay personnel verify and approve the record.</p>
                 </div>
                 <div class="db-table-wrap">
                     <table class="db-table">
@@ -276,7 +276,7 @@
             <div class="cud-card">
                 <div class="cud-head">
                     <h2>Household member requests</h2>
-                    <p>Add, move, and remove requests from household heads stay pending until the Captain or Secretary approves them.</p>
+                    <p>Add, move, and remove requests stay pending until authorized barangay personnel review and verify them.</p>
                 </div>
                 <div class="db-table-wrap">
                     <table class="db-table">
@@ -320,8 +320,12 @@
                                         <td><?= esc($detail) ?></td>
                                         <td><?= esc($reqName) ?></td>
                                         <td style="white-space:nowrap;">
-                                            <form method="post" action="/<?= esc($role) ?>/member-request/approve/<?= (int) $request['id'] ?>" style="display:inline;" onsubmit="return confirm('Apply this member request now?');">
+                                            <form method="post" action="/<?= esc($role) ?>/member-request/approve/<?= (int) $request['id'] ?>" style="display:inline-flex;align-items:center;gap:6px;" onsubmit="return this.information_verified.checked;">
                                                 <?= csrf_field() ?>
+                                                <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:#1d2448;">
+                                                    <input type="checkbox" name="information_verified" value="1" required>
+                                                    Verified
+                                                </label>
                                                 <button type="submit" class="db-btn db-btn--primary db-btn--sm"><i class="fas fa-check"></i> Approve</button>
                                             </form>
                                             <form method="post" action="/<?= esc($role) ?>/member-request/reject/<?= (int) $request['id'] ?>" style="display:inline-flex;gap:6px;align-items:center;margin-left:6px;">
@@ -446,12 +450,16 @@
                 <div id="cudDiffContent"></div>
             </div>
             <div id="cudDiffFoot" style="display:none;padding:16px 22px;border-top:1px solid #edf1f7;gap:10px;align-items:center;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#1d2448;flex:1;min-width:220px;">
+                    <input type="checkbox" id="cudVerified">
+                    I have reviewed and verified this information.
+                </label>
                 <input type="text" id="cudRejectReason" placeholder="Rejection reason (optional)"
                     style="flex:1;min-width:160px;padding:8px 10px;border:1px solid #d7dce6;border-radius:8px;font-family:'Poppins',sans-serif;font-size:12px;">
                 <button class="db-btn db-btn--outline db-btn--sm" onclick="submitCudAction('reject')">
                     <i class="fas fa-times"></i> Reject
                 </button>
-                <button class="db-btn db-btn--primary db-btn--sm" onclick="submitCudAction('approve')">
+                <button class="db-btn db-btn--primary db-btn--sm" id="cudApproveBtn" disabled onclick="submitCudAction('approve')">
                     <i class="fas fa-check"></i> Approve
                 </button>
             </div>
@@ -478,6 +486,8 @@
                 document.getElementById('cudDiffSpinner').style.display = 'block';
                 document.getElementById('cudDiffOverlay').classList.add('active');
                 document.getElementById('cudRejectReason').value = '';
+                document.getElementById('cudVerified').checked = false;
+                document.getElementById('cudApproveBtn').disabled = true;
 
                 fetch('/' + rolePrefix + '/resident/census-update-diff/' + authId, {
                         headers: {
@@ -512,7 +522,7 @@
                         'Resident confirmed that their information is correct — no changes were proposed.</div>';
                 } else if (!data.diff || data.diff.length === 0) {
                     html += '<div class="cud-confirm-info" style="background:#fff8ee;border-color:#f6d7a8;color:#7a4200;">' +
-                        '<i class="fas fa-info-circle"></i> No field-level changes were detected in the submitted data.</div>';
+                        '<i class="fas fa-info-circle"></i> ' + escHtml(data.notice || 'No field-level changes were detected in the submitted data.') + '</div>';
                 } else {
                     html += '<table class="cud-diff-table">' +
                         '<thead><tr><th>Field</th><th>Current Value</th><th>Proposed Change</th></tr></thead><tbody>';
@@ -554,10 +564,16 @@
                     (action === 'approve' ? 'approve' : 'reject') +
                     '-census-update/' + currentAuthId;
 
-                if (action === 'approve' && !confirm('Apply this census update to the database now?')) return;
+                if (action === 'approve') {
+                    if (!document.getElementById('cudVerified').checked) return;
+                    if (!confirm('Apply this verified census update to the record now?')) return;
+                }
 
                 var formData = new FormData();
                 formData.append(csrfName, csrfHash);
+                if (action === 'approve') {
+                    formData.append('information_verified', '1');
+                }
                 if (action === 'reject') {
                     formData.append('remarks', reason);
                 }
@@ -582,6 +598,9 @@
             // Close on backdrop click
             document.getElementById('cudDiffOverlay').addEventListener('click', function(e) {
                 if (e.target === this) closeCudDiff();
+            });
+            document.getElementById('cudVerified').addEventListener('change', function () {
+                document.getElementById('cudApproveBtn').disabled = !this.checked;
             });
         })();
     </script>

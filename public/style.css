@@ -6378,8 +6378,27 @@ select.pf-input {
 .print-toolbar {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    flex-wrap: wrap;
     gap: 10px;
     margin-bottom: 16px;
+}
+
+.print-orientation {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: auto;
+}
+
+.print-orientation span {
+    font-size: 12px;
+    font-weight: 700;
+    color: #4a5068;
+}
+
+html.print-landscape .lydo-sheet {
+    max-width: 1180px;
 }
 
 .lydo-sheet {
@@ -6390,6 +6409,14 @@ select.pf-input {
     color: #111;
     font-family: Arial, sans-serif;
     box-shadow: 0 2px 12px rgba(29, 36, 72, .08);
+}
+
+.lydo-form-code {
+    text-align: right;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .2px;
+    margin: 0 0 4px;
 }
 
 .lydo-header {
@@ -6472,9 +6499,43 @@ select.pf-input {
     line-height: 1.8;
 }
 
-.lydo-checks label {
-    margin-right: 12px;
+.lydo-checks label,
+.lydo-inline-label {
+    margin-right: 10px;
     white-space: nowrap;
+}
+
+.lydo-blank {
+    display: inline-block;
+    min-width: 90px;
+    border-bottom: 1px solid #111;
+    line-height: 1.1;
+    padding: 0 4px;
+    font-weight: 600;
+}
+
+.lydo-suggest {
+    display: flex;
+    align-items: stretch;
+    min-height: 92px;
+}
+
+.lydo-suggest-text {
+    flex: 1;
+    padding-right: 8px;
+}
+
+.lydo-suggest .lydo-photo {
+    width: 1.55in;
+    min-width: 1.55in;
+    border-left: 1px solid #111;
+    margin: -4px -6px -4px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-style: italic;
+    color: #333;
 }
 
 .lydo-checks input {
@@ -6488,23 +6549,34 @@ select.pf-input {
     line-height: 1.8;
 }
 
-.lydo-photo {
-    width: 18%;
-    min-height: 80px;
+.lydo-table col.lydo-photo-col {
+    width: 2in;
+}
+
+.lydo-table td.lydo-photo {
+    width: 2in;
+    height: 2in !important;
+    min-width: 2in;
+    min-height: 2in;
+    max-width: 2in;
+    padding: 0 !important;
     text-align: center;
     vertical-align: middle !important;
     font-style: italic;
     color: #555;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
 .lydo-photo img {
     display: block;
+    width: 100%;
+    height: 100%;
     max-width: 100%;
-    max-height: 100px;
-    width: auto;
-    height: auto;
+    max-height: 1.55in;
     object-fit: contain;
-    margin: auto;
+    object-position: center;
+    margin: 0 auto;
 }
 
 .lydo-certification {
@@ -6516,17 +6588,62 @@ select.pf-input {
 }
 
 .lydo-signature {
-    height: 92px !important;
-    vertical-align: bottom !important;
+    height: auto !important;
+    vertical-align: top !important;
     text-align: center;
-    padding-bottom: 8px !important;
+    padding: 8px 10px 10px !important;
 }
 
-.lydo-signature span {
-    display: block;
-    border-top: 1px solid #111;
-    margin: 0 18px 3px;
+.lydo-sign-space {
+    height: 34px;
+    border-bottom: 1px solid #111;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    font-weight: 700;
+    margin-top: 8px;
+}
+
+.lydo-sign-caption {
+    font-size: 9px;
+    line-height: 1.25;
     padding-top: 3px;
+}
+
+.lydo-attested {
+    text-align: left;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.lydo-chair-name {
+    width: 100%;
+    height: 22px;
+    margin: 0;
+    padding: 0 4px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+    color: #111;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-align: center;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.lydo-chair-name:focus {
+    background: #fff8e6;
+}
+
+.lydo-chair-status {
+    font-size: 9px;
+    font-weight: 600;
+    color: #1b7a3a;
 }
 
 @media print {
@@ -6605,6 +6722,93 @@ select.pf-input {
 
     .lydo-signature {
         height: 70px !important;
+    }
+
+    .lydo-chair-name,
+    .lydo-chair-name:focus {
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .lydo-chair-status {
+        display: none !important;
+    }
+
+    .lydo-table td.lydo-photo {
+        width: 2in;
+        height: 2in !important;
+        min-width: 2in;
+        min-height: 2in;
+        max-width: 2in;
+        max-height: 2in;
+        padding: 0 !important;
+    }
+
+    .lydo-photo img {
+        width: 100%;
+        height: 100%;
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+    }
+
+    .lydo-suggest .lydo-photo {
+        width: 1.35in;
+        min-width: 1.35in;
+        margin: 0;
+    }
+
+    html.print-landscape .lydo-sheet {
+        height: auto;
+        overflow: visible;
+        page-break-inside: auto;
+    }
+
+    html.print-landscape .lydo-header img {
+        max-height: 42px;
+    }
+
+    html.print-landscape .lydo-title {
+        font-size: 12px;
+        padding: 4px 0;
+    }
+
+    html.print-landscape .lydo-table {
+        font-size: 8.5px;
+    }
+
+    html.print-landscape .lydo-table td,
+    html.print-landscape .lydo-table th {
+        height: 13px;
+        padding: 1px 4px;
+    }
+
+    html.print-landscape .lydo-value {
+        min-height: 9px;
+        font-size: 8.5px;
+    }
+
+    html.print-landscape .lydo-lines {
+        height: 36px !important;
+    }
+
+    html.print-landscape .lydo-certification {
+        height: 36px;
+        padding: 6px 12px !important;
+    }
+
+    html.print-landscape .lydo-signature {
+        height: 52px !important;
+    }
+
+    html.print-landscape .lydo-table td.lydo-photo {
+        width: 2in;
+        height: 2in !important;
+        min-width: 2in;
+        min-height: 2in;
+        max-width: 2in;
+        max-height: 2in;
     }
 }
 

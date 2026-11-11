@@ -14,6 +14,48 @@
  * @see: https://codeigniter.com/user_guide/extending/common.html
  */
 
+if (! function_exists('civil_status_options')) {
+    /** @return list<string> */
+    function civil_status_options(): array
+    {
+        return ['Single', 'Married', 'Widowed', 'Separated', 'Annulled'];
+    }
+}
+
+if (! function_exists('normalize_civil_status')) {
+    function normalize_civil_status(?string $value, string $default = 'Single'): string
+    {
+        $value = trim((string) $value);
+
+        return in_array($value, civil_status_options(), true) ? $value : $default;
+    }
+}
+
+if (! function_exists('barangay_now')) {
+    function barangay_now(): DateTimeImmutable
+    {
+        return new DateTimeImmutable('now', new DateTimeZone('Asia/Manila'));
+    }
+}
+
+if (! function_exists('day_greeting')) {
+    /**
+     * Greeting for the current time in Barangay Bacolod (Philippine time).
+     */
+    function day_greeting(): string
+    {
+        $hour = (int) barangay_now()->format('G');
+        if ($hour < 12) {
+            return 'Good morning';
+        }
+        if ($hour < 18) {
+            return 'Good afternoon';
+        }
+
+        return 'Good evening';
+    }
+}
+
 if (! function_exists('notification_time')) {
     function notification_time(?string $datetime): string
     {

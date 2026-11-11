@@ -69,6 +69,7 @@
         'approved' => 'db-badge--approved',
         'released' => 'db-badge--info',
         'rejected' => 'db-badge--rejected',
+        'expired'  => 'db-badge--rejected',
     ];
 
     $requestsByDate = [];

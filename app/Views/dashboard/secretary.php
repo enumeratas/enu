@@ -44,7 +44,7 @@
     $todayBlotterAppts = $todayBlotterAppts ?? [];
 
     $firstName = session()->get('first_name') ?? session()->get('username') ?? $roleGreeting;
-    $today     = date('l, F d, Y');
+    $today     = barangay_now()->format('l, F d, Y');
 
     $statusBadge = function (string $s): string {
         $map = [
@@ -77,7 +77,7 @@
                     <img class="gov-seal" src="/bacolod.png" alt="Barangay Bacolod seal" style="width:48px;height:48px;max-width:48px;object-fit:contain;">
                     <div>
                         <p class="gov-kicker">Barangay Bacolod, Bato, Camarines Sur</p>
-                        <h2>Good <?= date('H') < 12 ? 'morning' : (date('H') < 18 ? 'afternoon' : 'evening') ?>, <?= esc($firstName) ?></h2>
+                        <h2><?= esc(day_greeting()) ?>, <?= esc($firstName) ?></h2>
                         <p><?= esc($officeLabel) ?></p>
                         <div class="dash-welcome-date"><?= $today ?></div>
                     </div>

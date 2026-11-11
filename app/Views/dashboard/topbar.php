@@ -66,19 +66,24 @@ foreach (
         </h1>
 
         <span>
-            <?= date('l, F j, Y') ?>
+            <?= esc(barangay_now()->format('l, F j, Y')) ?>
         </span>
 
     </div>
 
-    <?php $searchRole = strtolower((string) (session()->get('role') ?? 'resident')); ?>
+    <?php
+        $searchRole = strtolower((string) (session()->get('role') ?? 'resident'));
+        $searchPlaceholder = $searchRole === 'resident'
+            ? 'Search your pages and records'
+            : 'Search pages, people, and records';
+    ?>
     <?php if (empty($hideGlobalSearch)): ?>
     <div class="db-global-search">
         <i class="fas fa-search" aria-hidden="true"></i>
         <input
             id="globalSearchInput"
             type="search"
-            placeholder="Search pages, people, and records"
+            placeholder="<?= esc($searchPlaceholder) ?>"
             autocomplete="off"
             aria-label="Search the system"
             aria-controls="globalSearchResults"
@@ -567,14 +572,14 @@ foreach (
     window.BIS_USER_ID = <?= (int) (session()->get('user_id') ?? 0) ?>;
     window.BIS_USER_ROLE = <?= json_encode((string) (session()->get('role') ?? '')) ?>;
 </script>
-<script src="/js/resident-offline.js?v=8"></script>
+<script src="/js/resident-offline.js?v=10"></script>
 <script src="/js/pwa-install.js?v=1"></script>
-<script src="/js/live-search.js?v=1"></script>
+<script src="/js/live-search.js?v=2"></script>
 
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
-            navigator.serviceWorker.register('/sw.js?v=13', {
+            navigator.serviceWorker.register('/sw.js?v=16', {
                 updateViaCache: 'none'
             }).catch(function() {
                 // Ignore registration failures; the app still works online.

@@ -397,7 +397,7 @@
                                         <div class="form-group">
                                             <label for="civil_status">Civil Status</label>
                                             <select id="civil_status" name="civil_status">
-                                                <?php foreach (['Single', 'Married', 'Widowed', 'Separated', 'Annulled'] as $cs): ?>
+                                                <?php foreach (civil_status_options() as $cs): ?>
                                                     <option value="<?= esc($cs) ?>" <?= $sel($household['civil_status'] ?? '', $cs) ?>><?= esc($cs) ?></option>
                                                 <?php endforeach; ?>
                                             </select>
@@ -810,7 +810,7 @@
                                         <div class="form-group">
                                             <label for="member_civil_status">Civil Status</label>
                                             <select id="member_civil_status" name="member_civil_status">
-                                                <?php foreach (['Single', 'Married', 'Widowed', 'Separated', 'Annulled'] as $cs): ?>
+                                                <?php foreach (civil_status_options() as $cs): ?>
                                                     <option value="<?= esc($cs) ?>" <?= $sel($ownCivil, $cs) ?>><?= esc($cs) ?></option>
                                                 <?php endforeach; ?>
                                             </select>

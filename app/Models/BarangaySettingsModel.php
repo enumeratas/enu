@@ -6,6 +6,8 @@ use CodeIgniter\Model;
 
 class BarangaySettingsModel extends Model
 {
+    public const SK_CHAIRPERSON_DEFAULT = 'KRISTINE MAE C. COLICO';
+
     protected $table      = 'barangay_settings';
     protected $primaryKey = 'id';
     protected $returnType = 'array';
@@ -138,6 +140,29 @@ class BarangaySettingsModel extends Model
 
         $row = $this->where('setting_key', $key)->first();
         return $row ? ($row['setting_value'] ?? $default) : $default;
+    }
+
+    /**
+     * Insert or update one setting. Returns false when the table is missing.
+     */
+    public function saveValue(string $key, string $value, string $label, string $group = 'system', int $sort = 999): bool
+    {
+        if (! $this->tableExists()) {
+            return false;
+        }
+
+        $existing = $this->where('setting_key', $key)->first();
+        if ($existing) {
+            return $this->update($existing['id'], ['setting_value' => $value]) !== false;
+        }
+
+        return $this->insert([
+            'setting_key'   => $key,
+            'setting_value' => $value,
+            'label'         => $label,
+            'group'         => $group,
+            'sort_order'    => $sort,
+        ]) !== false;
     }
 
     /**

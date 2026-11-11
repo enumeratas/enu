@@ -7,6 +7,7 @@ use App\Models\BlotterModel;
 use App\Models\UserModel;
 use App\Models\NotificationModel;
 use App\Libraries\EmailService;
+use App\Libraries\TransactionMailer;
 
 class BlotterController extends BaseController
 {
@@ -593,6 +594,13 @@ class BlotterController extends BaseController
                 '/resident/notifications'
             );
         }
+        $this->emailBlotterParties((int) $blotterId, 'filed', 'Blotter report filed', 'A blotter report that involves you was filed at the barangay.', [
+            'Case' => 'BL-' . str_pad((string) $blotterId, 2, '0', STR_PAD_LEFT),
+            'Incident' => $incidentType,
+            'Date' => TransactionMailer::dateLabel($incidentDate),
+            'Location' => $location !== '' ? $location : TransactionMailer::LOCATION,
+            'Status' => 'Pending',
+        ], 'Keep this notice for your records. Visit the barangay hall during office hours, Monday to Friday, 8:00 AM – 5:00 PM, if you are asked to appear. You can also open Notifications in the Barangay Information System.');
 
         $savedPhotos = count($evidencePaths);
         $role = (string) (session()->get('role') ?: 'secretary');
@@ -684,6 +692,13 @@ class BlotterController extends BaseController
                 '/' . $off['role'] . '/blotter'
             );
         }
+        $filedId = (int) $this->model->getInsertID();
+        $this->emailBlotterParties($filedId, 'filed', 'Blotter report received', 'The barangay received your blotter report and will review it.', [
+            'Case' => 'BL-' . str_pad((string) $filedId, 2, '0', STR_PAD_LEFT),
+            'Incident' => (string) $incidentType,
+            'Date' => TransactionMailer::dateLabel(is_string($incidentDate) ? $incidentDate : null),
+            'Status' => 'Pending',
+        ], 'The barangay will contact you about the next step. Office hours are Monday to Friday, 8:00 AM – 5:00 PM.');
 
         $redirectBase = $role === 'sk' ? '/sk/blotter' : '/resident/dashboard';
         return redirect()->to($redirectBase)->with('success', 'Blotter report submitted successfully. The barangay will contact you shortly.');
@@ -796,18 +811,40 @@ class BlotterController extends BaseController
     {
         $role    = (string)(session()->get('role') ?? 'captain');
         $status  = $this->request->getPost('status');
-        $remarks = $this->request->getPost('remarks') ?? '';
+        $remarks = trim((string) ($this->request->getPost('remarks') ?? ''));
 
         $allowedStatuses = ['pending', 'under_investigation', 'file_to_action', 'resolved', 'dismissed'];
         if (! in_array($status, $allowedStatuses, true)) {
             return redirect()->back()->with('error', 'Invalid blotter status.');
         }
 
+        $previous = $this->model->find($id);
         $this->model->update($id, [
             'status'       => $status,
             'remarks'      => $remarks,
             'processed_by' => session()->get('user_id'),
         ]);
+
+        $previousStatus = (string) ($previous['status'] ?? '');
+        $previousRemarks = trim((string) ($previous['remarks'] ?? ''));
+        if ($previousStatus !== $status || $previousRemarks !== $remarks) {
+            $labels = [
+                'pending' => 'Pending',
+                'under_investigation' => 'Under investigation',
+                'file_to_action' => 'Filed for action',
+                'resolved' => 'Resolved',
+                'dismissed' => 'Dismissed',
+            ];
+            $label = $labels[$status] ?? ucfirst(str_replace('_', ' ', (string) $status));
+            $this->emailBlotterParties($id, 'status:' . $status . ':' . sha1($remarks), 'Blotter status updated', 'The status of a blotter case that involves you has changed.', [
+                'Case' => 'BL-' . str_pad((string) $id, 2, '0', STR_PAD_LEFT),
+                'Incident' => (string) ($previous['incident_type'] ?? ''),
+                'Status' => $label,
+                'Note' => $remarks,
+            ], $status === 'file_to_action'
+                ? 'Further action is required. Visit the barangay hall and bring a valid ID. Office hours are Monday to Friday, 8:00 AM – 5:00 PM.'
+                : 'Open Notifications in the Barangay Information System for the case record. Visit the barangay hall during office hours if you need to respond.');
+        }
 
         return redirect()->to('/' . $role . '/blotter/' . $id)->with('success', 'Status updated.');
     }
@@ -938,15 +975,24 @@ class BlotterController extends BaseController
         $complainantName  = trim($report['complainant_full_name'] ?? $report['complainant_name'] ?? '');
         $complainantEmail = trim($report['complainant_email_addr'] ?? $report['complainant_email'] ?? '');
 
-        $emailService = new EmailService();
-        $errors       = [];
-
-        // ── Send to complainant (full letter) ─────────────────────────────────
-        if (! empty($complainantEmail)) {
-            try {
-                $emailService->sendSummonsWithLetter(
-                    $complainantEmail,
-                    $complainantName ?: 'Complainant',
+        $mailer = new TransactionMailer();
+        $parties = [
+            'complainant' => [$complainantEmail, $complainantName ?: 'Complainant'],
+            'respondent'  => [$respondentEmail, $respondentName ?: 'Respondent'],
+        ];
+        $sent = [];
+        $problems = [];
+        foreach ($parties as $partyRole => [$partyEmail, $partyName]) {
+            if ($partyEmail === '') {
+                continue;
+            }
+            $result = $mailer->deliver(
+                'blotter:' . $id . ':summons:' . $hearingDate . ':' . $hearingTime . ':' . $partyRole,
+                $partyEmail,
+                $partyName,
+                static fn (EmailService $emailService): bool => $emailService->sendSummonsWithLetter(
+                    $partyEmail,
+                    $partyName,
                     $caseNo,
                     $incidentType,
                     $hDate,
@@ -959,53 +1005,34 @@ class BlotterController extends BaseController
                     $hearingNotes,
                     $captainName,
                     $secretaryName,
-                    'complainant'
-                );
-            } catch (\Throwable $e) {
-                $errors[] = 'Could not send to complainant: ' . $e->getMessage();
-                log_message('error', 'Summons to complainant failed: ' . $e->getMessage());
+                    $partyRole
+                )
+            );
+            if ($result === 'sent' || $result === 'duplicate') {
+                $sent[] = $partyRole;
+            } elseif ($result === 'invalid') {
+                $problems[] = ucfirst($partyRole) . ' email address is not valid.';
+            } elseif ($result === 'disabled') {
+                $problems[] = 'Email notifications are turned off.';
+            } elseif ($result === 'failed') {
+                $problems[] = 'The summons email to the ' . $partyRole . ' could not be delivered.';
             }
         }
+        $problems = array_values(array_unique($problems));
 
-        // ── Send to respondent (full letter) ─────────────────────────────────
-        if (! empty($respondentEmail)) {
-            try {
-                $emailService->sendSummonsWithLetter(
-                    $respondentEmail,
-                    $respondentName ?: 'Respondent',
-                    $caseNo,
-                    $incidentType,
-                    $hDate,
-                    $hTime,
-                    $complainantName,
-                    $respondentName,
-                    $respondentAddr,
-                    $incidentDate,
-                    $location,
-                    $hearingNotes,
-                    $captainName,
-                    $secretaryName,
-                    'respondent'
-                );
-            } catch (\Throwable $e) {
-                $errors[] = 'Could not send to respondent: ' . $e->getMessage();
-                log_message('error', 'Summons to respondent failed: ' . $e->getMessage());
-            }
-        }
-
-        if (! empty($errors)) {
+        if ($problems !== [] && $sent === []) {
             return redirect()->to('/' . $role . '/blotter/' . $id)
-                ->with('error', implode(' | ', $errors));
+                ->with('error', 'Hearing schedule saved. ' . implode(' ', $problems));
         }
 
-        $sent = [];
-        if (! empty($complainantEmail)) $sent[] = 'complainant';
-        if (! empty($respondentEmail))  $sent[] = 'respondent';
         $sentLabel = count($sent) === 2
             ? 'Summons sent to both complainant and respondent.'
             : (count($sent) === 1
                 ? 'Summons sent to ' . $sent[0] . '.'
-                : 'Hearing schedule saved. No email addresses available to send summons.');
+                : 'Hearing schedule saved. No email addresses were available.');
+        if ($problems !== []) {
+            $sentLabel .= ' ' . implode(' ', $problems);
+        }
 
         return redirect()->to('/' . $role . '/blotter/' . $id)
             ->with('success', 'Hearing schedule saved. ' . $sentLabel);
@@ -1031,6 +1058,13 @@ class BlotterController extends BaseController
             'scheduled_by'  => session()->get('user_id'),
             'status'        => 'under_investigation',
         ]);
+        $this->emailBlotterParties($id, 'hearing:' . $hearingDate . ':' . $hearingTime . ':' . sha1($notes), 'Hearing schedule updated', 'The hearing for a blotter case that involves you has a new schedule.', [
+            'Case' => 'BL-' . str_pad((string) $id, 2, '0', STR_PAD_LEFT),
+            'Date' => TransactionMailer::dateLabel($hearingDate),
+            'Time' => TransactionMailer::clock($hearingTime),
+            'Location' => TransactionMailer::LOCATION,
+            'Notes' => $notes,
+        ], 'Please appear on time and bring a valid government-issued ID. Failure to appear without a valid reason may have consequences under the Katarungang Pambarangay process.');
 
         return redirect()->to('/' . $role . '/blotter/' . $id)
             ->with('success', 'Hearing schedule updated successfully.');
@@ -1125,7 +1159,51 @@ class BlotterController extends BaseController
             return '/' . ltrim($filename, '/');
         }
 
-        return 'data:image/png;base64,' . base64_encode((string) file_get_contents($path));
+        $binary = (string) file_get_contents($path);
+        $fitted = $this->fitCertificateSeal($binary, 160);
+        if ($fitted !== null) {
+            $binary = $fitted;
+        }
+
+        return 'data:image/png;base64,' . base64_encode($binary);
+    }
+
+    /**
+     * Dompdf sizes a table column from the image's pixel size. A full-resolution
+     * seal is wider than A4 and clips the rest of the certificate.
+     */
+    private function fitCertificateSeal(string $binary, int $maxEdge): ?string
+    {
+        if (! function_exists('imagecreatefromstring') || ! function_exists('imagepng')) {
+            return null;
+        }
+
+        $src = @imagecreatefromstring($binary);
+        if ($src === false) {
+            return null;
+        }
+
+        $width = imagesx($src);
+        $height = imagesy($src);
+        if ($width < 1 || $height < 1 || ($width <= $maxEdge && $height <= $maxEdge)) {
+            return null;
+        }
+
+        $scale = min($maxEdge / $width, $maxEdge / $height);
+        $newWidth = max(1, (int) round($width * $scale));
+        $newHeight = max(1, (int) round($height * $scale));
+        $dst = imagecreatetruecolor($newWidth, $newHeight);
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        $clear = imagecolorallocatealpha($dst, 0, 0, 0, 127);
+        imagefilledrectangle($dst, 0, 0, $newWidth, $newHeight, $clear);
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+
+        ob_start();
+        imagepng($dst);
+        $png = ob_get_clean();
+
+        return is_string($png) && $png !== '' ? $png : null;
     }
 
     public function evidence(int $id, int $index)
@@ -1217,5 +1295,71 @@ class BlotterController extends BaseController
             'captainName'   => $captainName,
             'secretaryName' => $secretaryName,
         ]);
+    }
+
+    /**
+     * @param array<string, scalar|null> $details
+     */
+    private function emailBlotterParties(int $id, string $event, string $heading, string $intro, array $details, string $instructions): void
+    {
+        if ($id <= 0) {
+            return;
+        }
+
+        $report = $this->model->find($id);
+        if (! is_array($report)) {
+            return;
+        }
+
+        $parties = [];
+        $complainantUserId = (int) ($report['complainant_user_id'] ?? 0);
+        if ($complainantUserId > 0) {
+            $user = (new UserModel())->find($complainantUserId);
+            if (is_array($user)) {
+                $parties[] = [
+                    'email' => (string) ($user['email'] ?? ''),
+                    'name' => trim((string) ($user['first_name'] ?? '') . ' ' . (string) ($user['last_name'] ?? '')) ?: 'Complainant',
+                ];
+            }
+        }
+        $parties[] = [
+            'email' => (string) ($report['complainant_email'] ?? ''),
+            'name' => (string) ($report['complainant_name'] ?? 'Complainant'),
+        ];
+
+        $respondentUserId = (int) ($report['respondent_user_id'] ?? 0);
+        if ($respondentUserId > 0) {
+            $user = (new UserModel())->find($respondentUserId);
+            if (is_array($user)) {
+                $parties[] = [
+                    'email' => (string) ($user['email'] ?? ''),
+                    'name' => trim((string) ($user['first_name'] ?? '') . ' ' . (string) ($user['last_name'] ?? '')) ?: 'Respondent',
+                ];
+            }
+        }
+        $parties[] = [
+            'email' => (string) ($report['respondent_email'] ?? ''),
+            'name' => (string) ($report['respondent_name'] ?? 'Respondent'),
+        ];
+
+        $mailer = new TransactionMailer();
+        $seen = [];
+        foreach ($parties as $party) {
+            $email = strtolower(trim($party['email']));
+            if ($email === '' || isset($seen[$email])) {
+                continue;
+            }
+            $seen[$email] = true;
+            $mailer->notice(
+                'blotter:' . $id . ':' . $event . ':' . $email,
+                $email,
+                $party['name'] !== '' ? $party['name'] : 'Resident',
+                $heading . ' — BL-' . str_pad((string) $id, 2, '0', STR_PAD_LEFT),
+                $heading,
+                $intro,
+                $details,
+                $instructions
+            );
+        }
     }
 }

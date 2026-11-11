@@ -176,11 +176,9 @@
                             <label style="font-size:11px;font-weight:700;color:#9aa0b4;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px;">Status</label>
                             <select name="status" class="db-filter-select" style="width:100%;" onchange="this.form.submit()">
                                 <option value="">All Status</option>
-                                <option value="Student" <?= $status === 'Student'       ? 'selected' : '' ?>>Student</option>
-                                <option value="Employed" <?= $status === 'Employed'      ? 'selected' : '' ?>>Employed</option>
-                                <option value="Unemployed" <?= $status === 'Unemployed'    ? 'selected' : '' ?>>Unemployed</option>
-                                <option value="Out-of-School" <?= $status === 'Out-of-School' ? 'selected' : '' ?>>Out-of-School</option>
-                                <option value="Self-Employed" <?= $status === 'Self-Employed' ? 'selected' : '' ?>>Self-Employed</option>
+                                <?php foreach (\App\Models\SkYouthModel::ECONOMIC_STATUSES as $es): ?>
+                                    <option value="<?= esc($es) ?>" <?= $status === $es ? 'selected' : '' ?>><?= esc($es) ?></option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
 
@@ -189,7 +187,7 @@
                             <label style="font-size:11px;font-weight:700;color:#9aa0b4;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px;">Civil Status</label>
                             <select name="civil" class="db-filter-select" style="width:100%;" onchange="this.form.submit()">
                                 <option value="">All</option>
-                                <?php foreach (['Single', 'Married', 'Widowed', 'Separated', 'Annulled'] as $cs): ?>
+                                <?php foreach (\App\Models\SkYouthModel::CIVIL_STATUSES as $cs): ?>
                                     <option <?= $civil === $cs ? 'selected' : '' ?>><?= $cs ?></option>
                                 <?php endforeach; ?>
                             </select>
@@ -289,11 +287,22 @@
                                             <?php
                                             $viewHref = ! empty($y['household_no'])
                                                 ? '/sk/household/' . rawurlencode((string) $y['household_no']) . '?source=' . rawurlencode((string) ($y['source'] ?? '')) . '&member_id=' . ($y['source'] === 'member' ? (int) $y['id'] : 0)
-                                                : (! empty($y['profile_id']) ? '/sk/profiling/view/' . (int) $y['profile_id'] : '/sk/profiling');
+                                                : (! empty($y['profile_id']) ? '/sk/profiling/edit/' . (int) $y['profile_id'] : '/sk/profiling');
                                             ?>
                                             <a href="<?= esc($viewHref) ?>"
                                                 class="db-icon-btn db-icon-btn--view" title="View Youth Profile">
                                                 <i class="fas fa-eye"></i>
+                                            </a>
+                                            <?php
+                                            $editHref = ! empty($y['profile_id'])
+                                                ? '/sk/profiling/edit/' . (int) $y['profile_id']
+                                                : '/sk/profiling/add?household_no=' . rawurlencode((string) ($y['household_no'] ?? ''))
+                                                    . '&source=' . rawurlencode((string) ($y['source'] ?? ''))
+                                                    . '&member_id=' . (($y['source'] ?? '') === 'member' ? (int) $y['id'] : 0);
+                                            ?>
+                                            <a href="<?= esc($editHref) ?>"
+                                                class="db-icon-btn db-icon-btn--edit" title="Edit Profile">
+                                                <i class="fas fa-edit"></i>
                                             </a>
                                         </div>
                                     </td>

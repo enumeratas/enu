@@ -146,7 +146,8 @@
 
 <body class="db-body">
     <?php
-    $role      = session()->get('role') === 'admin' ? 'admin' : 'secretary';
+    $sessionRole = strtolower((string) (session()->get('role') ?? ''));
+    $role        = in_array($sessionRole, ['admin', 'captain', 'secretary'], true) ? $sessionRole : 'secretary';
     $active    = 'reports';
     $pageTitle = 'Edit Front Page';
     include(APPPATH . 'Views/dashboard/sidebar.php');

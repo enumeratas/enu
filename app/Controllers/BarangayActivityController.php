@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\TransactionMailer;
 use App\Models\BarangayActivityModel;
 use App\Models\NotificationModel;
 
@@ -88,10 +89,10 @@ class BarangayActivityController extends BaseController
         ]);
         $this->syncActivityCalendar($payload + ['id' => $activityId, 'created_by' => $createdBy]);
 
-        $this->notifyResidents($payload['title'], $payload['conducted_date'], $payload['status']);
+        $this->announceActivity($payload + ['id' => $activityId], 'created');
 
         return redirect()->to('/' . $role . '/activities')
-            ->with('success', 'Activity "' . $payload['title'] . '" added and residents notified.');
+            ->with('success', 'Activity "' . $payload['title'] . '" added. Residents were notified in the system and by email when an address is on file.');
     }
 
     public function update(int $id)
@@ -114,10 +115,14 @@ class BarangayActivityController extends BaseController
         }
 
         $model->update($id, $payload + ['banner_path' => $banner]);
-        $this->syncActivityCalendar($payload + [
+        $updated = $payload + [
             'id'         => $id,
             'created_by' => $existing['created_by'] ?? session()->get('user_id'),
-        ]);
+        ];
+        $this->syncActivityCalendar($updated);
+        if ($this->announcementChanged($existing, $payload)) {
+            $this->announceActivity($updated, 'updated');
+        }
 
         return redirect()->to('/' . $role . '/activities')
             ->with('success', 'Activity updated.');
@@ -318,6 +323,21 @@ class BarangayActivityController extends BaseController
                 $message,
                 $activityLink
             );
+            (new TransactionMailer())->noticeUser(
+                (int) $reg['user_id'],
+                'activity-registration:' . $regId . ':' . $newStatus,
+                'Registration ' . ucfirst($newStatus) . ' — ' . $activity['title'],
+                'Activity registration ' . $newStatus,
+                $message,
+                [
+                    'Activity' => (string) ($activity['title'] ?? ''),
+                    'Date' => TransactionMailer::dateLabel($activity['conducted_date'] ?? $activity['activity_date'] ?? null),
+                    'Time' => TransactionMailer::timeRange($activity['start_time'] ?? null, $activity['end_time'] ?? null),
+                    'Venue' => (string) ($activity['venue'] ?? TransactionMailer::LOCATION),
+                    'Status' => ucfirst($newStatus),
+                ],
+                'Open Brgy Activities in the Barangay Information System for the full announcement. Bring the requirements listed there if your registration was approved.'
+            );
         }
 
         return redirect()->back()->with('success', 'Registration ' . $newStatus . '.');
@@ -499,6 +519,25 @@ class BarangayActivityController extends BaseController
             return null;
         }
 
+        $startTime = trim((string) $this->request->getPost('start_time'));
+        $endTime = trim((string) $this->request->getPost('end_time'));
+        if ($startTime !== '' && ! $this->validTime($startTime)) {
+            session()->setFlashdata('error', 'The start time is not valid.');
+            return null;
+        }
+        if ($endTime !== '' && ! $this->validTime($endTime)) {
+            session()->setFlashdata('error', 'The end time is not valid.');
+            return null;
+        }
+        if ($endTime !== '' && $startTime === '') {
+            session()->setFlashdata('error', 'Enter a start time before an end time.');
+            return null;
+        }
+        if ($startTime !== '' && $endTime !== '' && $endTime <= $startTime) {
+            session()->setFlashdata('error', 'The end time must be later than the start time.');
+            return null;
+        }
+
         $today  = date('Y-m-d');
         $status = $conductedDate < $today ? 'Completed' : ($conductedDate === $today ? 'Active' : 'Upcoming');
 
@@ -521,6 +560,10 @@ class BarangayActivityController extends BaseController
         $db = \Config\Database::connect();
         if ($db->tableExists('barangay_activities') && $db->fieldExists('eligibility_groups', 'barangay_activities')) {
             $payload = $payload + $eligibility;
+        }
+        if ($db->tableExists('barangay_activities') && $db->fieldExists('start_time', 'barangay_activities')) {
+            $payload['start_time'] = $startTime !== '' ? $startTime : null;
+            $payload['end_time'] = $endTime !== '' ? $endTime : null;
         }
 
         return $payload;
@@ -576,6 +619,8 @@ class BarangayActivityController extends BaseController
             'title'       => (string) ($activity['title'] ?? 'Barangay activity'),
             'description' => trim((string) ($activity['category'] ?? 'Activity') . ' at ' . ((string) ($activity['venue'] ?? 'Barangay Hall'))),
             'event_date'  => $date,
+            'start_time'  => $activity['start_time'] ?? null,
+            'end_time'    => $activity['end_time'] ?? null,
             'location'    => $activity['venue'] ?? 'Barangay Hall',
             'created_by'  => $activity['created_by'] ?? null,
         ]);
@@ -658,23 +703,43 @@ class BarangayActivityController extends BaseController
         }
     }
 
-    private function notifyResidents(string $title, ?string $date, string $status): void
+    private function announcementChanged(array $before, array $after): bool
     {
-        $db = \Config\Database::connect();
-        $residents = $db->table('users')
+        $fields = ['title', 'conducted_date', 'venue', 'status', 'description', 'start_time', 'end_time'];
+        foreach ($fields as $field) {
+            $left = trim((string) ($before[$field] ?? ''));
+            $right = trim((string) ($after[$field] ?? ''));
+            if (in_array($field, ['start_time', 'end_time'], true)) {
+                $left = $left === '' ? '' : date('H:i', strtotime($left) ?: 0);
+                $right = $right === '' ? '' : date('H:i', strtotime($right) ?: 0);
+            }
+            if ($left !== $right) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function announceActivity(array $activity, string $action): void
+    {
+        $title = (string) ($activity['title'] ?? 'Barangay activity');
+        $date = (string) ($activity['conducted_date'] ?? $activity['activity_date'] ?? '');
+        $status = (string) ($activity['status'] ?? '');
+        $when = $date !== '' ? ' on ' . date('M j, Y', strtotime($date)) : '';
+        $verb = $action === 'updated' ? 'was updated' : 'was added';
+        $body = 'A barangay activity ' . $verb . ': "' . $title . '" (' . $status . ')' . $when . '. Open Brgy Activities to learn more and join.';
+        $noticeTitle = ($action === 'updated' ? 'Updated barangay activity: ' : 'New barangay activity: ') . $title;
+        if (mb_strlen($noticeTitle) > 200) {
+            $noticeTitle = mb_substr($noticeTitle, 0, 197) . '...';
+        }
+
+        $residents = \Config\Database::connect()->table('users')
             ->select('id')
             ->where('role', 'resident')
             ->where('status', 'active')
             ->get()
             ->getResultArray();
-
-        $when = $date ? ' on ' . date('M j, Y', strtotime($date)) : '';
-        $body = 'A new barangay activity was added: "' . $title . '" (' . $status . ')' . $when . '. Open Brgy Activities to learn more and join.';
-        $noticeTitle = 'New barangay activity: ' . $title;
-        if (mb_strlen($noticeTitle) > 200) {
-            $noticeTitle = mb_substr($noticeTitle, 0, 197) . '...';
-        }
-
         foreach ($residents as $resident) {
             NotificationModel::push(
                 (int) $resident['id'],
@@ -684,5 +749,35 @@ class BarangayActivityController extends BaseController
                 '/resident/activities'
             );
         }
+
+        $description = trim((string) ($activity['description'] ?? ''));
+        if (mb_strlen($description) > 500) {
+            $description = mb_substr($description, 0, 497) . '...';
+        }
+        $stamp = TransactionMailer::stamp([
+            'title' => $title,
+            'date' => $date,
+            'start' => $activity['start_time'] ?? '',
+            'end' => $activity['end_time'] ?? '',
+            'venue' => $activity['venue'] ?? '',
+            'status' => $status,
+            'description' => $description,
+        ]);
+        (new TransactionMailer())->broadcastActiveResidents(
+            'activity:' . (int) ($activity['id'] ?? 0) . ':' . $action . ':' . $stamp,
+            ($action === 'updated' ? 'Updated activity: ' : 'New barangay activity: ') . $title,
+            $action === 'updated' ? 'Barangay activity updated' : 'New barangay activity',
+            $body,
+            [
+                'Title' => $title,
+                'Category' => (string) ($activity['category'] ?? ''),
+                'Date' => TransactionMailer::dateLabel($date),
+                'Time' => TransactionMailer::timeRange($activity['start_time'] ?? null, $activity['end_time'] ?? null),
+                'Venue' => (string) ($activity['venue'] ?? TransactionMailer::LOCATION),
+                'Status' => $status,
+                'Announcement' => $description,
+            ],
+            'Open Brgy Activities in the Barangay Information System for the full details and registration. Office hours are Monday to Friday, 8:00 AM – 5:00 PM.'
+        );
     }
 }

@@ -3,6 +3,8 @@
 namespace App\Controllers;
 
 use App\Controllers\BaseController;
+use App\Libraries\EmailService;
+use App\Libraries\TransactionMailer;
 use App\Models\ConcernModel;
 use App\Models\UserModel;
 
@@ -223,7 +225,7 @@ class ConcernController extends BaseController
         // ── Save to DB ────────────────────────────────────────────────────────
         $db = \Config\Database::connect();
         $resident = $this->findResidentForConcern(['email' => $email]);
-        $this->model->insert([
+        $concernId = (int) $this->model->insert([
             'user_id'          => $resident['id'] ?? null,
             'full_name'        => $fullName,
             'email'            => $email,
@@ -235,6 +237,11 @@ class ConcernController extends BaseController
             'appointment_time' => $appointmentTime ?: null,
             'status'           => 'pending',
         ]);
+        $this->emailAppointment([
+            'email'     => $email,
+            'full_name' => $fullName,
+            'subject'   => $subject,
+        ], $concernId, $appointmentDate ? 'scheduled' : 'received', (string) $appointmentDate, $appointmentTime);
 
         // ── Notify all active secretary + captain officials ───────────────────
         $officials = $db->table('users')
@@ -313,6 +320,7 @@ class ConcernController extends BaseController
         if ($scheduleId <= 0) {
             $scheduleId = $this->findScheduleIdForConcern($concern, $id);
         }
+        $this->emailAppointment($concern, $id, 'cancelled', (string) ($concern['appointment_date'] ?? ''), $concern['appointment_time'] ?? null);
         $this->model->delete($id);
         if ($scheduleId > 0) {
             $db->table('schedules')->where('id', $scheduleId)->delete();
@@ -412,7 +420,7 @@ class ConcernController extends BaseController
         }
 
         $db = \Config\Database::connect();
-        $this->model->insert([
+        $concernId = (int) $this->model->insert([
             'user_id' => (int) session()->get('user_id'),
             'full_name' => $fullName,
             'email' => $email,
@@ -424,6 +432,11 @@ class ConcernController extends BaseController
             'appointment_time' => $appointmentTime,
             'status' => 'pending',
         ]);
+        $this->emailAppointment([
+            'email' => $email,
+            'full_name' => $fullName,
+            'subject' => $subject,
+        ], $concernId, $appointmentDate ? 'scheduled' : 'received', (string) $appointmentDate, $appointmentTime);
 
         foreach ($db->table('users')->whereIn('role', ['secretary', 'captain', 'admin'])->where('status', 'active')->get()->getResultArray() as $official) {
             \App\Models\NotificationModel::push((int) $official['id'], 'new_concern', 'New Concern: ' . $subject, $fullName . ' submitted a concern.', '/' . $official['role'] . '/notifications');
@@ -510,22 +523,8 @@ class ConcernController extends BaseController
         $this->model->update($id, ['schedule_id' => $existingScheduleId]);
 
         $this->notifyResidentAppointment($resident['id'] ?? null, $newDate, $newTime, 'Appointment Scheduled');
-
-        try {
-            $formattedDate = date('F d, Y', strtotime($newDate));
-            $formattedTime = $newTime ? date('g:i A', strtotime($newTime)) : 'To be confirmed';
-
-            (new \App\Libraries\EmailService())->sendConcernReschedule(
-                $concern['email'],
-                $concern['full_name'],
-                $concern['subject'],
-                $formattedDate,
-                $formattedTime,
-                $notes
-            );
-        } catch (\Throwable $e) {
-            log_message('error', 'Concern appointment scheduling email failed: ' . $e->getMessage());
-        }
+        $hadSchedule = trim((string) ($concern['appointment_date'] ?? '')) !== '';
+        $this->emailAppointment($concern, $id, $hadSchedule ? 'rescheduled' : 'scheduled', (string) $newDate, $newTime, $notes);
 
         return redirect()->to('/' . $role . '/concern/' . $id)
             ->with('success', 'Appointment scheduled for ' . date('F d, Y', strtotime($newDate)) . '. The submitter has been notified.');
@@ -605,23 +604,7 @@ class ConcernController extends BaseController
         $this->model->update($id, ['schedule_id' => $existingScheduleId]);
 
         $this->notifyResidentAppointment($resident['id'] ?? null, $newDate, $newTime, 'Appointment Rescheduled');
-
-        // Notify the submitter of the new schedule
-        try {
-            $formattedDate = date('F d, Y', strtotime($newDate));
-            $formattedTime = $newTime ? date('g:i A', strtotime($newTime)) : 'To be confirmed';
-
-            (new \App\Libraries\EmailService())->sendConcernReschedule(
-                $concern['email'],
-                $concern['full_name'],
-                $concern['subject'],
-                $formattedDate,
-                $formattedTime,
-                $notes
-            );
-        } catch (\Throwable $e) {
-            log_message('error', 'Concern reschedule email failed: ' . $e->getMessage());
-        }
+        $this->emailAppointment($concern, $id, 'rescheduled', (string) $newDate, $newTime, $notes);
 
         return redirect()->to('/' . $role . '/concern/' . $id)
             ->with('success', 'Appointment rescheduled to ' . date('F d, Y', strtotime($newDate)) . '. The submitter has been notified.');
@@ -1257,20 +1240,7 @@ class ConcernController extends BaseController
         }
         $this->model->update($id, $updates);
 
-        try {
-            (new \App\Libraries\EmailService())->sendConcernResponse(
-                $concern['email'],
-                $concern['full_name'],
-                $concern['subject'],
-                $concern['message'],
-                $response,
-                'approved',
-                $concern['appointment_date'] ?? null,
-                $concern['appointment_time'] ?? null
-            );
-        } catch (\Throwable $e) {
-            log_message('error', 'Concern approval email failed: ' . $e->getMessage());
-        }
+        $this->emailConcernResponse($concern, $id, $response, 'approved');
 
         return redirect()->to('/' . $role . '/concerns')
             ->with('success', 'Concern from <strong>' . esc($concern['full_name']) . '</strong> approved. Response sent to ' . esc($concern['email']) . '.');
@@ -1311,20 +1281,7 @@ class ConcernController extends BaseController
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
 
-        try {
-            (new \App\Libraries\EmailService())->sendConcernResponse(
-                $concern['email'],
-                $concern['full_name'],
-                $concern['subject'],
-                $concern['message'],
-                $response,
-                'resolved',
-                $concern['appointment_date'] ?? null,
-                $concern['appointment_time'] ?? null
-            );
-        } catch (\Throwable $e) {
-            log_message('error', 'Concern resolution email failed: ' . $e->getMessage());
-        }
+        $this->emailConcernResponse($concern, $id, $response, 'resolved');
 
         return redirect()->to('/' . $role . '/concern/' . $id)
             ->with('success', 'Appointment marked as resolved. The submitter has been notified.');
@@ -1353,20 +1310,7 @@ class ConcernController extends BaseController
 
         $this->model->update($id, ['status' => 'dismissed', 'notes' => $response]);
 
-        try {
-            (new \App\Libraries\EmailService())->sendConcernResponse(
-                $concern['email'],
-                $concern['full_name'],
-                $concern['subject'],
-                $concern['message'],
-                $response,
-                'dismissed',
-                $concern['appointment_date'] ?? null,
-                $concern['appointment_time'] ?? null
-            );
-        } catch (\Throwable $e) {
-            log_message('error', 'Concern dismissal email failed: ' . $e->getMessage());
-        }
+        $this->emailConcernResponse($concern, $id, $response, 'dismissed');
 
         return redirect()->to('/' . $role . '/concerns')
             ->with('success', 'Concern from <strong>' . esc($concern['full_name']) . '</strong> dismissed. Response sent to ' . esc($concern['email']) . '.');
@@ -1425,22 +1369,17 @@ class ConcernController extends BaseController
 
         $this->model->update($id, ['status' => $newStatus]);
 
-        if ($newStatus === 'resolved') {
-            $response = $note ?? 'Your concern has been resolved.';
-            try {
-                (new \App\Libraries\EmailService())->sendConcernResponse(
-                    $concern['email'],
-                    $concern['full_name'],
-                    $concern['subject'],
-                    $concern['message'],
-                    $response,
-                    'resolved',
-                    $concern['appointment_date'] ?? null,
-                    $concern['appointment_time'] ?? null
-                );
-            } catch (\Throwable $e) {
-                log_message('error', 'Concern updateStatus resolved email failed: ' . $e->getMessage());
-            }
+        if (in_array($newStatus, ['approved', 'resolved', 'dismissed'], true)) {
+            $this->emailConcernResponse($concern, $id, $note ?: 'Your concern status is now ' . $newStatus . '.', $newStatus);
+        } else {
+            $this->emailAppointment(
+                $concern,
+                $id,
+                $newStatus,
+                (string) ($concern['appointment_date'] ?? ''),
+                $concern['appointment_time'] ?? null,
+                $note ?: 'The barangay updated this request to ' . str_replace('_', ' ', $newStatus) . '.'
+            );
         }
 
         $concernUserId = (int) ($concern['user_id'] ?? 0);
@@ -1487,5 +1426,71 @@ class ConcernController extends BaseController
         unset($c);
 
         return $concerns;
+    }
+
+    private function emailAppointment(array $concern, int $id, string $kind, string $date, ?string $time, string $notes = ''): void
+    {
+        if ($id <= 0) {
+            return;
+        }
+
+        $headings = [
+            'scheduled'   => 'Appointment scheduled',
+            'rescheduled' => 'Appointment rescheduled',
+            'cancelled'   => 'Appointment cancelled',
+            'received'    => 'Request received',
+            'approved'    => 'Appointment approved',
+        ];
+        $heading = $headings[$kind] ?? 'Request update';
+        $intro = match ($kind) {
+            'cancelled' => 'Your barangay appointment was cancelled. That schedule is no longer reserved.',
+            'rescheduled' => 'Your appointment has a new date and time. Please follow the schedule below.',
+            'scheduled' => 'Your appointment has been recorded. Please come to the barangay hall at the schedule below.',
+            'received' => 'The barangay received your request. You will get another email when the schedule or status changes.',
+            default => 'There is an update on your barangay request.',
+        };
+        if ($notes !== '') {
+            $intro .= ' ' . $notes;
+        }
+
+        $details = [
+            'Subject' => (string) ($concern['subject'] ?? 'Barangay request'),
+            'Status' => ucfirst(str_replace('_', ' ', $kind)),
+        ];
+        if ($date !== '') {
+            $details['Date'] = TransactionMailer::dateLabel($date);
+            $details['Time'] = TransactionMailer::timeRange($time);
+            $details['Location'] = TransactionMailer::LOCATION;
+        }
+
+        (new TransactionMailer())->notice(
+            'concern:' . $id . ':' . $kind . ':' . $date . ':' . (string) $time . ':' . sha1($notes),
+            (string) ($concern['email'] ?? ''),
+            (string) ($concern['full_name'] ?? 'Resident'),
+            $heading . ' — ' . (string) ($concern['subject'] ?? 'Barangay request'),
+            $heading,
+            $intro,
+            $details,
+            'Bring a valid government-issued ID if you are visiting the barangay hall. Office hours are Monday to Friday, 8:00 AM – 5:00 PM. You can also open Appointment / Concern in the Barangay Information System.'
+        );
+    }
+
+    private function emailConcernResponse(array $concern, int $id, string $response, string $decision): void
+    {
+        (new TransactionMailer())->deliver(
+            'concern:' . $id . ':response:' . $decision,
+            (string) ($concern['email'] ?? ''),
+            (string) ($concern['full_name'] ?? 'Resident'),
+            static fn (EmailService $mail): bool => $mail->sendConcernResponse(
+                (string) ($concern['email'] ?? ''),
+                (string) ($concern['full_name'] ?? 'Resident'),
+                (string) ($concern['subject'] ?? ''),
+                (string) ($concern['message'] ?? ''),
+                $response,
+                $decision,
+                $concern['appointment_date'] ?? null,
+                $concern['appointment_time'] ?? null
+            )
+        );
     }
 }

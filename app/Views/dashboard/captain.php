@@ -389,7 +389,7 @@
     $todayBlotterAppts   = $todayBlotterAppts   ?? [];
 
     $firstName = session()->get('first_name') ?? session()->get('username') ?? 'Captain';
-    $today     = date('l, F d, Y');
+    $today     = barangay_now()->format('l, F d, Y');
 
     $statusBadge = function (string $s): string {
         $map = [
@@ -420,7 +420,7 @@
             <!-- Welcome -->
             <div class="dash-welcome">
                 <div>
-                    <h2>Good <?= date('H') < 12 ? 'morning' : (date('H') < 18 ? 'afternoon' : 'evening') ?>, <?= esc($firstName) ?> 👋</h2>
+                    <h2><?= esc(day_greeting()) ?>, <?= esc($firstName) ?> 👋</h2>
                     <p>Barangay Bacolod, Bato, Camarines Sur — Barangay Information System</p>
                     <div class="dash-welcome-date"><i class="fas fa-calendar" style="margin-right:5px;"></i><?= $today ?></div>
                 </div>

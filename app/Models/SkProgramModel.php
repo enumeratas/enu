@@ -24,6 +24,8 @@ class SkProgramModel extends Model
         'eligibility_groups',
         'eligibility_other',
         'venue',
+        'start_time',
+        'end_time',
         'target_participants',
         'actual_participants',
         'budget',

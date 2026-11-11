@@ -14,6 +14,8 @@ class EmailService
 
   protected \CodeIgniter\Email\Email $email;
 
+  protected string $lastFailure = '';
+
   public function __construct()
   {
     $this->email = \Config\Services::email();
@@ -113,12 +115,15 @@ class EmailService
     $status  = strtolower($status);
 
     $details = match ($status) {
+      'submitted' => 'Your request has been received and is waiting for review.' . ($estimatedRelease
+        ? ' Estimated release date: <strong>' . htmlspecialchars($estimatedRelease, ENT_QUOTES, 'UTF-8') . '</strong>.'
+        : ' The barangay will contact you if more information is needed.'),
       'approved' => 'Your request has been approved.' . ($estimatedRelease
         ? ' Estimated release date: <strong>' . htmlspecialchars($estimatedRelease, ENT_QUOTES, 'UTF-8') . '</strong>.'
         : ''),
       'rejected' => 'Your request could not be approved.' . ($reason
         ? ' Reason: <strong>' . $reason . '</strong>'
-        : ''),
+        : ' Please visit the barangay hall if you need help with the request.'),
       'released' => 'Your document is ready and has been released. Please visit the barangay hall if you have not yet received it.',
       default => 'Your document request status has been updated to <strong>' . htmlspecialchars(ucfirst($status), ENT_QUOTES, 'UTF-8') . '</strong>.',
     };
@@ -280,6 +285,52 @@ class EmailService
     );
   }
 
+  /**
+   * @param array<string, scalar|null> $details
+   */
+  public function sendTransactionNotice(
+    string $toEmail,
+    string $toName,
+    string $subject,
+    string $heading,
+    string $intro,
+    array $details = [],
+    string $instructions = '',
+    string $accent = '#1d2448'
+  ): bool {
+    $name = htmlspecialchars($toName, ENT_QUOTES, 'UTF-8');
+    $headingText = htmlspecialchars($heading, ENT_QUOTES, 'UTF-8');
+    $introText = nl2br(htmlspecialchars($intro, ENT_QUOTES, 'UTF-8'));
+    $rows = '';
+    foreach ($details as $label => $value) {
+      $text = trim((string) $value);
+      if ($text === '') {
+        continue;
+      }
+      $rows .= '<tr>'
+        . '<td style="padding:8px 12px;font-size:12px;font-weight:700;color:#6b7280;width:130px;vertical-align:top;">' . htmlspecialchars((string) $label, ENT_QUOTES, 'UTF-8') . '</td>'
+        . '<td style="padding:8px 12px;font-size:14px;color:#1f2937;">' . nl2br(htmlspecialchars($text, ENT_QUOTES, 'UTF-8')) . '</td>'
+        . '</tr>';
+    }
+    $detailBlock = $rows === '' ? '' : '<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;border-collapse:collapse;margin:18px 0;">' . $rows . '</table>';
+    $instructionBlock = trim($instructions) === ''
+      ? ''
+      : '<p style="font-size:13px;line-height:1.7;color:#374151;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;">' . nl2br(htmlspecialchars($instructions, ENT_QUOTES, 'UTF-8')) . '</p>';
+
+    $body = '<h2 style="font-size:18px;font-weight:700;color:#1f2937;margin:0 0 16px;">' . $headingText . '</h2>'
+      . $this->p('Dear <strong>' . $name . '</strong>,')
+      . '<p style="font-size:14px;line-height:1.75;color:#374151;margin-bottom:14px;">' . $introText . '</p>'
+      . $detailBlock
+      . $instructionBlock;
+
+    return $this->send($toEmail, $toName, $subject, $this->wrap($body, $accent));
+  }
+
+  public function lastFailure(): string
+  {
+    return $this->lastFailure;
+  }
+
   public function sendStaffNotice(string $toEmail, string $toName, string $subject, string $message): bool
   {
     $name = htmlspecialchars($toName, ENT_QUOTES, 'UTF-8');
@@ -363,14 +414,35 @@ class EmailService
     );
     $this->email->setSubject($subject);
     $this->email->setMessage($message);
+    $this->lastFailure = '';
 
-    if (! $this->email->send()) {
-      log_message('error', '[EmailService] Failed sending to ' . $recipient . '. The SMTP server rejected the login or the message.');
+    if (! $this->email->send(false)) {
+      $this->lastFailure = $this->classifyFailure();
+      log_message('error', '[EmailService] Failed sending to ' . $recipient . '. Delivery result: ' . $this->lastFailure . '.');
+      $this->email->clear(true);
       return false;
     }
 
+    $this->email->clear(true);
     log_message('info', '[EmailService] Email sent to: ' . $recipient);
     return true;
+  }
+
+  private function classifyFailure(): string
+  {
+    $debug = strtolower(strip_tags($this->email->printDebugger(['headers'])));
+    if (
+      str_contains($debug, 'unable to connect')
+      || str_contains($debug, 'connection refused')
+      || str_contains($debug, 'timed out')
+      || str_contains($debug, 'authentication')
+      || str_contains($debug, 'smtp connect')
+      || str_contains($debug, 'auth')
+    ) {
+      return 'smtp';
+    }
+
+    return 'delivery';
   }
 
     // =========================================================================

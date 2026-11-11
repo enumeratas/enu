@@ -6,8 +6,13 @@
     <title>SK Report — CY <?= (int) ($filterYear ?? date('Y')) ?></title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        @page { size: A4 portrait; margin: 0.55in 0.5in 0.5in 0.5in; }
+        <?php $orientation = ($orientation ?? 'portrait') === 'landscape' ? 'landscape' : 'portrait'; ?>
+        @page { size: A4 <?= $orientation ?>; margin: 0.55in 0.5in 0.5in 0.5in; }
         body { font-family: Arial, sans-serif; font-size: 11px; color: #111; background: #fff; }
+        .print-choice { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 12px; font-family: Arial, sans-serif; }
+        .print-choice a, .print-choice button { border: 1px solid #1d2448; background: #fff; color: #1d2448; border-radius: 6px; padding: 6px 10px; font-size: 12px; text-decoration: none; cursor: pointer; }
+        .print-choice a.is-active, .print-choice button.is-active { background: #1d2448; color: #fff; }
+        @media print { .print-choice { display: none; } }
         .header { text-align: center; border-bottom: 2px solid #1d2448; padding-bottom: 10px; margin-bottom: 16px; }
         .seals { margin-bottom: 6px; }
         .seals img { width: 52px; height: 52px; margin: 0 10px; }
@@ -43,6 +48,7 @@
     $municipality = strtoupper((string) ($report['municipality'] ?? 'BATO'));
     $province = strtoupper((string) ($report['province'] ?? 'CAMARINES SUR'));
     $year = (int) ($filterYear ?? date('Y'));
+    $orientation = ($orientation ?? 'portrait') === 'landscape' ? 'landscape' : 'portrait';
     $demographics = $demographics ?? [];
     $totals = $totals ?? ['total' => 0, 'male' => 0, 'female' => 0, 'student' => 0, 'employed' => 0, 'unemployed' => 0, 'oos' => 0];
     $programs = $programs ?? [];
@@ -50,6 +56,11 @@
     $totalTarget = $totalTarget ?? 0;
     ?>
 
+    <div class="print-choice">
+        <a class="<?= $orientation === 'portrait' ? 'is-active' : '' ?>" href="?year=<?= $year ?>&amp;orientation=portrait">Portrait</a>
+        <a class="<?= $orientation === 'landscape' ? 'is-active' : '' ?>" href="?year=<?= $year ?>&amp;orientation=landscape">Landscape</a>
+        <button type="button" onclick="window.print()">Print</button>
+    </div>
     <div class="header">
         <div class="seals">
             <img src="<?= esc($assetUri('dilg.png')) ?>" alt="DILG">

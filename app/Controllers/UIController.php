@@ -302,7 +302,7 @@ class UIController extends BaseController
             )->getResultArray();
             $totalHouseholdsFiltered = (int) $db->query("SELECT COUNT(*) AS c FROM households WHERE 1=1{$approvalCountClause}{$ownerCountClause}")->getRow()->c;
 
-            $pendingHouseholds = $role === 'secretary'
+            $pendingHouseholds = in_array($role, ['secretary', 'captain', 'admin'], true)
                 ? $db->query("SELECT * FROM households WHERE approval_status = 'pending' ORDER BY created_at ASC")->getResultArray()
                 : [];
 
@@ -373,7 +373,7 @@ class UIController extends BaseController
 
         $viewFile = ($role === 'captain') ? 'dashboard/captain/census' : 'dashboard/secretary/census';
 
-        $pendingHouseholds = $role === 'secretary'
+        $pendingHouseholds = in_array($role, ['secretary', 'captain', 'admin'], true)
             ? $db->query("SELECT * FROM households WHERE approval_status = 'pending' ORDER BY created_at ASC")->getResultArray()
             : [];
 
@@ -451,6 +451,7 @@ class UIController extends BaseController
     // ── Dashboard data helper (shared by captain + secretary) ────────────────
     private function _dashboardData(): array
     {
+        \App\Libraries\PendingRequestExpiry::sweep();
         $db = \Config\Database::connect();
 
         $totalHouseholds  = (int) $db->table('households')->countAllResults();
@@ -972,6 +973,7 @@ class UIController extends BaseController
 
     public function secretary_residents()
     {
+        \App\Libraries\PendingRequestExpiry::sweep();
         $db = \Config\Database::connect();
 
         // ── Filters ───────────────────────────────────────────────────────
@@ -1016,18 +1018,6 @@ class UIController extends BaseController
         $hwhere = [];
         $mwhere = [];
 
-        if ($search !== '') {
-            $hwhere[] = \App\Libraries\RecordSearch::clause(
-                ['h.last_name', 'h.first_name', 'h.middle_name', 'h.household_no'],
-                ['h.date_of_birth'],
-                $search
-            );
-            $mwhere[] = \App\Libraries\RecordSearch::clause(
-                ['m.last_name', 'm.first_name', 'm.middle_name', 'm.household_no'],
-                ['m.date_of_birth'],
-                $search
-            );
-        }
         if ($householdNo !== '') {
             $householdNoEscaped = $db->escapeLikeString($householdNo);
             $hwhere[] = "h.household_no LIKE '%{$householdNoEscaped}%'";
@@ -1154,6 +1144,58 @@ class UIController extends BaseController
             }
         }
         $residents = array_values($uniqueResidents);
+        if ($search !== '') {
+            $residents = array_values(array_filter(
+                $residents,
+                static function (array $resident) use ($search): bool {
+                    $name = trim(implode(' ', array_filter([
+                        (string) ($resident['first_name'] ?? ''),
+                        (string) ($resident['middle_name'] ?? ''),
+                        (string) ($resident['last_name'] ?? ''),
+                        (string) ($resident['suffix'] ?? ''),
+                    ], static fn(string $part): bool => $part !== '')));
+                    $account = trim(implode(' ', array_filter([
+                        (string) ($resident['username'] ?? ''),
+                        (string) ($resident['email'] ?? ''),
+                        (string) ($resident['household_no'] ?? ''),
+                        (string) ($resident['zone'] ?? ''),
+                    ], static fn(string $part): bool => $part !== '')));
+
+                    return \App\Libraries\RecordSearch::personMatches(
+                        $search,
+                        $name,
+                        $account,
+                        [$resident['date_of_birth'] ?? null]
+                    );
+                }
+            ));
+        }
+        if ($filterZone !== '') {
+            $residents = array_values(array_filter(
+                $residents,
+                static fn(array $resident): bool => trim((string) ($resident['zone'] ?? '')) === $filterZone
+            ));
+        }
+        if ($filterAge === 'minor' || $filterAge === 'adult') {
+            $adultCutoff = (new DateTime('today'))->modify('-18 years');
+            $residents = array_values(array_filter(
+                $residents,
+                static function (array $resident) use ($filterAge, $adultCutoff): bool {
+                    if (empty($resident['date_of_birth'])) {
+                        return false;
+                    }
+                    try {
+                        $born = new DateTime((string) $resident['date_of_birth']);
+                    } catch (\Throwable) {
+                        return false;
+                    }
+
+                    $isMinor = $born > $adultCutoff;
+
+                    return $filterAge === 'minor' ? $isMinor : ! $isMinor;
+                }
+            ));
+        }
         $total = count($residents);
         $residents = array_slice($residents, $offset, $perPage);
 
@@ -1204,7 +1246,7 @@ class UIController extends BaseController
             // pending approvals
             'pendingUsers' => $pendingUsers,
             // census update approvals
-            'submittedCensusUpdates' => (new \App\Models\CensusUpdateAuthorizationModel())->listForReview(['submitted', 'sent']),
+            'submittedCensusUpdates' => (new \App\Models\CensusUpdateAuthorizationModel())->listForReview(['submitted']),
             'rolePrefix'             => session()->get('role') ?? 'secretary',
         ]);
     }
@@ -1452,6 +1494,7 @@ class UIController extends BaseController
     // ── Resident ──────────────────────────────────────
     public function resident_dashboard()
     {
+        \App\Libraries\PendingRequestExpiry::sweep();
         $userId = (int) session()->get('user_id');
         $role   = session()->get('role') ?: 'resident';
         $db     = \Config\Database::connect();
@@ -1465,6 +1508,9 @@ class UIController extends BaseController
 
         $pending = (int) $db->table('clearance_requests')
             ->where('user_id', $userId)->where('status', 'pending')->countAllResults();
+
+        $released = (int) $db->table('clearance_requests')
+            ->where('user_id', $userId)->where('status', 'released')->countAllResults();
 
         // ── 5 most recent document requests ───────────────────────────────────
         $recentRequests = $db->table('clearance_requests')
@@ -1489,6 +1535,7 @@ class UIController extends BaseController
             'totalRequests'  => $totalRequests,
             'approved'       => $approved,
             'pending'        => $pending,
+            'released'       => $released,
             'recentRequests' => $recentRequests,
             'recentAppointments' => $recentAppointments,
             'barangayActivities' => $barangayActivities,
@@ -1783,6 +1830,9 @@ class UIController extends BaseController
             );
         }
 
+        $requestPath = trim((string) $this->request->getUri()->getPath(), '/');
+        $chairPrefix = str_starts_with($requestPath, 'admin/') ? 'admin' : 'sk';
+
         return view('dashboard/sk/print_profile', [
             'householdId' => $household['household_no'],
             'household'   => $household,
@@ -1792,6 +1842,11 @@ class UIController extends BaseController
             'memberSource' => $memberSource,
             'memberId'    => $memberId,
             'role'        => 'sk',
+            'chairpersonName' => (new \App\Models\BarangaySettingsModel())->getValue(
+                'sk_chairperson_name',
+                \App\Models\BarangaySettingsModel::SK_CHAIRPERSON_DEFAULT
+            ),
+            'chairpersonSaveUrl' => '/' . $chairPrefix . '/profiling/chairperson',
         ]);
     }
     public function sk_add_youth()
@@ -1865,7 +1920,7 @@ class UIController extends BaseController
 
         $classifyStatus = static function (array $youth): string {
             $status = trim((string) ($youth['economic_status'] ?? ''));
-            if ($status === 'Self-Employed') {
+            if (in_array($status, ['Self-Employed', 'Engage in Business', 'Engage in Agriculture', 'Working outside Municipality'], true)) {
                 return 'Employed';
             }
 

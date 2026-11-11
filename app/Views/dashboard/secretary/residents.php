@@ -871,7 +871,7 @@
                     <div class="db-search-wrap">
                         <i class="fas fa-search"></i>
                         <input type="text" name="search" data-live-query autocomplete="off"
-                            placeholder="Search by name, household #, or birth date..."
+                            placeholder="Search by name, username, email, household #, or birth date..."
                             value="<?= esc($search ?? '') ?>">
                     </div>
                     <div class="db-toolbar-actions">
@@ -898,7 +898,7 @@
                         <button type="button" class="db-btn db-btn--outline" onclick="selectAllCensusAuth()">
                             <i class="fas fa-check-square"></i> Select All
                         </button>
-                        <button type="button" class="db-btn db-btn--primary" onclick="submitBulkCensusAuth()">
+                        <button type="button" class="db-btn db-btn--primary" id="sendCensusAuthBtn" onclick="submitBulkCensusAuth()">
                             <i class="fas fa-envelope"></i> Send Update Authorization
                         </button>
 
@@ -911,8 +911,10 @@
                 </div>
             </form>
 
-            <form id="bulkCensusAuthForm" method="post" action="/secretary/resident/send-census-update" style="display:none;">
+            <?php $residentsRole = session_role() === 'admin' ? 'admin' : 'secretary'; ?>
+            <form id="bulkCensusAuthForm" method="post" action="/<?= esc($residentsRole) ?>/resident/send-census-update" style="display:none;">
                 <?= csrf_field() ?>
+                <input type="hidden" name="return_to" value="/<?= esc($residentsRole) ?>/residents<?= esc($_SERVER['QUERY_STRING'] ?? '') !== '' ? '?' . esc($_SERVER['QUERY_STRING']) : '' ?>">
             </form>
 
             <div id="liveResults">
@@ -942,12 +944,16 @@
                                 </tr>
                             <?php else: ?>
                                 <?php
-                                // Build lookup: user_id => auth_id for submitted/sent census updates
+                                // Newest submitted update per resident. Sent authorization
+                                // emails have no form payload and are not reviewable here.
                                 $submittedCensusUpdates = $submittedCensusUpdates ?? [];
                                 $submittedUpdatesByUser = [];
                                 foreach ($submittedCensusUpdates as $_cu) {
+                                    if ((string) ($_cu['status'] ?? '') !== 'submitted') {
+                                        continue;
+                                    }
                                     $uid = (int) ($_cu['user_id'] ?? 0);
-                                    if ($uid > 0) {
+                                    if ($uid > 0 && ! isset($submittedUpdatesByUser[$uid])) {
                                         $submittedUpdatesByUser[$uid] = (int) $_cu['id'];
                                     }
                                 }
@@ -1031,7 +1037,7 @@
                                         <td>
                                             <?php if ($r['user_id']): ?>
                                                 <div class="db-action-group" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-                                                    <button type="button" class="db-btn db-btn--sm db-btn--outline" style="padding:7px 9px;" title="Send authorization email" onclick="queueSingleCensusAuth(<?= (int)$r['user_id'] ?>)">
+                                                    <button type="button" class="db-btn db-btn--sm db-btn--outline" style="padding:7px 9px;" title="Email address" onclick="openResidentEmail(event, <?= (int)$r['user_id'] ?>, '<?= esc($fullName, 'js') ?>', '<?= esc($r['username'] ?? '', 'js') ?>', '<?= esc($r['email'] ?? '', 'js') ?>', '<?= esc($acctStatus ?? '', 'js') ?>', '<?= esc($r['zone'] ?? '', 'js') ?>', '<?= esc($r['household_no'] ?? '', 'js') ?>')">
                                                         <i class="fas fa-envelope"></i>
                                                     </button>
                                                     <button type="button"
@@ -1254,7 +1260,11 @@
                     onclick="submitCensusUpdateAction('reject')">
                     <i class="fas fa-times"></i> Reject
                 </button>
-                <button id="cuDiffApproveBtn" class="pa-btn pa-btn--approve" style="display:none;"
+                <label id="cuDiffVerifyLabel" style="display:none;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#1d2448;margin-right:auto;">
+                    <input type="checkbox" id="cuDiffVerified">
+                    I have reviewed and verified this information.
+                </label>
+                <button id="cuDiffApproveBtn" class="pa-btn pa-btn--approve" style="display:none;" disabled
                     onclick="submitCensusUpdateAction('approve')">
                     <i class="fas fa-check"></i> Approve &amp; Apply
                 </button>
@@ -1293,6 +1303,11 @@
         function closeModal(id) {
             document.getElementById(id).classList.remove('active');
         }
+
+        document.getElementById('cuDiffVerified')?.addEventListener('change', function () {
+            var button = document.getElementById('cuDiffApproveBtn');
+            if (button) button.disabled = !this.checked;
+        });
 
         document.querySelectorAll('.pa-overlay').forEach(overlay => {
             overlay.addEventListener('click', e => {
@@ -1538,33 +1553,61 @@
             toggleAllCensusAuth(true);
         }
 
-        function queueSingleCensusAuth(userId) {
-            const form = document.getElementById('bulkCensusAuthForm');
-            form.innerHTML = '<input type="hidden" name="csrf_test_name" value="' + (document.querySelector('input[name^="csrf_"]')?.value || '') + '"><input type="hidden" name="user_ids[]" value="' + userId + '">';
-            form.submit();
+        function openResidentEmail(event, userId, name, username, email, status, zone, hh) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            openDrawer(userId, name, username, email, status, zone, hh);
+            window.setTimeout(function () {
+                const section = document.getElementById('dr-email-section');
+                if (section) {
+                    section.scrollIntoView({ block: 'start' });
+                }
+                const field = document.getElementById('dr-new-email');
+                if (field) {
+                    field.focus();
+                }
+            }, 50);
         }
 
         function submitBulkCensusAuth() {
             const form = document.getElementById('bulkCensusAuthForm');
+            if (!form || form.dataset.sending === '1') {
+                return;
+            }
             const selected = [...document.querySelectorAll('.census-auth-select:checked')];
+            if (!selected.length && !window.confirm('No residents are selected. Send the update authorization to every active resident account?')) {
+                return;
+            }
+
+            form.dataset.sending = '1';
+            const button = document.getElementById('sendCensusAuthBtn');
+            if (button) {
+                button.disabled = true;
+            }
+            form.querySelectorAll('input[name="user_ids[]"], input[name="send_all"]').forEach(function (field) {
+                field.remove();
+            });
+            const back = form.querySelector('input[name="return_to"]');
+            if (back && /\/(secretary|admin)\/residents\/?$/.test(window.location.pathname)) {
+                back.value = window.location.pathname + window.location.search;
+            }
             if (!selected.length) {
                 const input = document.createElement('input');
                 input.type = 'hidden';
                 input.name = 'send_all';
                 input.value = '1';
                 form.appendChild(input);
-                form.submit();
-                return;
+            } else {
+                selected.forEach(function (cb) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'user_ids[]';
+                    input.value = cb.value;
+                    form.appendChild(input);
+                });
             }
-
-            form.innerHTML = '<input type="hidden" name="csrf_test_name" value="' + (document.querySelector('input[name^="csrf_"]')?.value || '') + '">';
-            selected.forEach(cb => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'user_ids[]';
-                input.value = cb.value;
-                form.appendChild(input);
-            });
             form.submit();
         }
 
@@ -1589,6 +1632,9 @@
             document.getElementById('cuDiffContent').style.display = 'none';
             document.getElementById('cuDiffError').style.display = 'none';
             document.getElementById('cuDiffApproveBtn').style.display = 'none';
+            document.getElementById('cuDiffApproveBtn').disabled = true;
+            document.getElementById('cuDiffVerified').checked = false;
+            document.getElementById('cuDiffVerifyLabel').style.display = 'none';
             document.getElementById('cuDiffRejectBtn').style.display = 'none';
             document.getElementById('cuDiffRejectGroup').style.display = 'none';
             document.getElementById('cuDiffRejectReason').value = '';
@@ -1640,7 +1686,9 @@
 
                     // Diff table
                     var tbody = document.getElementById('cuDiffTableBody');
-                    if (data.confirm_only && (!data.diff || data.diff.length === 0)) {
+                    if (data.notice && (!data.diff || data.diff.length === 0)) {
+                        tbody.innerHTML = '<tr><td colspan="3" style="color:#6b7280;font-style:italic;text-align:center;">' + escHtml(data.notice) + '</td></tr>';
+                    } else if (data.confirm_only && (!data.diff || data.diff.length === 0)) {
                         tbody.innerHTML = '<tr><td colspan="3" style="color:#6b7280;font-style:italic;text-align:center;">Resident confirmed information is correct, no changes.</td></tr>';
                     } else if (data.diff && data.diff.length > 0) {
                         data.diff.forEach(function(row) {
@@ -1655,7 +1703,9 @@
                     }
 
                     document.getElementById('cuDiffContent').style.display = '';
+                    document.getElementById('cuDiffVerifyLabel').style.display = 'flex';
                     document.getElementById('cuDiffApproveBtn').style.display = '';
+                    document.getElementById('cuDiffApproveBtn').disabled = !document.getElementById('cuDiffVerified').checked;
                     document.getElementById('cuDiffRejectBtn').style.display = '';
                     document.getElementById('cuDiffRejectGroup').style.display = '';
                 })
@@ -1680,9 +1730,15 @@
             var fd = new FormData();
             fd.append(csrfName, csrfVal);
 
+            if (action === 'approve' && !document.getElementById('cuDiffVerified').checked) {
+                return;
+            }
             if (action === 'reject') {
                 var reason = document.getElementById('cuDiffRejectReason').value;
                 fd.append('remarks', reason);
+            }
+            if (action === 'approve') {
+                fd.append('information_verified', '1');
             }
 
             var url = '/' + ROLE_PREFIX + '/resident/' + (action === 'approve' ? 'approve' : 'reject') + '-census-update/' + authId;

@@ -281,8 +281,7 @@ include APPPATH . 'Views/dashboard/sidebar.php';
                     <div class="rev-confirm-box" style="background:#fff8ee;border-color:#fcd34d;color:#92400e;">
                         <i class="fas fa-info-circle"></i>
                         <div>
-                            No field-level differences were detected between the submitted data and the current database record.
-                            The submitted values may already match what is on file.
+                            <?= esc($reviewNotice ?? 'No field-level differences were detected between the submitted data and the current database record. The submitted values may already match what is on file.') ?>
                         </div>
                     </div>
                 <?php else: ?>
@@ -362,11 +361,15 @@ include APPPATH . 'Views/dashboard/sidebar.php';
         <?php endif; ?>
 
         <!-- ── Action bar ── -->
-        <?php if (! $alreadyDone): ?>
+        <?php if (! $alreadyDone && can_role('secretary', 'captain', 'admin')): ?>
             <div class="rev-card">
                 <div class="rev-action-bar">
+                    <label style="display:flex;align-items:flex-start;gap:8px;flex:1;min-width:240px;font-size:13px;font-weight:600;color:#1d2448;">
+                        <input type="checkbox" id="verifyCensusUpdate" style="margin-top:3px;">
+                        <span>I have reviewed and verified this census information.</span>
+                    </label>
                     <input type="text" id="rejectReasonInput" class="rev-reject-input"
-                        placeholder="Rejection reason (required when rejecting)">
+                        placeholder="Rejection reason (optional)">
                     <form method="post" action="/<?= esc($role) ?>/resident/reject-census-update/<?= (int) $auth['id'] ?>"
                         onsubmit="return validateReject(this);" style="display:inline;">
                         <?= csrf_field() ?>
@@ -376,12 +379,19 @@ include APPPATH . 'Views/dashboard/sidebar.php';
                         </button>
                     </form>
                     <form method="post" action="/<?= esc($role) ?>/resident/approve-census-update/<?= (int) $auth['id'] ?>"
-                        onsubmit="return confirm('Apply this census update to the database now?');" style="display:inline;">
+                        onsubmit="return confirmVerifiedUpdate();" style="display:inline;">
                         <?= csrf_field() ?>
-                        <button type="submit" class="db-btn db-btn--primary">
+                        <input type="hidden" name="information_verified" id="censusUpdateVerified" value="0">
+                        <button type="submit" class="db-btn db-btn--primary" id="approveCensusUpdateBtn" disabled>
                             <i class="fas fa-check"></i> Approve &amp; Apply Changes
                         </button>
                     </form>
+                </div>
+            </div>
+        <?php elseif (! $alreadyDone): ?>
+            <div class="rev-card">
+                <div class="rev-action-bar">
+                    <span style="font-size:13px;color:#4a5068;">Only the Secretary, Captain, or Admin can verify and approve this census record.</span>
                 </div>
             </div>
         <?php endif; ?>
@@ -395,6 +405,18 @@ function validateReject(form) {
     document.getElementById('rejectRemarksHidden').value = reason;
     return true;
 }
+function confirmVerifiedUpdate() {
+    var box = document.getElementById('verifyCensusUpdate');
+    if (!box || !box.checked) {
+        return false;
+    }
+    document.getElementById('censusUpdateVerified').value = '1';
+    return confirm('Apply this verified census update to the record now?');
+}
+document.getElementById('verifyCensusUpdate')?.addEventListener('change', function () {
+    var button = document.getElementById('approveCensusUpdateBtn');
+    if (button) button.disabled = !this.checked;
+});
 </script>
 </body>
 </html>

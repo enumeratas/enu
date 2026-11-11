@@ -16,6 +16,12 @@ class GlobalSearchController extends BaseController
         }
 
         $results = array_merge($this->pages($role, $query), $this->records($role, $query));
+        if ($role === 'resident') {
+            $results = array_values(array_filter(
+                $results,
+                static fn(array $row): bool => ($row['group'] ?? '') !== 'People'
+            ));
+        }
 
         return $this->response->setJSON(['results' => array_slice($results, 0, 20)]);
     }
@@ -122,7 +128,7 @@ class GlobalSearchController extends BaseController
     /** @return list<array<string, string|null>> */
     private function users($db, string $query, string $prefix, string $role): array
     {
-        if (! $db->tableExists('users')) {
+        if ($role === 'resident' || ! $db->tableExists('users')) {
             return [];
         }
 

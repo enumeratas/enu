@@ -309,10 +309,13 @@
             <?php $pendingHouseholds = $pendingHouseholds ?? []; ?>
             <?php if (! empty($pendingHouseholds)): ?>
                 <div style="background:#fffbf0;border:1.5px solid #ffe08a;border-radius:12px;margin-bottom:24px;overflow:hidden;">
-                    <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;font-size:14px;font-weight:700;color:#7a4200;">
-                        <i class="fas fa-clock" style="color:#e67e22;"></i>
-                        Pending Household Submissions
-                        <span style="background:#e67e22;color:#fff;font-size:11px;border-radius:100px;padding:2px 8px;"><?= count($pendingHouseholds) ?></span>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;flex-wrap:wrap;">
+                        <div style="display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700;color:#7a4200;">
+                            <i class="fas fa-clock" style="color:#e67e22;"></i>
+                            Pending Household Submissions
+                            <span style="background:#e67e22;color:#fff;font-size:11px;border-radius:100px;padding:2px 8px;"><?= count($pendingHouseholds) ?></span>
+                        </div>
+                        <span style="font-size:12px;font-weight:600;color:#7a4200;">Review and verify the information before approval.</span>
                     </div>
                     <div class="db-table-wrap" style="margin:0;border-radius:0;border:none;box-shadow:none;">
                         <table class="db-table" style="border-radius:0;">
@@ -331,14 +334,9 @@
                                         <td><?= esc($pendingHousehold['zone'] ?? '—') ?></td>
                                         <td><?= ! empty($pendingHousehold['created_at']) ? date('M d, Y', strtotime($pendingHousehold['created_at'])) : '—' ?></td>
                                         <td>
-                                            <div class="db-action-group">
-                                                <form action="/secretary/census/approve/<?= esc($pendingHousehold['household_no']) ?>" method="post" style="display:inline;">
-                                                    <?= csrf_field() ?><button type="submit" class="db-btn db-btn--success db-btn--sm"><i class="fas fa-check"></i> Approve</button>
-                                                </form>
-                                                <form action="/secretary/census/reject/<?= esc($pendingHousehold['household_no']) ?>" method="post" style="display:inline;" onsubmit="return confirm('Reject this household submission?')">
-                                                    <?= csrf_field() ?><button type="submit" class="db-btn db-btn--danger db-btn--sm"><i class="fas fa-times"></i> Reject</button>
-                                                </form>
-                                            </div>
+                                            <a href="/<?= esc(session_role()) ?>/census/review/<?= esc($pendingHousehold['household_no']) ?>" class="db-btn db-btn--primary db-btn--sm">
+                                                <i class="fas fa-clipboard-check"></i> Review
+                                            </a>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>

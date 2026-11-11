@@ -244,6 +244,15 @@ class SupportTicketController extends BaseController
                 'Your ticket "' . $ticket['title'] . '" was declined by the ' . $this->roleLabel($role) . '.',
                 '/resident/chatbot'
             );
+            (new \App\Libraries\TransactionMailer())->noticeUser(
+                (int) $ticket['user_id'],
+                'support-ticket:' . $id . ':declined',
+                'Support ticket declined',
+                'Support ticket declined',
+                'Your ticket "' . $ticket['title'] . '" was declined by the ' . $this->roleLabel($role) . '.',
+                ['Ticket' => (string) ($ticket['title'] ?? ''), 'Status' => 'Declined'],
+                'You can open the chatbot in the Barangay Information System or visit the barangay hall if you still need help.'
+            );
 
             return redirect()->to('/' . $role . '/support-tickets')->with('success', 'Ticket declined.');
         }
@@ -266,6 +275,15 @@ class SupportTicketController extends BaseController
             'Support ticket approved',
             'The ' . $this->roleLabel($role) . ' approved "' . $ticket['title'] . '". Open the chatbot to continue the conversation.',
             '/resident/chatbot'
+        );
+        (new \App\Libraries\TransactionMailer())->noticeUser(
+            (int) $ticket['user_id'],
+            'support-ticket:' . $id . ':approved',
+            'Support ticket approved',
+            'Support ticket approved',
+            'The ' . $this->roleLabel($role) . ' approved "' . $ticket['title'] . '". Open the chatbot to continue the conversation.',
+            ['Ticket' => (string) ($ticket['title'] ?? ''), 'Status' => 'Approved'],
+            'Sign in to the Barangay Information System and open the chatbot. The live conversation is ready there.'
         );
 
         return redirect()->to('/' . $role . '/customer-service')->with('success', 'Ticket approved. You can continue the conversation in Customer Service.');

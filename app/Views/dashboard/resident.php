@@ -190,9 +190,9 @@
                         $firstName   = session()->get('first_name') ?? '';
                         $lastName    = session()->get('last_name')  ?? '';
                         $displayName = trim("$firstName $lastName") ?: (session()->get('username') ?? 'Resident');
-                        $today = date('l, F d, Y');
+                        $today = barangay_now()->format('l, F d, Y');
                         ?>
-                     <h2>Good <?= date('H') < 12 ? 'morning' : (date('H') < 18 ? 'afternoon' : 'evening') ?>, <?= esc($displayName) ?> 👋</h2>
+                     <h2><?= esc(day_greeting()) ?>, <?= esc($displayName) ?> 👋</h2>
                      <p>Barangay Bacolod, Bato, Camarines Sur — Barangay Information System</p>
                      <div class="dash-welcome-date"><i class="fas fa-calendar" style="margin-right:5px;"></i><?= $today ?></div>
                  </div>
@@ -236,6 +236,7 @@
                     $totalRequests  = $totalRequests  ?? 0;
                     $approved       = $approved       ?? 0;
                     $pending        = $pending        ?? 0;
+                    $released       = $released       ?? 0;
                     $recentRequests = $recentRequests ?? [];
                     ?>
                  <div class="dash-stat">
@@ -265,6 +266,15 @@
                          <span class="dash-stat-lbl">Pending</span>
                      </div>
                  </div>
+                 <div class="dash-stat">
+                     <div class="dash-stat-icon" style="background:rgba(29,36,72,0.12);color:#1d2448;">
+                         <i class="fas fa-box-open"></i>
+                     </div>
+                     <div>
+                         <span class="dash-stat-num"><?= $released ?></span>
+                         <span class="dash-stat-lbl">Released</span>
+                     </div>
+                 </div>
              </div>
 
              <div class="dash-row">
@@ -290,6 +300,14 @@
                                         'approved' => 'dbadge--approved',
                                         'rejected' => 'dbadge--rejected',
                                         'released' => 'dbadge--resolved',
+                                        'expired'  => 'dbadge--dismissed',
+                                    ];
+                                    $statusLabels = [
+                                        'pending'  => 'Pending',
+                                        'approved' => 'Approved',
+                                        'rejected' => 'Rejected',
+                                        'released' => 'Released',
+                                        'expired'  => 'Expired',
                                     ];
                                     if (empty($recentRequests)): ?>
                                      <tr>
@@ -301,7 +319,7 @@
                                  <?php else: ?>
                                      <?php foreach ($recentRequests as $r):
                                             $badgeClass = $badgeMap[$r['status']] ?? 'dbadge--pending';
-                                            $label      = ucfirst($r['status']);
+                                            $label      = $statusLabels[$r['status']] ?? ucfirst((string) $r['status']);
                                             $filed      = date('M d, Y', strtotime($r['created_at']));
                                         ?>
                                          <tr>

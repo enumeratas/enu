@@ -422,6 +422,12 @@
             border: 1px solid #d0d8f5;
         }
 
+        .clr-badge--expired {
+            background: #f3f4f8;
+            color: #6b7280;
+            border: 1px solid #e2e5ef;
+        }
+
         /* No household warning */
         .clr-no-hh {
             background: #fff8f0;
@@ -727,6 +733,7 @@
                                         'approved' => ['clr-badge--approved', 'fa-check-circle', 'Approved'],
                                         'rejected' => ['clr-badge--rejected', 'fa-times-circle', 'Rejected'],
                                         'released' => ['clr-badge--released', 'fa-box-open',     'Released'],
+                                        'expired'  => ['clr-badge--expired',  'fa-history',      'Expired'],
                                     ];
                                     [$badgeClass, $icon, $label] = $statusMap[$r['status']] ?? $statusMap['pending'];
                                     $filed   = date('M d, Y', strtotime($r['created_at']));

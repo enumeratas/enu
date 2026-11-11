@@ -72,6 +72,9 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
     $routes->get('search', 'GlobalSearchController::index');
     $routes->get('dashboard',                    'UIController::captain_dashboard');
     $routes->get('census',                       'UIController::captain_census');
+    $routes->get('census/review/(:segment)',     'CensusController::reviewHousehold/$1');
+    $routes->post('census/approve/(:segment)',   'CensusController::approveHousehold/$1');
+    $routes->post('census/reject/(:segment)',    'CensusController::rejectHousehold/$1');
     $routes->get('household-finder',             'CensusController::finder');
     $routes->get('household/(:segment)',         'UIController::captain_household/$1');
     $routes->get('clearance',                    'ClearanceController::adminIndex/captain');
@@ -83,6 +86,8 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
     $routes->post('clearance/store',             'ClearanceController::store');
     $routes->post('clearance/cancel/(:num)',     'ClearanceController::cancel/$1');
     $routes->get('reports',                      'UIController::captain_reports');
+    $routes->get('reports/front-page',           'DocumentTemplateController::reportFrontPageSettings');
+    $routes->post('reports/front-page/save',     'DocumentTemplateController::saveReportFrontPageSettings');
     $routes->get('reports/export',               'ReportsExportController::export/captain');
     $routes->get('reports/download',             'ReportsExportController::download/captain');
     $routes->get('chatbot',                      'UIController::captain_chatbot');
@@ -421,7 +426,8 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
     $routes->post('census/ownership-change/approve/(:num)', 'CensusController::approveOwnershipChange/$1');
     $routes->post('census/ownership-change/reject/(:num)',  'CensusController::rejectOwnershipChange/$1');
 
-    // Council-submitted household approvals
+    // Council-submitted household approvals. The record must be reviewed first.
+    $routes->get('census/review/(:segment)',   'CensusController::reviewHousehold/$1');
     $routes->post('census/approve/(:segment)', 'CensusController::approveHousehold/$1');
     $routes->post('census/reject/(:segment)',  'CensusController::rejectHousehold/$1');
 
@@ -583,6 +589,7 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('census/separation/reject/(:num)',  'CensusController::rejectSeparation/$1');
     $routes->post('census/ownership-change/approve/(:num)', 'CensusController::approveOwnershipChange/$1');
     $routes->post('census/ownership-change/reject/(:num)',  'CensusController::rejectOwnershipChange/$1');
+    $routes->get('census/review/(:segment)',   'CensusController::reviewHousehold/$1');
     $routes->post('census/approve/(:segment)', 'CensusController::approveHousehold/$1');
     $routes->post('census/reject/(:segment)',  'CensusController::rejectHousehold/$1');
     $routes->get('census/export/pdf', 'CensusExportController::exportPdf');
@@ -595,6 +602,7 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('profiling/photo/(:num)',  'SkController::uploadPhoto/$1');
     $routes->post('profiling/delete/(:num)', 'SkController::delete/$1');
     $routes->post('profiling/schedule',   'SkController::saveProfilingWindow');
+    $routes->post('profiling/chairperson', 'SkController::saveChairpersonName');
     $routes->get('programs',              'SkController::programs');
     $routes->get('programs/new',          'SkController::programForm');
     $routes->get('programs/edit/(:num)',  'SkController::editProgramForm/$1');
@@ -746,6 +754,7 @@ $routes->group('/sk', ['filter' => ['auth', 'role:sk']], function ($routes) use 
     $routes->post('profiling/photo/(:num)',  'SkController::uploadPhoto/$1');
     $routes->post('profiling/delete/(:num)', 'SkController::delete/$1');
     $routes->post('profiling/schedule',   'SkController::saveProfilingWindow');
+    $routes->post('profiling/chairperson', 'SkController::saveChairpersonName');
 
     $routes->get('programs',              'SkController::programs');
     $routes->get('programs/new',          'SkController::programForm');

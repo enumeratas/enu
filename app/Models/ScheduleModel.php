@@ -194,7 +194,7 @@ class ScheduleModel extends Model
             'description' => $description,
             'event_date'  => $fields['event_date'],
             'start_time'  => $fields['start_time'] ?? null,
-            'end_time'    => null,
+            'end_time'    => $fields['end_time'] ?? null,
             'event_type'  => 'event',
             'color'       => '#16325c',
             'location'    => $fields['location'] ?? null,

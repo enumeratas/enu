@@ -169,16 +169,32 @@
         .kk-photo-preview {
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-top: 8px;
+            gap: 14px;
+            margin-top: 12px;
         }
 
-        .kk-photo-preview img {
-            width: 64px;
-            height: 64px;
+        .kk-photo-box {
+            width: 2in;
+            height: 2in;
+            flex: 0 0 2in;
+            border: 1px solid #1d2448;
+            background: #f7f8fc;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #9aa0b4;
+            font-size: 12px;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        .kk-photo-box img {
+            width: 2in;
+            height: 2in;
             object-fit: cover;
-            border: 1px solid #dfe5f3;
-            border-radius: 8px;
+            object-position: center;
+            display: block;
         }
 
         .kk-profile-choice-grid {
@@ -292,20 +308,63 @@
     $selectedAccountId = $selectedAccountId ?? null;
     $successMessage = $successMessage ?? null;
     $selectedProfileOption = $selectedProfileOption ?? null;
+    if ($selectedProfileOption === null && $profileOptions !== []) {
+        $selectedProfileOption = $profileOptions[0]['id'];
+    }
     $residentEdit = $residentMode && ! empty($y['id']);
     $returnUrl = $residentMode
         ? ($role === 'council' ? '/council/sk-profiling' : '/resident/sk-profiling')
         : '/sk/profiling';
     $action  = $residentMode
-        ? ($residentEdit
-            ? (session()->get('role') === 'council' ? '/council/sk-profiling/update/' . $y['id'] : '/resident/sk-profiling/update/' . $y['id'])
-            : (session()->get('role') === 'council' ? '/council/sk-profiling/store' : '/resident/sk-profiling/store'))
+        ? ($role === 'council' ? '/council/sk-profiling/store' : '/resident/sk-profiling/store')
         : ($edit ? '/sk/profiling/update/' . ($y['id'] ?? '') : '/sk/profiling/store');
 
-    // Decode JSON fields for edit mode
-    $orgs    = $edit && ! empty($y['organizations'])   ? json_decode($y['organizations'],   true) : [[], [], [], []];
-    $health  = $edit && ! empty($y['health_concerns']) ? json_decode($y['health_concerns'], true) : [];
-    $social  = $edit && ! empty($y['social_inclusion']) ? json_decode($y['social_inclusion'], true) : [];
+    if (! empty($y['date_of_birth'])) {
+        $y['date_of_birth'] = substr((string) $y['date_of_birth'], 0, 10);
+    }
+    $normalizedGender = \App\Models\SkYouthModel::normalizeChoice($y['gender'] ?? '', \App\Models\SkYouthModel::GENDERS);
+    if ($normalizedGender !== null) {
+        $y['gender'] = $normalizedGender;
+    }
+    $normalizedEducation = \App\Models\SkYouthModel::educationChoice($y['educational_background'] ?? null);
+    if ($normalizedEducation !== null) {
+        $y['educational_background'] = $normalizedEducation;
+    }
+    $optionsWithCurrent = static function (array $options, string $current): array {
+        $current = trim($current);
+        if ($current === '') {
+            return $options;
+        }
+        foreach ($options as $option) {
+            if (strcasecmp((string) $option, $current) === 0) {
+                return $options;
+            }
+        }
+        $options[] = $current;
+
+        return $options;
+    };
+    $decodeList = static function ($value): array {
+        if (is_array($value)) {
+            return $value;
+        }
+        if (! is_string($value) || trim($value) === '') {
+            return [];
+        }
+        $decoded = json_decode($value, true);
+
+        return is_array($decoded) ? $decoded : [];
+    };
+    $orgs = $decodeList($y['organizations'] ?? null);
+    while (count($orgs) < 4) {
+        $orgs[] = [];
+    }
+    $orgs = array_slice($orgs, 0, 4);
+    $health = $decodeList($y['health_concerns'] ?? null);
+    $social = $decodeList($y['social_inclusion'] ?? null);
+    $advocacyStored = (string) ($y['advocacy'] ?? '');
+    $volunteerStored = (string) ($y['volunteer'] ?? '');
+    $choiceOn = static fn(string $stored, string $choice): bool => $stored !== '' && stripos($stored, $choice) !== false;
     ?>
     <div class="db-main">
         <?php include(APPPATH . 'Views/dashboard/topbar.php'); ?>
@@ -334,7 +393,7 @@
                         <?= ($edit || $residentEdit) ? 'Edit Youth Profile' : ($residentMode ? 'SK Youth Profiling' : 'New Youth Profile') ?>
                     </h2>
                     <p style="font-size:12px;color:#9aa0b4;margin:0;">
-                        <?= $residentMode ? 'Available only for youth ages 15 to 30 • Automatically recorded under the active SK official' : 'KK Profiling Form — LYDO Form 1' ?>
+                        KK Profiling Form — LYDO Form 1 · Same fields for every youth age 15–30
                     </p>
                 </div>
             </div>
@@ -342,7 +401,7 @@
             <?php if ($residentMode): ?>
                 <div class="db-alert db-alert--info" style="margin-bottom:18px;">
                     <i class="fas fa-info-circle"></i>
-                    This form is only available for youth ages 15 to 30 years old, or for a parent submitting a minor child profile. Once submitted, it is automatically recorded under the active SK official.
+                    Youth ages 15 to 30 use this same KK Profiling Form. A parent may also complete it for a minor child. Saving updates the youth’s SK account.
                 </div>
                 <div class="kk-card" style="margin-bottom:18px;">
                     <div class="kk-card-header"><i class="fas fa-user-check"></i>
@@ -370,18 +429,18 @@
                         <h4>Link this profile to a youth account</h4>
                     </div>
                     <div class="kk-card-body">
-                        <input type="text" class="kk-input" id="youthAccountSearch" list="youthAccountOptions" placeholder="Type a name or email to search..." autocomplete="off" required>
+                        <input type="text" class="kk-input" id="youthAccountSearch" list="youthAccountOptions" placeholder="Type a name or email to search..." autocomplete="off">
                         <datalist id="youthAccountOptions">
                             <?php foreach ($youthAccounts as $account): ?>
                                 <option value="<?= esc($account['label']) ?>"></option>
                             <?php endforeach; ?>
                         </datalist>
-                        <p style="font-size:12px;color:#9aa0b4;margin:8px 0 0;">Selecting an account automatically fills the youth information from the census record.</p>
+                        <p style="font-size:12px;color:#9aa0b4;margin:8px 0 0;">Selecting an account fills the standard form. Every field stays editable, and saving updates that youth’s SK account.</p>
                     </div>
                 </div>
             <?php endif; ?>
 
-            <form action="<?= $action ?>" method="post" id="kkForm">
+            <form action="<?= $action ?>" method="post" enctype="multipart/form-data" id="kkForm">
                 <?= csrf_field() ?>
                 <?php if (! $residentMode): ?>
                     <input type="hidden" name="user_id" id="youthAccountId" value="<?= $selectedAccountId ? (int) $selectedAccountId : (int) ($y['user_id'] ?? 0) ?>">
@@ -493,8 +552,8 @@
                                 <label class="kk-label">Age Group</label>
                                 <select class="kk-input" name="age_group">
                                     <option value="">— Auto from DOB —</option>
-                                    <?php foreach (['15-17' => 'Child Youth (15–17)', '18-21' => '18–21 y/o', '22-24' => '22–24 y/o', '25-30' => 'Adult Youth (25–30)'] as $v => $l): ?>
-                                        <option value="<?= $v ?>" <?= ($y['age_group'] ?? '') === $v ? 'selected' : '' ?>><?= $l ?></option>
+                                    <?php foreach (\App\Models\SkYouthModel::AGE_GROUPS as $v => $l): ?>
+                                        <option value="<?= esc($v) ?>" <?= ($y['age_group'] ?? '') === $v ? 'selected' : '' ?>><?= esc($l) ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -502,8 +561,8 @@
                                 <label class="kk-label">Civil Status</label>
                                 <select class="kk-input" name="civil_status">
                                     <option value="">— Select —</option>
-                                    <?php foreach (['Single', 'Married', 'With live-in partner', 'Teenage Mom/Dad', 'Solo Parent'] as $cs): ?>
-                                        <option <?= ($y['civil_status'] ?? '') === $cs ? 'selected' : '' ?>><?= $cs ?></option>
+                                    <?php foreach ($optionsWithCurrent(\App\Models\SkYouthModel::CIVIL_STATUSES, (string) ($y['civil_status'] ?? '')) as $cs): ?>
+                                        <option value="<?= esc($cs) ?>" <?= strcasecmp((string) ($y['civil_status'] ?? ''), $cs) === 0 ? 'selected' : '' ?>><?= esc($cs) ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -522,8 +581,8 @@
                                 <label class="kk-label">Educational Background</label>
                                 <select class="kk-input" name="educational_background">
                                     <option value="">— Select —</option>
-                                    <?php foreach (['Junior High School', 'Senior High School', 'Technical/Vocational', 'College', 'Out-of-School Youth', 'Alternative Learning System', 'Young Professional'] as $e): ?>
-                                        <option <?= ($y['educational_background'] ?? '') === $e ? 'selected' : '' ?>><?= $e ?></option>
+                                    <?php foreach ($optionsWithCurrent(\App\Models\SkYouthModel::EDUCATION_OPTIONS, (string) ($y['educational_background'] ?? '')) as $e): ?>
+                                        <option value="<?= esc($e) ?>" <?= strcasecmp((string) ($y['educational_background'] ?? ''), $e) === 0 ? 'selected' : '' ?>><?= esc($e) ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -551,16 +610,17 @@
                                 <label class="kk-label">Governance</label>
                                 <select class="kk-input" name="governance">
                                     <option value="">— Select —</option>
-                                    <option value="COMELEC Registered" <?= ($y['governance'] ?? '') === 'COMELEC Registered'     ? 'selected' : '' ?>>COMELEC Registered</option>
-                                    <option value="COMELEC Non-Registered" <?= ($y['governance'] ?? '') === 'COMELEC Non-Registered' ? 'selected' : '' ?>>COMELEC Non-Registered</option>
+                                    <?php foreach (\App\Models\SkYouthModel::GOVERNANCE_OPTIONS as $gov): ?>
+                                        <option value="<?= esc($gov) ?>" <?= strcasecmp((string) ($y['governance'] ?? ''), $gov) === 0 ? 'selected' : '' ?>><?= esc($gov) ?></option>
+                                    <?php endforeach; ?>
                                 </select>
                             </div>
                             <div>
                                 <label class="kk-label">Economic Status</label>
                                 <select class="kk-input" name="economic_status">
                                     <option value="">— Select —</option>
-                                    <?php foreach (['Student', 'Employed', 'Unemployed', 'Out-of-School', 'Self-Employed'] as $es): ?>
-                                        <option <?= ($y['economic_status'] ?? '') === $es ? 'selected' : '' ?>><?= $es ?></option>
+                                    <?php foreach ($optionsWithCurrent(\App\Models\SkYouthModel::ECONOMIC_STATUSES, (string) ($y['economic_status'] ?? '')) as $es): ?>
+                                        <option value="<?= esc($es) ?>" <?= strcasecmp((string) ($y['economic_status'] ?? ''), $es) === 0 ? 'selected' : '' ?>><?= esc($es) ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -568,8 +628,8 @@
                                 <label class="kk-label">Monthly Income</label>
                                 <select class="kk-input" name="monthly_income">
                                     <option value="">— Select —</option>
-                                    <?php foreach (['Below ₱5,000', '₱5,000 – ₱10,000', '₱10,000 – ₱20,000', '₱20,000 – ₱40,000', 'Above ₱40,000'] as $inc): ?>
-                                        <option <?= ($y['monthly_income'] ?? '') === $inc ? 'selected' : '' ?>><?= $inc ?></option>
+                                    <?php foreach ($optionsWithCurrent(\App\Models\SkYouthModel::INCOME_BRACKETS, (string) ($y['monthly_income'] ?? '')) as $inc): ?>
+                                        <option value="<?= esc($inc) ?>" <?= strcasecmp((string) ($y['monthly_income'] ?? ''), $inc) === 0 ? 'selected' : '' ?>><?= esc($inc) ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -585,7 +645,7 @@
                     <div class="kk-card-body">
                         <label class="kk-label" style="margin-bottom:10px;">Physical & Mental Health (check all that apply)</label>
                         <div class="kk-check-row" style="margin-bottom:20px;">
-                            <?php foreach (['Engage in Smoking', 'Engage in Alcohol', 'Experience Depression', 'Attempt Suicide', 'Health Problem', 'HIV/AIDS'] as $h): ?>
+                            <?php foreach (\App\Models\SkYouthModel::HEALTH_OPTIONS as $h): ?>
                                 <label class="kk-check">
                                     <input type="checkbox" name="health[]" value="<?= $h ?>" <?= in_array($h, $health) ? 'checked' : '' ?>>
                                     <?= $h ?>
@@ -594,7 +654,7 @@
                         </div>
                         <label class="kk-label" style="margin-bottom:10px;">Social Inclusion & Equity (check all that apply)</label>
                         <div class="kk-check-row">
-                            <?php foreach (['4Ps Beneficiary', 'UCT Beneficiary', 'IP', 'PWD'] as $s): ?>
+                            <?php foreach (\App\Models\SkYouthModel::SOCIAL_OPTIONS as $s): ?>
                                 <label class="kk-check">
                                     <input type="checkbox" name="social[]" value="<?= $s ?>" <?= in_array($s, $social) ? 'checked' : '' ?>>
                                     <?= $s ?>
@@ -610,9 +670,23 @@
                         <h4>Section 10–12 — Advocacy, Volunteer & Issues</h4>
                     </div>
                     <div class="kk-card-body">
-                        <div class="kk-grid-2">
-                            <div><label class="kk-label">Center of Youth Participation / Advocacy</label><input type="text" class="kk-input" name="advocacy" value="<?= esc($y['advocacy'] ?? '') ?>" placeholder="e.g. Education, Sports"></div>
-                            <div><label class="kk-label">Volunteer Interests</label><input type="text" class="kk-input" name="volunteer" value="<?= esc($y['volunteer'] ?? '') ?>" placeholder="e.g. SK Activities, Barangay Events"></div>
+                        <label class="kk-label" style="margin-bottom:10px;">Center of Youth Participation / Advocacy</label>
+                        <div class="kk-check-row" style="margin-bottom:16px;">
+                            <?php foreach (\App\Models\SkYouthModel::ADVOCACY_OPTIONS as $item): ?>
+                                <label class="kk-check">
+                                    <input type="checkbox" name="advocacy[]" value="<?= esc($item) ?>" <?= $choiceOn($advocacyStored, $item) ? 'checked' : '' ?>>
+                                    <?= esc($item) ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                        <label class="kk-label" style="margin-bottom:10px;">Volunteer Interests</label>
+                        <div class="kk-check-row" style="margin-bottom:16px;">
+                            <?php foreach (\App\Models\SkYouthModel::VOLUNTEER_OPTIONS as $item): ?>
+                                <label class="kk-check">
+                                    <input type="checkbox" name="volunteer[]" value="<?= esc($item) ?>" <?= $choiceOn($volunteerStored, $item) ? 'checked' : '' ?>>
+                                    <?= esc($item) ?>
+                                </label>
+                            <?php endforeach; ?>
                         </div>
                         <div class="kk-grid-3">
                             <div><label class="kk-label">Issue / Concern #1</label><input type="text" class="kk-input" name="issue_1" value="<?= esc($y['issue_1'] ?? '') ?>" placeholder="e.g. Unemployment"></div>
@@ -626,8 +700,34 @@
                     </div>
                 </div>
 
-                <!-- Footer buttons -->
-                <p class="kk-section-note" style="margin:0 0 12px;">Save the profile first. Photo upload unlocks after this record is saved.</p>
+                <div class="kk-card">
+                    <div class="kk-card-header"><i class="fas fa-camera"></i>
+                        <h4>Profile Photo</h4>
+                    </div>
+                    <div class="kk-card-body">
+                        <label class="kk-label">Profile photo</label>
+                        <input type="file" class="kk-input" name="profile_photo" id="profilePhotoInput" accept="image/jpeg,image/png,image/webp">
+                        <small style="display:block;color:#9aa0b4;margin-top:5px;">A 2 × 2 inch photo is part of profiling. You can still save the other information if a photo is not available yet. JPG, PNG, or WEBP. Maximum 5 MB.</small>
+                        <div class="kk-photo-preview" id="photoPreview">
+                            <div class="kk-photo-box" id="photoBox">
+                                <?php if (! empty($y['photo_path'])): ?>
+                                    <img id="photoPreviewImage" src="<?= esc('/uploads/' . ltrim((string) $y['photo_path'], '/')) ?>" alt="2 by 2 inch profile photo">
+                                <?php else: ?>
+                                    <img id="photoPreviewImage" alt="2 by 2 inch profile photo" hidden>
+                                    <span id="photoBoxLabel">2 × 2 in</span>
+                                <?php endif; ?>
+                            </div>
+                            <div>
+                                <small id="photoPreviewLabel" style="display:<?= empty($y['photo_path']) ? 'none' : 'block' ?>;color:#1a7a55;">
+                                    <i class="fas fa-check-circle"></i> Current photo
+                                </small>
+                                <button type="button" id="removePhotoButton" class="db-btn db-btn--outline" style="margin-top:5px;padding:4px 8px;font-size:11px;">Clear selection</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="kk-section-note" style="margin:0 0 12px;">Saving stores this profile on the youth’s SK account. A missing photo does not block the other fields.</p>
                 <div style="display:flex;justify-content:flex-end;gap:12px;margin-bottom:24px;">
                     <a href="<?= esc($returnUrl) ?>" class="db-btn db-btn--outline" onclick="return goBack(event, '<?= esc($returnUrl) ?>');">Cancel</a>
                     <button type="submit" class="db-btn db-btn--primary">
@@ -636,49 +736,6 @@
                 </div>
 
             </form>
-
-            <?php
-            $savedId = (int) ($y['id'] ?? 0);
-            $photoAction = $savedId > 0
-                ? ($residentMode
-                    ? ($role === 'council' ? '/council/sk-profiling/photo/' . $savedId : '/resident/sk-profiling/photo/' . $savedId)
-                    : '/sk/profiling/photo/' . $savedId)
-                : '';
-            ?>
-            <div class="kk-card" style="margin-bottom:32px;">
-                <div class="kk-card-header"><i class="fas fa-camera"></i>
-                    <h4>Profile Photo</h4>
-                </div>
-                <div class="kk-card-body">
-                    <?php if ($savedId <= 0): ?>
-                        <p class="kk-section-note" style="margin:0;">Save the profile first, then come back here to upload a photo.</p>
-                    <?php else: ?>
-                        <form action="<?= esc($photoAction) ?>" method="post" enctype="multipart/form-data" id="kkPhotoForm">
-                            <?= csrf_field() ?>
-                            <?php if ($residentMode): ?>
-                                <input type="hidden" name="profile_option" id="photoProfileOption" value="<?= esc($selectedProfileOption ?? 'self') ?>">
-                            <?php endif; ?>
-                            <label class="kk-label">Upload photo</label>
-                            <input type="file" class="kk-input" name="profile_photo" id="profilePhotoInput" accept="image/jpeg,image/png,image/webp" required>
-                            <small style="display:block;color:#9aa0b4;margin-top:5px;">JPG, PNG, or WEBP. Maximum 5 MB.</small>
-                            <div class="kk-photo-preview" id="photoPreview" style="<?= empty($y['photo_path']) ? 'display:none;' : '' ?>">
-                                <img id="photoPreviewImage" src="<?= empty($y['photo_path']) ? '' : esc('/uploads/' . ltrim($y['photo_path'], '/')) ?>" alt="">
-                                <div>
-                                    <small id="photoPreviewLabel" style="display:block;color:#1a7a55;">
-                                        <i class="fas fa-check-circle"></i> <?= empty($y['photo_path']) ? 'Selected photo' : 'Current photo' ?>
-                                    </small>
-                                    <button type="button" id="removePhotoButton" class="db-btn db-btn--outline" style="margin-top:5px;padding:4px 8px;font-size:11px;">Clear selection</button>
-                                </div>
-                            </div>
-                            <div style="display:flex;justify-content:flex-end;margin-top:14px;">
-                                <button type="submit" class="db-btn db-btn--primary">
-                                    <i class="fas fa-upload"></i> Upload Photo
-                                </button>
-                            </div>
-                        </form>
-                    <?php endif; ?>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -699,11 +756,25 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             const input = document.getElementById('profilePhotoInput');
-            const preview = document.getElementById('photoPreview');
             const previewImage = document.getElementById('photoPreviewImage');
             const previewLabel = document.getElementById('photoPreviewLabel');
+            const photoBoxLabel = document.getElementById('photoBoxLabel');
             const removeButton = document.getElementById('removePhotoButton');
-            if (!input || !preview || !previewImage) return;
+            if (!input || !previewImage) return;
+
+            function showPhoto(src) {
+                previewImage.hidden = false;
+                previewImage.src = src;
+                if (photoBoxLabel) photoBoxLabel.hidden = true;
+                if (previewLabel) previewLabel.style.display = 'block';
+            }
+
+            function showEmptyBox() {
+                previewImage.hidden = true;
+                previewImage.removeAttribute('src');
+                if (photoBoxLabel) photoBoxLabel.hidden = false;
+                if (previewLabel) previewLabel.style.display = 'none';
+            }
 
             input.addEventListener('change', function() {
                 const file = this.files && this.files[0];
@@ -712,26 +783,85 @@
                     this.value = '';
                     return;
                 }
-                previewImage.src = URL.createObjectURL(file);
-                previewLabel.innerHTML = '<i class="fas fa-check-circle"></i> New photo selected';
-                preview.style.display = 'flex';
+                showPhoto(URL.createObjectURL(file));
+                if (previewLabel) previewLabel.innerHTML = '<i class="fas fa-check-circle"></i> New photo selected';
             });
 
-            removeButton.addEventListener('click', function() {
+            if (removeButton) removeButton.addEventListener('click', function() {
                 input.value = '';
                 <?php if (! empty($y['photo_path'])): ?>
-                    previewImage.src = <?= json_encode('/uploads/' . ltrim($y['photo_path'], '/')) ?>;
-                    previewLabel.innerHTML = '<i class="fas fa-check-circle"></i> Current photo';
-                    preview.style.display = 'flex';
+                    showPhoto(<?= json_encode('/uploads/' . ltrim($y['photo_path'], '/')) ?>);
+                    if (previewLabel) previewLabel.innerHTML = '<i class="fas fa-check-circle"></i> Current photo';
                 <?php else: ?>
-                    previewImage.removeAttribute('src');
-                    preview.style.display = 'none';
+                    showEmptyBox();
                 <?php endif; ?>
             });
         });
 
-        function applyProfileData(data) {
-            document.querySelectorAll('[data-auto-filled="true"]').forEach(field => {
+        function parseChoiceList(value) {
+            if (Array.isArray(value)) return value;
+            if (!value) return [];
+            if (typeof value === 'string') {
+                try {
+                    const parsed = JSON.parse(value);
+                    if (Array.isArray(parsed)) return parsed;
+                } catch (error) {}
+                return value.split(',').map(function (item) { return item.trim(); }).filter(Boolean);
+            }
+            return [];
+        }
+
+        function setChecks(name, values) {
+            const wanted = parseChoiceList(values).map(function (item) { return String(item).toLowerCase(); });
+            document.querySelectorAll('input[name="' + name + '"]').forEach(function (box) {
+                box.checked = wanted.some(function (item) {
+                    return item === box.value.toLowerCase() || item.indexOf(box.value.toLowerCase()) !== -1;
+                });
+            });
+        }
+
+        function setOrganizations(raw) {
+            let rows = [];
+            if (typeof raw === 'string' && raw) {
+                try { rows = JSON.parse(raw) || []; } catch (error) { rows = []; }
+            } else if (Array.isArray(raw)) {
+                rows = raw;
+            }
+            const names = document.querySelectorAll('[name="org_name[]"]');
+            const positions = document.querySelectorAll('[name="org_position[]"]');
+            const years = document.querySelectorAll('[name="org_year[]"]');
+            names.forEach(function (field, index) {
+                field.value = (rows[index] && rows[index].name) || '';
+                if (positions[index]) positions[index].value = (rows[index] && rows[index].position) || '';
+                if (years[index]) years[index].value = (rows[index] && rows[index].year) || '';
+            });
+        }
+
+        function showStoredPhoto(path) {
+            const previewImage = document.getElementById('photoPreviewImage');
+            const previewLabel = document.getElementById('photoPreviewLabel');
+            const photoBoxLabel = document.getElementById('photoBoxLabel');
+            const input = document.getElementById('profilePhotoInput');
+            if (input) input.value = '';
+            if (!previewImage) return;
+            if (path) {
+                previewImage.hidden = false;
+                previewImage.src = '/uploads/' + String(path).replace(/^\/+/, '');
+                if (photoBoxLabel) photoBoxLabel.hidden = true;
+                if (previewLabel) {
+                    previewLabel.style.display = 'block';
+                    previewLabel.innerHTML = '<i class="fas fa-check-circle"></i> Current photo';
+                }
+                return;
+            }
+            previewImage.hidden = true;
+            previewImage.removeAttribute('src');
+            if (photoBoxLabel) photoBoxLabel.hidden = false;
+            if (previewLabel) previewLabel.style.display = 'none';
+        }
+
+        function fillYouthFields(data) {
+            document.querySelectorAll('[data-auto-filled="true"]').forEach(function (field) {
                 field.readOnly = false;
                 field.style.pointerEvents = '';
                 field.tabIndex = 0;
@@ -744,7 +874,7 @@
                 first_name: data.first_name || '',
                 middle_name: data.middle_name || '',
                 suffix: data.suffix || '',
-                date_of_birth: data.date_of_birth || '',
+                date_of_birth: data.date_of_birth ? String(data.date_of_birth).slice(0, 10) : '',
                 place_of_birth: data.place_of_birth || '',
                 gender: data.gender || '',
                 religion: data.religion || '',
@@ -754,6 +884,8 @@
                 address: data.address || '',
                 zone: data.zone || '',
                 months_in_brgy: data.months_in_brgy || '',
+                skills: data.skills || '',
+                hobbies: data.hobbies || '',
                 mother_name: data.mother_name || '',
                 mother_occupation: data.mother_occupation || '',
                 father_name: data.father_name || '',
@@ -762,25 +894,42 @@
                 age_group: data.age_group || '',
                 civil_status: data.civil_status || '',
                 educational_background: data.educational_background || '',
+                school_type: data.school_type || '',
+                school_detail: data.school_detail || '',
                 economic_status: data.economic_status || '',
-                monthly_income: data.monthly_income || ''
+                monthly_income: data.monthly_income || '',
+                issue_1: data.issue_1 || '',
+                issue_2: data.issue_2 || '',
+                issue_3: data.issue_3 || '',
+                suggestions: data.suggestions || ''
             };
-            Object.entries(fieldMap).forEach(([key, value]) => {
-                const field = document.querySelector('[name="' + key + '"]');
+            Object.entries(fieldMap).forEach(function (entry) {
+                const field = document.querySelector('[name="' + entry[0] + '"]');
                 if (!field) return;
+                const value = entry[1];
                 if (field.tagName === 'SELECT') {
-                    const match = Array.from(field.options).find(option => (option.value || '').toLowerCase() === String(value).toLowerCase());
-                    field.value = match ? match.value : value;
-                    field.style.pointerEvents = 'none';
-                    field.tabIndex = -1;
+                    const match = Array.from(field.options).find(function (option) {
+                        return (option.value || '').toLowerCase() === String(value).toLowerCase();
+                    });
+                    field.value = match ? match.value : '';
                 } else {
                     field.value = value;
-                    field.readOnly = true;
                 }
-                field.dataset.autoFilled = 'true';
-                field.setAttribute('aria-readonly', 'true');
+                field.readOnly = false;
+                field.style.pointerEvents = '';
+                field.tabIndex = 0;
             });
+            setChecks('health[]', data.health_concerns || data.health || []);
+            setChecks('social[]', data.social_inclusion || data.social || []);
+            setChecks('advocacy[]', data.advocacy || []);
+            setChecks('volunteer[]', data.volunteer || []);
+            setOrganizations(data.organizations || []);
+            showStoredPhoto(data.photo_path || '');
             calcAge();
+        }
+
+        function applyProfileData(data) {
+            fillYouthFields(data);
         }
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -815,48 +964,8 @@
             markProfileOption(optionId);
             const option = residentProfileData.find(item => item.id === optionId);
             if (!option || !option.data) return;
-
-            const d = option.data;
-            const fieldMap = {
-                last_name: d.last_name || '',
-                first_name: d.first_name || '',
-                middle_name: d.middle_name || '',
-                suffix: d.suffix || '',
-                date_of_birth: d.date_of_birth || '',
-                place_of_birth: d.place_of_birth || '',
-                gender: d.gender || '',
-                religion: d.religion || '',
-                citizenship: d.citizenship || 'Filipino',
-                contact_number: d.contact_number || '',
-                email: d.email || '',
-                address: d.address || '',
-                zone: d.zone || '',
-                months_in_brgy: d.months_in_brgy || '',
-                mother_name: d.mother_name || '',
-                mother_occupation: d.mother_occupation || '',
-                father_name: d.father_name || '',
-                father_occupation: d.father_occupation || '',
-                age_group: d.age_group || '',
-                civil_status: d.civil_status || '',
-                educational_background: d.educational_background || '',
-                economic_status: d.economic_status || '',
-                monthly_income: d.monthly_income || ''
-            };
-
-            Object.entries(fieldMap).forEach(([key, value]) => {
-                const field = document.querySelector('[name="' + key + '"]');
-                if (!field) return;
-                if (field.tagName === 'SELECT') {
-                    const matched = Array.from(field.options).find(opt => (opt.value || '').toLowerCase() === String(value).toLowerCase());
-                    field.value = matched ? matched.value : value;
-                } else {
-                    field.value = value;
-                }
-            });
-
+            fillYouthFields(option.data);
             markProfileOption(optionId);
-
-            calcAge();
         }
 
         function calcAge() {
@@ -874,7 +983,10 @@
 
             if (document.getElementById('kkForm') && <?= $residentMode ? 'true' : 'false' ?>) {
                 const field = document.getElementById('ageOut');
-                if (field.value && (Number(field.value) < 15 || Number(field.value) > 30)) {
+                const selected = document.querySelector('input[name="profile_option"]:checked');
+                const option = selected ? residentProfileData.find(item => item.id === selected.value) : null;
+                const allowMinor = option && option.is_minor;
+                if (!allowMinor && field.value && (Number(field.value) < 15 || Number(field.value) > 30)) {
                     field.style.borderColor = '#d94a4a';
                     field.title = 'Age must be between 15 and 30 years old.';
                 } else {
@@ -890,14 +1002,10 @@
                 radios.forEach(radio => {
                     radio.addEventListener('change', function() {
                         const hidden = document.getElementById('formProfileOption');
-                        const photoHidden = document.getElementById('photoProfileOption');
                         if (hidden) hidden.value = this.value;
-                        if (photoHidden) photoHidden.value = this.value;
                         applyResidentProfileChoice(this.value);
                     });
                 });
-                const selected = document.querySelector('input[name="profile_option"]:checked');
-                if (selected) applyResidentProfileChoice(selected.value);
             });
         }
 

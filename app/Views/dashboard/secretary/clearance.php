@@ -25,7 +25,7 @@
                     <i class="fas fa-file-invoice-dollar"></i> Document Fees
                 </a>
             </div>
-            <div class="db-stats" style="margin-bottom:24px;">
+            <div class="db-stats" style="margin-bottom:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
                 <div class="db-stat-card">
                     <div class="db-stat-icon" style="background:rgba(255,193,7,0.15);color:#ffc107;"><i class="fas fa-clock"></i></div>
                     <div><span class="db-stat-num"><?= $pending ?? 0 ?></span><span class="db-stat-label">Pending</span></div>
@@ -35,14 +35,26 @@
                     <div><span class="db-stat-num"><?= $approved ?? 0 ?></span><span class="db-stat-label">Approved</span></div>
                 </div>
                 <div class="db-stat-card">
+                    <div class="db-stat-icon" style="background:rgba(91,111,214,0.15);color:#5b6fd6;"><i class="fas fa-box-open"></i></div>
+                    <div><span class="db-stat-num"><?= $released ?? 0 ?></span><span class="db-stat-label">Released</span></div>
+                </div>
+                <div class="db-stat-card">
                     <div class="db-stat-icon" style="background:rgba(220,53,69,0.15);color:#dc3545;"><i class="fas fa-times-circle"></i></div>
                     <div><span class="db-stat-num"><?= $rejected ?? 0 ?></span><span class="db-stat-label">Rejected</span></div>
                 </div>
                 <div class="db-stat-card">
-                    <div class="db-stat-icon" style="background:rgba(91,111,214,0.15);color:#5b6fd6;"><i class="fas fa-file-alt"></i></div>
+                    <div class="db-stat-icon" style="background:rgba(107,114,128,0.15);color:#6b7280;"><i class="fas fa-history"></i></div>
+                    <div><span class="db-stat-num"><?= $expired ?? 0 ?></span><span class="db-stat-label">Expired</span></div>
+                </div>
+                <div class="db-stat-card">
+                    <div class="db-stat-icon" style="background:rgba(91,111,214,0.12);color:#5b6fd6;"><i class="fas fa-file-alt"></i></div>
                     <div><span class="db-stat-num"><?= $total ?? 0 ?></span><span class="db-stat-label">Total Requests</span></div>
                 </div>
             </div>
+            <p style="margin:0 0 16px;color:#6b7280;font-size:12.5px;">
+                Approved and released clearances and certificates stay in this section.
+                Pending requests that are not processed within <?= (int) \App\Libraries\PendingRequestExpiry::CLEARANCE_DAYS ?> days are invalidated.
+            </p>
 
             <?php if (session()->getFlashdata('success')): ?>
                 <div class="db-alert db-alert--success" style="margin-bottom:16px;">
@@ -76,8 +88,10 @@
                         <select class="db-filter-select" name="status" onchange="this.form.submit()">
                             <option value="">All Status</option>
                             <option value="pending" <?= ($statusFilter ?? '') === 'pending'  ? 'selected' : '' ?>>Pending</option>
-                            <option value="approved" <?= ($statusFilter ?? '') === 'approved' ? 'selected' : '' ?>>Released</option>
+                            <option value="approved" <?= ($statusFilter ?? '') === 'approved' ? 'selected' : '' ?>>Approved</option>
+                            <option value="released" <?= ($statusFilter ?? '') === 'released' ? 'selected' : '' ?>>Released</option>
                             <option value="rejected" <?= ($statusFilter ?? '') === 'rejected' ? 'selected' : '' ?>>Rejected</option>
+                            <option value="expired" <?= ($statusFilter ?? '') === 'expired' ? 'selected' : '' ?>>Expired</option>
                         </select>
                         <select class="db-filter-select" name="type" onchange="this.form.submit()">
                             <option value="">All Types</option>
@@ -119,7 +133,9 @@
                                 $filed     = date('M d, Y', strtotime($res['latest_filed']));
                                 $pendingC  = (int)$res['pending_count'];
                                 $approvedC = (int)$res['approved_count'];
+                                $releasedC = (int)($res['released_count'] ?? 0);
                                 $rejectedC = (int)$res['rejected_count'];
+                                $expiredC  = (int)($res['expired_count'] ?? 0);
                             ?>
                                 <tr>
                                     <td>
@@ -136,8 +152,10 @@
                                     <td>
                                         <div style="display:flex;gap:6px;flex-wrap:wrap;">
                                             <?php if ($pendingC > 0): ?><span class="db-badge db-badge--pending"><?= $pendingC ?> Pending</span><?php endif; ?>
-                                            <?php if ($approvedC > 0): ?><span class="db-badge db-badge--approved"><?= $approvedC ?> Released</span><?php endif; ?>
+                                            <?php if ($approvedC > 0): ?><span class="db-badge db-badge--approved"><?= $approvedC ?> Approved</span><?php endif; ?>
+                                            <?php if ($releasedC > 0): ?><span class="db-badge" style="background:#eef0fb;color:#1d2448;"><?= $releasedC ?> Released</span><?php endif; ?>
                                             <?php if ($rejectedC > 0): ?><span class="db-badge db-badge--rejected"><?= $rejectedC ?> Rejected</span><?php endif; ?>
+                                            <?php if ($expiredC > 0): ?><span class="db-badge db-badge--rejected"><?= $expiredC ?> Expired</span><?php endif; ?>
                                         </div>
                                     </td>
                                     <td><?= $filed ?></td>
