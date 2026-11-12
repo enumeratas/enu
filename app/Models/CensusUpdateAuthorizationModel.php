@@ -32,28 +32,39 @@ class CensusUpdateAuthorizationModel extends Model
         return bin2hex(random_bytes(16));
     }
 
-    public function createForUser(int $userId, ?string $householdNo, int $days = 7, ?string $expiresAt = null): array
+    public function createForUser(int $userId, ?string $householdNo, int $days = 7, ?string $expiresAt = null): ?array
     {
         $token = $this->generateToken();
         if ($expiresAt === null || $expiresAt === '') {
             $expiresAt = date('Y-m-d H:i:s', strtotime('+' . max(1, $days) . ' days'));
         }
 
-        $this->insert([
-            'user_id' => $userId,
-            'household_no' => $householdNo,
-            'token' => $token,
-            'status' => 'pending',
-            'expires_at' => $expiresAt,
-            'sent_at' => null,
-            'submitted_at' => null,
-            'approved_at' => null,
-            'rejected_at' => null,
-            'reviewed_by' => null,
-            'notes' => null,
-        ], false);
+        $household = trim((string) $householdNo);
+        if ($household === '' || strlen($household) > 5) {
+            $household = '';
+        }
 
-        return $this->where('token', $token)->first();
+        try {
+            $saved = $this->insert([
+                'user_id' => $userId,
+                'household_no' => $household !== '' ? $household : null,
+                'token' => $token,
+                'status' => 'pending',
+                'expires_at' => $expiresAt,
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', 'Could not save census update authorization: ' . $e->getMessage());
+
+            return null;
+        }
+
+        if ($saved === false) {
+            return null;
+        }
+
+        $row = $this->where('token', $token)->first();
+
+        return is_array($row) ? $row : null;
     }
 
     public function findValidByToken(string $token): ?array

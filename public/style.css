@@ -3460,6 +3460,19 @@ body.db-sidebar-collapsed .db-nav-section {
 
     .db-main {
         margin-left: 0;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .db-content {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .db-table-wrap {
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     .db-sidebar>.db-sidebar-toggle {

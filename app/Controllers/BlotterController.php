@@ -420,6 +420,38 @@ class BlotterController extends BaseController
 
     public function storeSecretary()
     {
+        $postedDocument = trim((string) $this->request->getPost('document_type'));
+        $postedIncident = trim((string) $this->request->getPost('incident_type'));
+        if ($postedDocument !== '' && $postedIncident === '' && $this->request->getPost('resident_user_id')) {
+            $clearance = new \App\Controllers\ClearanceController();
+            $clearance->initController($this->request, $this->response, service('logger'));
+
+            return $clearance->storeSecretary();
+        }
+
+        $postedHousehold = preg_replace('/\D/', '', (string) $this->request->getPost('household_no')) ?? '';
+        $censusCreate = $postedIncident === '' && $this->request->getPost('household_no_mode') !== null;
+        $censusHeadUpdate = $postedIncident === ''
+            && $this->request->getPost('save_mode') !== null
+            && $postedHousehold !== ''
+            && $this->request->getPost('household_no_mode') === null;
+        $censusMemberUpdate = $postedIncident === ''
+            && $postedHousehold !== ''
+            && $this->request->getPost('relationship') !== null
+            && (int) $this->request->getPost('member_id') > 0;
+        if ($censusCreate || $censusHeadUpdate || $censusMemberUpdate) {
+            $census = new \App\Controllers\CensusController();
+            $census->initController($this->request, $this->response, service('logger'));
+            if ($censusMemberUpdate) {
+                return $census->updateMember((int) $this->request->getPost('member_id'));
+            }
+            if ($censusHeadUpdate) {
+                return $census->updateHousehold($postedHousehold);
+            }
+
+            return $census->store();
+        }
+
         if (session_role() !== 'secretary') {
             $home = session_role() !== '' ? '/' . session_role() . '/blotter' : '/login';
 
@@ -1289,12 +1321,96 @@ class BlotterController extends BaseController
         // Mark letter as issued
         $this->model->update($id, ['letter_issued_at' => date('Y-m-d H:i:s')]);
 
-        return view('blotter_letter', [
-            'report'        => $report,
-            'role'          => $role,
-            'captainName'   => $captainName,
+        return view('blotter_letter', $this->letterPayload($id, $role, $report, $captainName, $secretaryName) + ['mode' => 'screen']);
+    }
+
+    public function downloadLetter(int $id)
+    {
+        $role = (string) (session()->get('role') ?? 'secretary');
+        $report = $this->letterReport($id);
+        if ($report === null) {
+            return redirect()->to('/' . $role . '/blotter')->with('error', 'Report not found.');
+        }
+
+        [$captainName, $secretaryName] = $this->letterOfficials();
+        $html = view('blotter_letter', $this->letterPayload($id, $role, $report, $captainName, $secretaryName) + ['mode' => 'pdf']);
+        $options = new \Dompdf\Options();
+        $options->set('isRemoteEnabled', true);
+        $options->set('isHtml5ParserEnabled', true);
+        $options->setChroot(FCPATH);
+
+        $dompdf = new \Dompdf\Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        $filename = 'summons-BL-' . str_pad((string) $id, 4, '0', STR_PAD_LEFT) . '.pdf';
+
+        return $this->response
+            ->setHeader('Content-Type', 'application/pdf')
+            ->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->setBody($dompdf->output());
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function letterReport(int $id): ?array
+    {
+        $report = \Config\Database::connect()->table('blotter_reports b')
+            ->select("b.*, CONCAT(TRIM(COALESCE(u.first_name,'')), ' ', TRIM(COALESCE(u.last_name,''))) AS complainant_full_name, u.email AS complainant_email_addr")
+            ->join('users u', 'u.id = b.complainant_user_id', 'left')
+            ->where('b.id', $id)
+            ->get()
+            ->getRowArray();
+
+        return is_array($report) ? $report : null;
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function letterOfficials(): array
+    {
+        $userModel = new \App\Models\UserModel();
+        $captainRow = $userModel->getActiveByRole('captain');
+        $captainName = $captainRow
+            ? strtoupper(trim(
+                ($captainRow['first_name'] ?? '') . ' ' .
+                ($captainRow['middle_name'] ?? '') . ' ' .
+                ($captainRow['last_name'] ?? '')
+            ))
+            : 'PUNONG BARANGAY';
+        $secretaryRow = $userModel->getAppointedSecretary();
+        $secretaryName = $secretaryRow
+            ? strtoupper(trim(
+                ($secretaryRow['first_name'] ?? '') . ' ' .
+                ($secretaryRow['middle_name'] ?? '') . ' ' .
+                ($secretaryRow['last_name'] ?? '')
+            ))
+            : 'BARANGAY SECRETARY';
+
+        return [
+            (string) preg_replace('/\s+/', ' ', $captainName),
+            (string) preg_replace('/\s+/', ' ', $secretaryName),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     * @return array<string, mixed>
+     */
+    private function letterPayload(int $id, string $role, array $report, string $captainName, string $secretaryName): array
+    {
+        return [
+            'report' => $report,
+            'role' => $role,
+            'captainName' => $captainName,
             'secretaryName' => $secretaryName,
-        ]);
+            'barangaySeal' => $this->certificateAssetUri('bacolod.png'),
+            'municipalitySeal' => $this->certificateAssetUri('Picture1.png'),
+            'downloadUrl' => '/' . $role . '/blotter/letter/' . $id . '/download',
+        ];
     }
 
     /**

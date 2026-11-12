@@ -353,18 +353,25 @@ class ClearanceController extends BaseController
             }
             $this->emailStaffClearance($saved, $autoApproved ? 'auto_approved' : 'submitted');
 
-            $role = match (session()->get('role')) {
-                'sk'      => 'sk',
-                'captain' => 'captain',
-                'council' => 'council',
-                'admin'   => 'admin',
-                'secretary' => 'secretary',
-                default   => 'resident',
-            };
+            $segment = strtolower((string) $this->request->getUri()->getSegment(1));
+            $role = in_array($segment, ['resident', 'sk', 'council', 'captain', 'secretary', 'admin'], true)
+                ? $segment
+                : match (session()->get('role')) {
+                    'sk' => 'sk',
+                    'captain' => 'captain',
+                    'council' => 'council',
+                    'admin' => 'admin',
+                    'secretary' => 'secretary',
+                    default => 'resident',
+                };
             $releaseLabel = date('M d, Y', strtotime($autoApproved ? date('Y-m-d') : $estRelease));
             $message = $autoApproved
                 ? 'Request approved automatically. Estimated release: ' . $releaseLabel
                 : 'Request submitted successfully! Estimated release: ' . $releaseLabel;
+
+            if (in_array($role, ['secretary', 'admin', 'captain'], true)) {
+                return redirect()->to($this->clearanceDeskUrl(['user_id' => $userId]))->with('success', $message);
+            }
 
             return redirect()->to('/' . $role . '/clearance')->with('success', $message);
         } finally {
@@ -518,7 +525,9 @@ class ClearanceController extends BaseController
                 ? 'Request for ' . $residentName . ' was approved automatically.'
                 : 'Request created and linked to ' . $residentName . '.';
 
-            return redirect()->to('/' . session_role() . '/clearance')->with('success', $message);
+            return redirect()->to($this->clearanceDeskUrl([
+                'user_id' => $userId,
+            ]))->with('success', $message);
         } finally {
             $this->model->releaseOpenSlot($slot);
         }
@@ -1085,7 +1094,10 @@ class ClearanceController extends BaseController
      */
     private function clearanceDeskUrl(?array $request = null): string
     {
-        $role = session_role();
+        $segment = strtolower((string) $this->request->getUri()->getSegment(1));
+        $role = in_array($segment, ['admin', 'secretary', 'captain'], true)
+            ? $segment
+            : session_role();
         if (! in_array($role, ['admin', 'secretary', 'captain'], true)) {
             $role = 'secretary';
         }

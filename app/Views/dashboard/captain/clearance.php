@@ -1059,7 +1059,7 @@
         }
     </style>
 
-    <script src="/js/doc-templates.js"></script>
+    <script src="/js/doc-templates.js?v=2"></script>
     <script>
         function filterTable() {
             const q = document.getElementById('searchInput').value.toLowerCase();

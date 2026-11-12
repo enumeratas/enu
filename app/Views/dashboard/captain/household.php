@@ -45,6 +45,46 @@
 
     // Education options
     $eduOptions = ['No Formal Education', 'Elementary Level', 'Elementary Graduate', 'High School Level', 'High School Graduate', 'College Level', 'College Graduate', 'Vocational / Tech-Voc', 'Post Graduate'];
+    $gradeOptions = [
+        'Elementary' => ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'],
+        'Junior High School' => ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'],
+        'Senior High School' => ['Grade 11', 'Grade 12'],
+        'College / University' => ['1st Year College', '2nd Year College', '3rd Year College', '4th Year College', '5th Year College'],
+        'Vocational / Technical' => ['1st Year Tech-Voc', '2nd Year Tech-Voc'],
+    ];
+    $headGradeEnabled = false;
+    try {
+        $gradeDb = \Config\Database::connect();
+        if (! $gradeDb->fieldExists('grade_level', 'households')) {
+            $gradeDb->query('ALTER TABLE households ADD COLUMN grade_level VARCHAR(80) NULL');
+            $gradeDb->resetDataCache();
+        }
+        $headGradeEnabled = $gradeDb->fieldExists('grade_level', 'households');
+    } catch (\Throwable $e) {
+        $headGradeEnabled = false;
+    }
+    $gradeSelect = static function (string $name, string $id = '', string $class = 'pf-input', string $selected = '') use ($gradeOptions): string {
+        $html = '<select class="' . esc($class) . '" name="' . esc($name) . '"' . ($id !== '' ? ' id="' . esc($id) . '"' : '') . '>';
+        $html .= '<option value="">— Select Grade / Year —</option>';
+        $matched = $selected === '';
+        foreach ($gradeOptions as $group => $options) {
+            $html .= '<optgroup label="' . esc($group) . '">';
+            foreach ($options as $option) {
+                $isSelected = strcasecmp($selected, $option) === 0;
+                if ($isSelected) {
+                    $matched = true;
+                }
+                $html .= '<option' . ($isSelected ? ' selected' : '') . '>' . esc($option) . '</option>';
+            }
+            $html .= '</optgroup>';
+        }
+        if (! $matched) {
+            $html .= '<option selected>' . esc($selected) . '</option>';
+        }
+        $html .= '</select>';
+
+        return $html;
+    };
     $censusDocUrl = $householdFileUrl;
     ?>
 
@@ -429,6 +469,14 @@
                                             'grandparent'    => 'Grandparent',
                                             'grandchild'     => 'Grandchild',
                                             'aunt_uncle'     => 'Aunt/Uncle',
+                                            'aunt'           => 'Aunt',
+                                            'uncle'          => 'Uncle',
+                                            'father_in_law'  => 'Father-in-Law',
+                                            'mother_in_law'  => 'Mother-in-Law',
+                                            'son_in_law'     => 'Son-in-Law',
+                                            'daughter_in_law'=> 'Daughter-in-Law',
+                                            'niece'          => 'Niece',
+                                            'nephew'         => 'Nephew',
                                             'cousin'         => 'Cousin',
                                             'other_relative' => 'Other Relative',
                                             'non_relative'   => 'Non-relative',
@@ -470,24 +518,24 @@
                                     </td>
                                     <td>
                                         <div class="db-action-group">
-                                            <button class="db-icon-btn db-icon-btn--edit" title="Edit"
+                                            <button type="button" class="db-icon-btn db-icon-btn--edit" title="Edit"
                                                 onclick="openEditMember(<?= $mId ?>)">
                                                 <i class="fas fa-edit"></i>
                                             </button>
-                                            <button class="db-icon-btn" title="Separate Household"
+                                            <button type="button" class="db-icon-btn" title="Separate Household"
                                                 style="color:#e67e22;"
                                                 onclick="openSeparateModal(<?= $mId ?>)">
                                                 <i class="fas fa-home"></i>
                                             </button>
                                             <?php if ($relKey === 'child' && ($m['marital_status'] ?? 'Single') === 'Married' && empty($m['is_deceased'])): ?>
-                                                <button class="db-icon-btn" title="Add Family"
+                                                <button type="button" class="db-icon-btn" title="Add Family"
                                                     style="color:#16a085;"
                                                     onclick="openAddFamilyModal(<?= $mId ?>)">
                                                     <i class="fas fa-users"></i>
                                                 </button>
                                             <?php endif; ?>
                                             <?php if (empty($m['is_deceased'])): ?>
-                                                <button class="db-icon-btn" title="Mark as Deceased"
+                                                <button type="button" class="db-icon-btn" title="Mark as Deceased"
                                                     style="color:#842029;"
                                                     onclick="openDeceasedMemberModal(<?= $mId ?>)">
                                                     <i class="fas fa-cross"></i>
@@ -522,9 +570,10 @@
     <!-- ══ EDIT HOUSEHOLD HEAD MODAL ══ -->
     <div class="db-modal-overlay" id="editHeadModal">
         <div class="db-modal pf-modal">
-            <form action="/<?= $role ?>/census/update/<?= esc($householdId) ?>" method="post" id="editHeadForm" enctype="multipart/form-data" novalidate>
+            <form action="/<?= $role ?>/census/update/<?= esc($householdId) ?>" method="post" id="editHeadForm" enctype="multipart/form-data" novalidate data-offline-sync="off">
                 <?= csrf_field() ?>
                 <input type="hidden" name="save_mode" id="editSaveModeField" value="complete">
+                <input type="hidden" name="household_no" value="<?= esc($householdId) ?>">
 
                 <div class="pf-modal-header">
                     <div class="pf-modal-title-wrap">
@@ -608,6 +657,12 @@
                                     <div class="pf-label">Occupation</div>
                                     <input type="text" class="pf-ctrl pf-upper pf-alpha" name="occupation" value="<?= esc($head['occupation'] ?? '') ?>">
                                 </div>
+                                <?php if ($headGradeEnabled): ?>
+                                <div>
+                                    <div class="pf-label">Grade Level</div>
+                                    <?= $gradeSelect('grade_level', 'edit_head_grade', 'pf-ctrl', (string) ($head['grade_level'] ?? '')) ?>
+                                </div>
+                                <?php endif; ?>
                                 <div>
                                     <div class="pf-label">Monthly Income (₱)</div>
                                     <input type="number" class="pf-ctrl" name="monthly_income" value="<?= esc($head['monthly_income'] ?? '0') ?>" min="0" step="0.01">
@@ -857,7 +912,7 @@
     <!-- ══ ADD MEMBER MODAL ══ -->
     <div class="db-modal-overlay" id="addMemberModal">
         <div class="db-modal pf-modal">
-            <form action="/<?= $role ?>/census/members/add/<?= esc($householdId) ?>" method="post" id="addMemberForm">
+            <form action="/<?= $role ?>/census/members/add/<?= esc($householdId) ?>" method="post" id="addMemberForm" data-offline-sync="off">
                 <?= csrf_field() ?>
 
                 <div class="pf-modal-header">
@@ -919,6 +974,10 @@
                                 <div class="pf-field">
                                     <div class="pf-field-label">Occupation</div>
                                     <input type="text" class="pf-input pf-upper pf-alpha" name="spouse_occupation" placeholder="E.G. HOUSEWIFE, TEACHER">
+                                </div>
+                                <div class="pf-field">
+                                    <div class="pf-field-label">Grade Level</div>
+                                    <?= $gradeSelect('spouse_grade') ?>
                                 </div>
                                 <div class="pf-field">
                                     <div class="pf-field-label">Monthly Income (₱)</div>
@@ -1129,22 +1188,19 @@
                                         </div>
                                         <div class="pf-field pf-field--inline pf-field--sm">
                                             <div class="pf-field-label">Relationship</div>
-                                            <select class="pf-input" name="other_relationship[]">
-                                                <option value="">— Select —</option>
-                                                <option>Father</option>
-                                                <option>Mother</option>
-                                                <option>Sibling</option>
-                                                <option>Grandparent</option>
-                                                <option>Grandchild</option>
-                                                <option>Aunt</option>
-                                                <option>Uncle</option>
-                                                <option>Cousin</option>
-                                                <option>Niece</option>
-                                                <option>Nephew</option>
-                                                <option>Son in Law</option>
-                                                <option>Daughter in Law</option>
-                                                <option>Non-relative</option>
-                                            </select>
+                                            <?= other_relationship_select('pf-input') ?>
+                                        </div>
+                                        <div class="pf-field pf-field--inline">
+                                            <div class="pf-field-label">Occupation</div>
+                                            <input type="text" class="pf-input pf-upper pf-alpha" name="other_occupation[]" placeholder="OCCUPATION">
+                                        </div>
+                                        <div class="pf-field pf-field--inline">
+                                            <div class="pf-field-label">Educational Attainment</div>
+                                            <?= education_attainment_select('other_education[]', 'pf-input') ?>
+                                        </div>
+                                        <div class="pf-field pf-field--inline">
+                                            <div class="pf-field-label">Grade Level</div>
+                                            <?= $gradeSelect('other_grade[]') ?>
                                         </div>
                                         <div class="pf-field pf-field--inline pf-field--sm">
                                             <div class="pf-field-label">Voter?</div>
@@ -1196,9 +1252,10 @@
     <!-- ══ EDIT MEMBER MODAL ══ -->
     <div class="db-modal-overlay" id="editMemberModal">
         <div class="db-modal pf-modal">
-            <form action="/<?= $role ?>/census/member/update/0" method="post" id="editMemberForm" enctype="multipart/form-data">
+            <form action="/<?= $role ?>/census/member/update/0" method="post" id="editMemberForm" enctype="multipart/form-data" data-offline-sync="off">
                 <?= csrf_field() ?>
                 <input type="hidden" name="household_no" value="<?= esc($householdId) ?>">
+                <input type="hidden" name="member_id" id="em_member_id" value="0">
 
                 <div class="pf-modal-header">
                     <div class="pf-modal-title-wrap">
@@ -1252,7 +1309,15 @@
                                     <option value="grandparent">Grandparent</option>
                                     <option value="grandchild">Grandchild</option>
                                     <option value="aunt_uncle">Aunt/Uncle</option>
+                                    <option value="aunt">Aunt</option>
+                                    <option value="uncle">Uncle</option>
+                                    <option value="father_in_law">Father-in-Law</option>
+                                    <option value="mother_in_law">Mother-in-Law</option>
+                                    <option value="son_in_law">Son-in-Law</option>
+                                    <option value="daughter_in_law">Daughter-in-Law</option>
                                     <option value="cousin">Cousin</option>
+                                    <option value="niece">Niece</option>
+                                    <option value="nephew">Nephew</option>
                                     <option value="other_relative">Other Relative</option>
                                     <option value="non_relative">Non-relative</option>
                                     <option value="former_head">Former Head</option>
@@ -1273,6 +1338,18 @@
                             <div class="pf-field">
                                 <div class="pf-field-label">Occupation</div>
                                 <input type="text" class="pf-input pf-upper pf-alpha" name="occupation" id="em_occupation">
+                            </div>
+                            <div class="pf-field">
+                                <div class="pf-field-label">Gender</div>
+                                <select class="pf-input" name="gender" id="em_gender">
+                                    <option value="">— Select —</option>
+                                    <option>Male</option>
+                                    <option>Female</option>
+                                </select>
+                            </div>
+                            <div class="pf-field">
+                                <div class="pf-field-label">Grade Level</div>
+                                <?= $gradeSelect('grade_level', 'em_grade') ?>
                             </div>
                             <div class="pf-field">
                                 <div class="pf-field-label">Work, if working student</div>
@@ -2174,14 +2251,23 @@
         async function openEditMember(id) {
             const m = await loadHouseholdMember(id);
             // Set form action with member id
-            document.getElementById('editMemberForm').action =
-                '/<?= $role ?>/census/member/update/' + m.id;
+            const editMemberForm = document.getElementById('editMemberForm');
+            const memberUpdateUrl = '/<?= $role ?>/census/member/update/' + m.id;
+            editMemberForm.action = memberUpdateUrl;
+            editMemberForm.setAttribute('action', memberUpdateUrl);
+            const memberIdField = document.getElementById('em_member_id');
+            if (memberIdField) memberIdField.value = m.id;
             // Fill fields
             document.getElementById('em_last_name').value = m.last_name || '';
             document.getElementById('em_first_name').value = m.first_name || '';
             document.getElementById('em_middle_name').value = m.middle_name || '';
             document.getElementById('em_suffix').value = m.suffix || '';
-            document.getElementById('em_relationship').value = m.relationship || '';
+            const emRelationship = document.getElementById('em_relationship');
+            const savedRelationship = m.relationship || '';
+            if (emRelationship && savedRelationship && !Array.from(emRelationship.options).some(function(opt) { return opt.value === savedRelationship || opt.text === savedRelationship; })) {
+                emRelationship.add(new Option(savedRelationship, savedRelationship));
+            }
+            if (emRelationship) emRelationship.value = savedRelationship;
             document.getElementById('em_dob').value = m.date_of_birth || '';
             const emCivil = document.getElementById('em_civil_status');
             if (emCivil) {
@@ -2202,6 +2288,22 @@
                 emEducation.add(new Option(savedEducation, savedEducation));
             }
             if (emEducation) emEducation.value = savedEducation;
+            const emGender = document.getElementById('em_gender');
+            if (emGender) {
+                const savedGender = m.gender || '';
+                if (savedGender && !Array.from(emGender.options).some(function(opt) { return opt.value === savedGender || opt.text === savedGender; })) {
+                    emGender.add(new Option(savedGender, savedGender));
+                }
+                emGender.value = savedGender;
+            }
+            const emGrade = document.getElementById('em_grade');
+            if (emGrade) {
+                const savedGrade = m.grade_level || '';
+                if (savedGrade && !Array.from(emGrade.options).some(function(opt) { return opt.value === savedGrade || opt.text === savedGrade; })) {
+                    emGrade.add(new Option(savedGrade, savedGrade));
+                }
+                emGrade.value = savedGrade;
+            }
             document.getElementById('em_philhealth').value = m.philhealth_no || '';
             // PWD fields
             const isPwd = m.is_pwd == 1;
@@ -2473,11 +2575,25 @@
                         </div>
                         <div class="pf-field pf-field--inline pf-field--sm">
                             <div class="pf-field-label">Relationship</div>
-                            <select class="pf-input" name="other_relationship[]">
-                                <option value="">— Select —</option>
-                                <option>Father</option><option>Mother</option><option>Sibling</option><option>Grandparent</option>
-                                <option>Grandchild</option><option>Aunt/Uncle</option><option>Cousin</option>
-                                <option>Other Relative</option><option>Non-relative</option>
+                            <?= other_relationship_select('pf-input') ?>
+                        </div>
+                        <div class="pf-field pf-field--inline">
+                            <div class="pf-field-label">Occupation</div>
+                            <input type="text" class="pf-input pf-upper pf-alpha" name="other_occupation[]" placeholder="OCCUPATION">
+                        </div>
+                        <div class="pf-field pf-field--inline">
+                            <div class="pf-field-label">Educational Attainment</div>
+                            <?= education_attainment_select('other_education[]', 'pf-input') ?>
+                        </div>
+                        <div class="pf-field pf-field--inline">
+                            <div class="pf-field-label">Grade Level</div>
+                            <select class="pf-input" name="other_grade[]">
+                                <option value="">— Select Grade / Year —</option>
+                                <optgroup label="Elementary"><option>Grade 1</option><option>Grade 2</option><option>Grade 3</option><option>Grade 4</option><option>Grade 5</option><option>Grade 6</option></optgroup>
+                                <optgroup label="Junior High School"><option>Grade 7</option><option>Grade 8</option><option>Grade 9</option><option>Grade 10</option></optgroup>
+                                <optgroup label="Senior High School"><option>Grade 11</option><option>Grade 12</option></optgroup>
+                                <optgroup label="College / University"><option>1st Year College</option><option>2nd Year College</option><option>3rd Year College</option><option>4th Year College</option><option>5th Year College</option></optgroup>
+                                <optgroup label="Vocational / Technical"><option>1st Year Tech-Voc</option><option>2nd Year Tech-Voc</option></optgroup>
                             </select>
                         </div>
                         <div class="pf-field pf-field--inline pf-field--sm">
@@ -2578,7 +2694,8 @@
         function toggleGradeField(wrap, occValue) {
             const gradeWrap = wrap.querySelector('.pf-grade-wrap');
             if (!gradeWrap) return;
-            gradeWrap.classList.toggle('visible', occValue.trim().toUpperCase() === 'STUDENT');
+            const occupation = occValue.trim().toUpperCase();
+            gradeWrap.classList.toggle('visible', occupation === 'STUDENT' || occupation === 'WORKING STUDENT');
         }
 
         // Sync pill active state + grade field when typing manually

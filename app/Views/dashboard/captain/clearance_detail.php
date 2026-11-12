@@ -204,6 +204,9 @@
                                 </button>
                             </div>
                         </div>
+                        <?php if (in_array(($role ?? ''), ['secretary', 'admin'], true)): ?>
+                            <div id="clearancePrintSettings"></div>
+                        <?php endif; ?>
                         <div id="docInfo" style="background:#f8f9fc;border:1px solid #e8ecf4;border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:12.5px;color:#4a5068;">
                             <?php if ($activeReq): ?>
                                 <strong><?= esc($activeReq['document_type']) ?></strong> for
@@ -693,7 +696,7 @@
         }
     </style>
 
-    <script src="/js/doc-templates.js"></script>
+    <script src="/js/doc-templates.js?v=2"></script>
     <script src="/js/document-editor.js"></script>
     <script>
         // Per-request census map (request_id → census fields for the for_member person).
@@ -738,6 +741,10 @@
                                 'secretary_name'=> $barangaySettings['secretary_name'] ?? '',
                                 'captain_title' => $barangaySettings['captain_title'] ?? 'Punong Barangay',
                             ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>);
+        const clearancePrintSettings = document.getElementById('clearancePrintSettings');
+        if (clearancePrintSettings) {
+            BisDoc.mountPrintSettings(clearancePrintSettings);
+        }
 
         // Track currently displayed doc for print
         let _currentDoc = {

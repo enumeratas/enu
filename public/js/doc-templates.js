@@ -382,11 +382,230 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
 .bc-residency-sig div { text-align: center; min-width: 220px; font-family: Cambria, serif; font-size: 13pt; line-height: 1.7; }
 </style>`;
 
+    const PRINT_SETTINGS_KEY = 'bis_clearance_print_settings';
+    const DEFAULT_PRINT_SETTINGS = {
+        paper: 'a4',
+        orientation: 'portrait',
+        margin: 'narrow',
+        scale: '100',
+        seals: true,
+        watermark: true
+    };
+    const PAPER_SIZES = {
+        a4: { width: 210, height: 297 },
+        letter: { width: 215.9, height: 279.4 },
+        long: { width: 215.9, height: 330.2 }
+    };
+    const PAGE_MARGINS = { none: 0, narrow: 10, normal: 14, wide: 18 };
+
+    function normalizeSettings(settings) {
+        const source = settings || {};
+        const paper = PAPER_SIZES[source.paper] ? source.paper : DEFAULT_PRINT_SETTINGS.paper;
+        const orientation = source.orientation === 'landscape' ? 'landscape' : 'portrait';
+        const margin = Object.prototype.hasOwnProperty.call(PAGE_MARGINS, source.margin) ? source.margin : DEFAULT_PRINT_SETTINGS.margin;
+        const scale = ['80', '90', '100'].indexOf(String(source.scale)) !== -1 ? String(source.scale) : DEFAULT_PRINT_SETTINGS.scale;
+        return {
+            paper: paper,
+            orientation: orientation,
+            margin: margin,
+            scale: scale,
+            seals: source.seals !== false && source.seals !== '0',
+            watermark: source.watermark !== false && source.watermark !== '0'
+        };
+    }
+
+    function readSettings() {
+        try {
+            return normalizeSettings(JSON.parse(localStorage.getItem(PRINT_SETTINGS_KEY) || '{}'));
+        } catch (error) {
+            return normalizeSettings(DEFAULT_PRINT_SETTINGS);
+        }
+    }
+
+    function writeSettings(settings) {
+        const next = normalizeSettings(settings);
+        try {
+            localStorage.setItem(PRINT_SETTINGS_KEY, JSON.stringify(next));
+        } catch (error) {
+            // Printing still uses the settings for this document.
+        }
+        return next;
+    }
+
+    function pageBox(settings) {
+        const paper = PAPER_SIZES[settings.paper] || PAPER_SIZES.a4;
+        const landscape = settings.orientation === 'landscape';
+        return {
+            width: landscape ? paper.height : paper.width,
+            height: landscape ? paper.width : paper.height,
+            margin: PAGE_MARGINS[settings.margin],
+            scale: Number(settings.scale) / 100
+        };
+    }
+
+    function printCssText(settings) {
+        const box = pageBox(normalizeSettings(settings));
+        const innerHeight = Math.max(box.height - (box.margin * 2), 140);
+        return PRINT_STYLES
+            .replace('<style>', '')
+            .replace('</style>', '')
+            .replace('@page { size: A4 portrait; margin: 0; }', '@page { size: ' + box.width + 'mm ' + box.height + 'mm; margin: ' + box.margin + 'mm; }')
+            .replace('html, body { width: 210mm; height: 297mm; background: #fff; }', 'html, body { margin: 0; background: #fff; }')
+            .replace('.bc-wrap { width: 210mm; height: 297mm; padding: 7mm; display: block; overflow: hidden; }', '.bc-wrap { width: 100%; min-height: ' + innerHeight + 'mm; padding: 6mm; display: block; overflow: visible; box-sizing: border-box; zoom: ' + box.scale + '; }')
+            .replace('  position: relative; overflow: hidden;\n  padding: 0;\n}', '  position: relative; overflow: visible;\n  padding: 0;\n}')
+            + '.bc-seal,.bc-watermark img{-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
+            + 'body.hide-seals .bc-seal{display:none !important;}'
+            + 'body.hide-watermark .bc-watermark{display:none !important;}'
+            + '@media print{.bis-print-toolbar{display:none !important;}}';
+    }
+
+    function shrinkImage(url, maxPx) {
+        return new Promise(function (resolve) {
+            const image = new Image();
+            image.onload = function () {
+                const longest = Math.max(image.width, image.height) || 1;
+                const scale = Math.min(1, maxPx / longest);
+                const width = Math.max(1, Math.round(image.width * scale));
+                const height = Math.max(1, Math.round(image.height * scale));
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const context = canvas.getContext('2d');
+                if (!context) {
+                    resolve(url);
+                    return;
+                }
+                context.drawImage(image, 0, 0, width, height);
+                try {
+                    resolve(canvas.toDataURL('image/png'));
+                } catch (error) {
+                    resolve(url);
+                }
+            };
+            image.onerror = function () {
+                resolve(url);
+            };
+            image.src = url;
+        });
+    }
+
+    let logoPromise = null;
+    function loadLogos() {
+        if (!logoPromise) {
+            logoPromise = Promise.all([
+                shrinkImage('/bacolod.png', 640),
+                shrinkImage('/Picture1.png', 640)
+            ]).then(function (logos) {
+                return { barangay: logos[0], municipality: logos[1] };
+            }).catch(function () {
+                logoPromise = null;
+                return { barangay: '/bacolod.png', municipality: '/Picture1.png' };
+            });
+        }
+        return logoPromise;
+    }
+
+    function documentFileName(docKey, forMember) {
+        const safeName = String(forMember || _census.name || 'document').replace(/[^\w\-]+/g, '_');
+        return (docKey || 'clearance') + '-' + safeName + '.html';
+    }
+
+    function triggerDownload(blob, filename) {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(function () { URL.revokeObjectURL(link.href); }, 1000);
+    }
+
+    function bodyClassFor(settings) {
+        return [
+            settings.seals ? '' : 'hide-seals',
+            settings.watermark ? '' : 'hide-watermark'
+        ].filter(Boolean).join(' ');
+    }
+
+    function collectSettings(root) {
+        const next = readSettings();
+        if (!root) {
+            return next;
+        }
+        root.querySelectorAll('[data-print-setting]').forEach(function (field) {
+            const key = field.getAttribute('data-print-setting');
+            next[key] = field.type === 'checkbox' ? field.checked : field.value;
+        });
+        return normalizeSettings(next);
+    }
+
+    function settingsFields(settings) {
+        const selected = function (key, value) {
+            return settings[key] === value ? ' selected' : '';
+        };
+        const checked = function (key) {
+            return settings[key] ? ' checked' : '';
+        };
+        return ''
+            + '<label>Paper<select data-print-setting="paper">'
+            + '<option value="a4"' + selected('paper', 'a4') + '>A4</option>'
+            + '<option value="letter"' + selected('paper', 'letter') + '>Letter</option>'
+            + '<option value="long"' + selected('paper', 'long') + '>Long (8.5 × 13 in)</option>'
+            + '</select></label>'
+            + '<label>Orientation<select data-print-setting="orientation">'
+            + '<option value="portrait"' + selected('orientation', 'portrait') + '>Portrait</option>'
+            + '<option value="landscape"' + selected('orientation', 'landscape') + '>Landscape</option>'
+            + '</select></label>'
+            + '<label>Margins<select data-print-setting="margin">'
+            + '<option value="narrow"' + selected('margin', 'narrow') + '>Narrow</option>'
+            + '<option value="normal"' + selected('margin', 'normal') + '>Normal</option>'
+            + '<option value="wide"' + selected('margin', 'wide') + '>Wide</option>'
+            + '<option value="none"' + selected('margin', 'none') + '>None</option>'
+            + '</select></label>'
+            + '<label>Scale<select data-print-setting="scale">'
+            + '<option value="100"' + selected('scale', '100') + '>100%</option>'
+            + '<option value="90"' + selected('scale', '90') + '>90%</option>'
+            + '<option value="80"' + selected('scale', '80') + '>80%</option>'
+            + '</select></label>'
+            + '<label class="bis-print-check"><input type="checkbox" data-print-setting="seals"' + checked('seals') + '> Barangay seals</label>'
+            + '<label class="bis-print-check"><input type="checkbox" data-print-setting="watermark"' + checked('watermark') + '> Watermark</label>';
+    }
+
+    function mountPrintSettings(element) {
+        if (!element || element.getAttribute('data-print-ready') === '1') {
+            return;
+        }
+        element.setAttribute('data-print-ready', '1');
+        if (!document.getElementById('bisPrintSettingsStyle')) {
+            const style = document.createElement('style');
+            style.id = 'bisPrintSettingsStyle';
+            style.textContent = '.bis-print-settings{background:#fff;border:1px solid #e6ebf5;border-radius:12px;padding:14px 16px;margin:0 0 16px;}'
+                + '.bis-print-settings__title{font-size:13px;font-weight:700;color:#1d2448;margin-bottom:4px;}'
+                + '.bis-print-settings__note{font-size:12px;color:#667085;margin:0 0 10px;}'
+                + '.bis-print-settings__fields{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;}'
+                + '.bis-print-settings__fields label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:700;color:#667085;}'
+                + '.bis-print-settings__fields select{min-width:140px;height:36px;border:1px solid #d0d7e8;border-radius:8px;padding:0 8px;font:inherit;color:#1d2448;background:#fff;}'
+                + '.bis-print-settings__fields .bis-print-check{flex-direction:row;align-items:center;height:36px;font-size:13px;font-weight:600;color:#1d2448;}';
+            document.head.appendChild(style);
+        }
+        const settings = readSettings();
+        element.innerHTML = '<div class="bis-print-settings__title">Print settings</div>'
+            + '<p class="bis-print-settings__note">Choose the paper setup before printing. Narrow or wider margins keep the barangay seals inside the page. Downloads keep both seals in the file.</p>'
+            + '<div class="bis-print-settings__fields">' + settingsFields(settings) + '</div>';
+        element.querySelectorAll('[data-print-setting]').forEach(function (field) {
+            field.addEventListener('change', function () {
+                writeSettings(collectSettings(element));
+            });
+        });
+    }
+
     // ── Shared header HTML — uses dynamic barangay settings ───────────────────
-    function _header() {
+    function _header(logos) {
+        const left = logos && logos.barangay ? logos.barangay : '/bacolod.png';
+        const right = logos && logos.municipality ? logos.municipality : '/Picture1.png';
         return `<div class="bc-top-box">
   <div class="bc-header-row">
-    <img src="/bacolod.png" class="bc-seal" alt="${_b.barangay_name} Seal">
+    <img src="${left}" class="bc-seal" alt="${_b.barangay_name} Seal">
     <div class="bc-header-center">
       <p>${_b.country}</p>
       <p>${_b.region}</p>
@@ -395,7 +614,7 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
       <p><strong>${_b.barangay_name}</strong></p>
       <p class="bc-oOo">-oOo-</p>
     </div>
-    <img src="/Picture1.png" class="bc-seal" alt="Bato Seal">
+    <img src="${right}" class="bc-seal" alt="Municipal Seal">
   </div>
   <div class="bc-office-bar"><strong>${_b.office_header}</strong></div>
 </div>`;
@@ -569,41 +788,107 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
         return { name, body };
     }
 
-    function printDocumentHtml(docKey, forMember, purpose) {
+    function printDocumentHtml(docKey, forMember, purpose, options) {
+        const settings = normalizeSettings(options && options.settings ? options.settings : readSettings());
+        const logos = options && options.logos ? options.logos : {};
         const composed = composeBody(docKey, forMember, purpose);
-        return `<!DOCTYPE html><html><head><title>Document</title>${PRINT_STYLES}</head>
-<body>
+        const watermark = logos.barangay || '/bacolod.png';
+        return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Clearance document</title><style id="bis-print-css">${printCssText(settings)}</style></head>
+<body class="${bodyClassFor(settings)}">
 <div class="bc-wrap"><div class="bc-page">
-  ${_header()}
+  ${_header(logos)}
   <div class="bc-body-box">
-    <div class="bc-watermark"><img src="/bacolod.png" alt="watermark"></div>
+    <div class="bc-watermark"><img src="${watermark}" alt=""></div>
     ${composed.body}
   </div>
 </div></div>
 </body></html>`;
     }
 
+    function studioChrome() {
+        return '<style id="bis-studio-chrome">'
+            + '.bis-print-toolbar{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;padding:12px 16px;background:#16325c;color:#fff;font-family:Arial,sans-serif;}'
+            + '.bis-print-toolbar label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:700;}'
+            + '.bis-print-toolbar select{height:32px;border:0;border-radius:6px;padding:0 8px;color:#1d2448;}'
+            + '.bis-print-toolbar .bis-print-check{flex-direction:row;align-items:center;height:32px;font-size:12px;}'
+            + '.bis-print-toolbar button{height:32px;border:0;border-radius:6px;padding:0 12px;font-weight:700;cursor:pointer;}'
+            + '.bis-print-toolbar .bis-print-go{background:#16c79a;color:#fff;}'
+            + '.bis-print-toolbar .bis-print-save{background:#fff;color:#16325c;}'
+            + '@media print{.bis-print-toolbar{display:none !important;}}'
+            + '</style>';
+    }
+
+    function studioHtml(docKey, forMember, purpose, settings, logos) {
+        const documentHtml = printDocumentHtml(docKey, forMember, purpose, { settings: settings, logos: logos });
+        const toolbar = '<div class="bis-print-toolbar">'
+            + settingsFields(settings)
+            + '<button type="button" class="bis-print-go" id="bisApplyPrint">Print</button>'
+            + '<button type="button" class="bis-print-save" id="bisDownloadDoc">Download</button>'
+            + '</div>';
+        return documentHtml
+            .replace('</head>', studioChrome() + '</head>')
+            .replace('<body class="' + bodyClassFor(settings) + '">', '<body class="' + bodyClassFor(settings) + '">' + toolbar);
+    }
+
+    function saveStudioCopy(win, docKey, forMember) {
+        const clone = win.document.documentElement.cloneNode(true);
+        const toolbar = clone.querySelector('.bis-print-toolbar');
+        const chrome = clone.querySelector('#bis-studio-chrome');
+        if (toolbar) toolbar.remove();
+        if (chrome) chrome.remove();
+        triggerDownload(new Blob(['<!DOCTYPE html>\n' + clone.outerHTML], { type: 'text/html;charset=utf-8' }), documentFileName(docKey, forMember));
+    }
+
+    function bindStudio(win) {
+        const root = win.document;
+        const toolbar = root.querySelector('.bis-print-toolbar');
+        const printButton = root.getElementById('bisApplyPrint');
+        const downloadButton = root.getElementById('bisDownloadDoc');
+        if (!toolbar || !printButton || !downloadButton) {
+            return;
+        }
+        const apply = function (printNow) {
+            const next = writeSettings(collectSettings(toolbar));
+            const css = root.getElementById('bis-print-css');
+            if (css) css.textContent = printCssText(next);
+            root.body.classList.toggle('hide-seals', !next.seals);
+            root.body.classList.toggle('hide-watermark', !next.watermark);
+            if (printNow) win.print();
+        };
+        root.getElementById('bisApplyPrint').addEventListener('click', function () { apply(true); });
+        root.getElementById('bisDownloadDoc').addEventListener('click', function () {
+            apply(false);
+            saveStudioCopy(win, root.body.getAttribute('data-doc-key'), root.body.getAttribute('data-doc-name'));
+        });
+        toolbar.querySelectorAll('[data-print-setting]').forEach(function (field) {
+            field.addEventListener('change', function () { apply(false); });
+        });
+    }
+
     function print(docKey, forMember, purpose) {
-        const html = printDocumentHtml(docKey, forMember, purpose).replace(
-            '</body></html>',
-            '<script>window.onload=function(){window.print();window.close();}<\\/script></body></html>'
-        );
-        const win = window.open('', '_blank', 'width=900,height=900');
-        win.document.write(html);
-        win.document.close();
+        return loadLogos().then(function (logos) {
+            const settings = readSettings();
+            const win = window.open('', '_blank', 'width=1040,height=900');
+            if (!win) {
+                window.alert('Allow pop-ups to adjust print settings and print this clearance.');
+                return;
+            }
+            const html = studioHtml(docKey, forMember, purpose, settings, logos);
+            win.document.open();
+            win.document.write(html);
+            win.document.close();
+            win.document.body.setAttribute('data-doc-key', String(docKey || 'clearance'));
+            win.document.body.setAttribute('data-doc-name', String(forMember || _census.name || 'document'));
+            bindStudio(win);
+            win.focus();
+        });
     }
 
     function download(docKey, forMember, purpose) {
-        const html = printDocumentHtml(docKey, forMember, purpose);
-        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-        const link = document.createElement('a');
-        const safeName = String(forMember || _census.name || 'document').replace(/[^\w\-]+/g, '_');
-        link.href = URL.createObjectURL(blob);
-        link.download = (docKey || 'document') + '-' + safeName + '.html';
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(function () { URL.revokeObjectURL(link.href); }, 1000);
+        return loadLogos().then(function (logos) {
+            const html = printDocumentHtml(docKey, forMember, purpose, { settings: readSettings(), logos: logos });
+            triggerDownload(new Blob([html], { type: 'text/html;charset=utf-8' }), documentFileName(docKey, forMember));
+        });
     }
 
     const api = {
@@ -619,6 +904,8 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
         build,
         print,
         download,
+        mountPrintSettings,
+        readPrintSettings: readSettings,
         printDocumentHtml,
     };
 

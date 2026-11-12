@@ -319,13 +319,17 @@
 
                             <!-- Letter button -->
                             <a href="/<?= $role ?>/blotter/letter/<?= $r['id'] ?>"
-                                class="bl-btn bl-btn--primary bl-btn--full" style="margin-bottom:12px;text-decoration:none;">
+                                class="bl-btn bl-btn--primary bl-btn--full" style="margin-bottom:8px;text-decoration:none;">
                                 <i class="fas fa-file-alt"></i> View / Print Summons Letter
                                 <?php if (! empty($r['letter_issued_at'])): ?>
                                     <span style="font-size:10px;font-weight:400;opacity:.75;margin-left:4px;">
                                         (last issued <?= date('M d', strtotime($r['letter_issued_at'])) ?>)
                                     </span>
                                 <?php endif; ?>
+                            </a>
+                            <a href="/<?= $role ?>/blotter/letter/<?= (int) $r['id'] ?>/download"
+                                class="bl-btn bl-btn--outline bl-btn--full" style="margin-bottom:12px;text-decoration:none;">
+                                <i class="fas fa-download"></i> Download Summons
                             </a>
 
                             <!-- Reschedule form (hidden by default) -->

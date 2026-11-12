@@ -8,6 +8,62 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="/style.css">
+    <style>
+        .support-ticket-page .db-action-group {
+            flex-wrap: wrap;
+        }
+        @media (max-width: 800px) {
+            .support-ticket-page .db-table-wrap {
+                background: transparent;
+                border: 0;
+                overflow: visible;
+            }
+            .support-ticket-page .db-table,
+            .support-ticket-page .db-table tbody,
+            .support-ticket-page .db-table tr,
+            .support-ticket-page .db-table td {
+                display: block;
+                width: 100%;
+                max-width: none;
+            }
+            .support-ticket-page .db-table thead {
+                display: none;
+            }
+            .support-ticket-page .db-table tr {
+                background: #fff;
+                border: 1px solid #e8ecf4;
+                border-radius: 12px;
+                margin-bottom: 12px;
+                padding: 12px 14px;
+            }
+            .support-ticket-page .db-table td {
+                border: 0;
+                padding: 6px 0;
+                white-space: normal;
+                overflow-wrap: anywhere;
+            }
+            .support-ticket-page .db-table td:not([data-label])::before {
+                display: none;
+            }
+            .support-ticket-page .db-table td::before {
+                content: attr(data-label);
+                display: block;
+                margin-bottom: 2px;
+                color: #9aa0b4;
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: .4px;
+                text-transform: uppercase;
+            }
+            .support-ticket-page .db-table td[data-label="Action"] .db-btn,
+            .support-ticket-page .db-table td[data-label="Action"] form {
+                width: 100%;
+            }
+            .support-ticket-page .db-table td[data-label="Action"] .db-btn {
+                justify-content: center;
+            }
+        }
+    </style>
 </head>
 
 <body class="db-body">
@@ -20,7 +76,7 @@
     ?>
     <div class="db-main">
         <?php include APPPATH . 'Views/dashboard/topbar.php'; ?>
-        <div class="db-content">
+        <div class="db-content support-ticket-page">
             <p style="margin:0 0 16px;color:#667085;font-size:13px;">
                 Approve a ticket to open a live conversation. Continue that conversation in Customer Service.
             </p>
@@ -58,12 +114,26 @@
                                 $status = (string) ($ticket['status'] ?? 'pending');
                                 ?>
                                 <tr>
-                                    <td><?= pii($name, 'name') ?></td>
-                                    <td><?= esc($ticket['title'] ?? '') ?></td>
-                                    <td style="max-width:320px;white-space:pre-wrap;"><?= esc($ticket['concern'] ?? '') ?></td>
-                                    <td><?= esc(ucfirst($status)) ?></td>
-                                    <td><?= ! empty($ticket['created_at']) ? esc(date('M j, Y g:i A', strtotime($ticket['created_at']))) : '—' ?></td>
-                                    <td>
+                                    <td data-label="Resident"><?= pii($name, 'name') ?></td>
+                                    <td data-label="Title"><?= esc($ticket['title'] ?? '') ?></td>
+                                    <td data-label="Concern" style="white-space:pre-wrap;"><?= esc($ticket['concern'] ?? '') ?></td>
+                                    <td data-label="Status"><?= esc(ucfirst($status)) ?></td>
+                                    <td data-label="Submitted"><?= ! empty($ticket['created_at']) ? esc(date('M j, Y g:i A', strtotime($ticket['created_at']))) : '—' ?></td>
+                                    <td data-label="Action">
+                                        <?php
+                                        $conversationId = (int) ($ticket['conversation_id'] ?? 0);
+                                        $chatMode = strtolower((string) ($ticket['chat_mode'] ?? ''));
+                                        $chatClosedAt = (string) ($ticket['chat_closed_at'] ?? $ticket['chat_updated_at'] ?? '');
+                                        $canOpenChat = false;
+                                        if ($status === 'approved' && $conversationId > 0) {
+                                            if ($chatMode !== 'closed') {
+                                                $canOpenChat = true;
+                                            } else {
+                                                $closedStamp = $chatClosedAt !== '' ? strtotime($chatClosedAt) : false;
+                                                $canOpenChat = $closedStamp !== false && $closedStamp >= strtotime('-30 days');
+                                            }
+                                        }
+                                        ?>
                                         <?php if ($status === 'pending'): ?>
                                             <div class="db-action-group">
                                                 <form method="post" action="/<?= esc($role) ?>/support-tickets/approve/<?= (int) $ticket['id'] ?>">
@@ -75,8 +145,8 @@
                                                     <button type="submit" class="db-btn db-btn--outline db-btn--sm">Decline</button>
                                                 </form>
                                             </div>
-                                        <?php elseif ($status === 'approved'): ?>
-                                            <a href="/<?= esc($role) ?>/customer-service" class="db-btn db-btn--outline db-btn--sm">Open chat</a>
+                                        <?php elseif ($canOpenChat): ?>
+                                            <a href="/<?= esc($role) ?>/customer-service?conversation_id=<?= $conversationId ?>" class="db-btn db-btn--outline db-btn--sm"><?= $chatMode === 'closed' ? 'View chat' : 'Open chat' ?></a>
                                         <?php else: ?>
                                             <span style="color:#9aa0b4;">Closed</span>
                                         <?php endif; ?>

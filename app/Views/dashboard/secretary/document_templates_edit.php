@@ -433,7 +433,7 @@
         </div>
     </div>
 
-    <script src="/js/doc-templates.js"></script>
+    <script src="/js/doc-templates.js?v=2"></script>
     <script src="/js/document-editor.js"></script>
     <!-- ── Barangay settings injected for JS preview replacement ── -->
     <script>

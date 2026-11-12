@@ -62,6 +62,15 @@
         .tb-btn--back {
             background: rgba(255, 255, 255, .15);
             color: #fff;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .tb-btn--download {
+            background: #fff;
+            color: #1d2448;
+            text-decoration: none;
+            display: inline-block;
         }
 
         .tb-tip {
@@ -143,6 +152,22 @@
             font-style: italic;
             margin-top: 4pt;
             color: #333;
+        }
+
+        .seal-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+
+        .seal {
+            width: 72px;
+            height: 72px;
+            object-fit: contain;
+            flex-shrink: 0;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
 
         /* ── Letter meta ── */
@@ -282,18 +307,10 @@
 
 <body>
 
-    <!-- Screen toolbar -->
-    <div class="toolbar">
-        <button class="tb-btn tb-btn--back" onclick="history.back()">&#8592; Back</button>
-        <button class="tb-btn tb-btn--primary" onclick="printLetter()">&#128438; Save as PDF / Print</button>
-    </div>
-    <div class="tb-tip">
-        <span>💡</span>
-        <span>Click <strong>Save as PDF / Print</strong> → set <strong>Destination</strong> to <strong>"Save as PDF"</strong> → click <strong>Save</strong>.</span>
-    </div>
-
     <?php
     $r       = $report;
+    $mode    = $mode ?? 'screen';
+    $isPdf   = $mode === 'pdf';
     $caseNo  = str_pad($r['id'], 2, '0', STR_PAD_LEFT) . '-' . date('Y', strtotime($r['created_at'] ?? 'now'));
     $today   = date('F d, Y');
     $hDate   = ! empty($r['hearing_date']) ? date('F d, Y', strtotime($r['hearing_date'])) : '___________________';
@@ -307,17 +324,38 @@
     $hearingNotes     = esc($r['hearing_notes'] ?? '');
     $captainName      = esc($captainName   ?? 'PUNONG BARANGAY');
     $secretaryName    = esc($secretaryName ?? 'BARANGAY SECRETARY');
+    $barangaySeal     = $barangaySeal ?? '/bacolod.png';
+    $municipalitySeal = $municipalitySeal ?? '/Picture1.png';
+    $downloadUrl      = $downloadUrl ?? ('/' . ($role ?? 'secretary') . '/blotter/letter/' . (int) ($r['id'] ?? 0) . '/download');
+    $letterHeader = '<div class="seal-row">'
+        . '<img class="seal" src="' . esc($barangaySeal, 'attr') . '" alt="Barangay seal" width="72" height="72">'
+        . '<div><div class="republic">Republic of the Philippines</div>'
+        . '<div class="brgy-name">Barangay Bacolod</div>'
+        . '<div class="brgy-address">Bato, Camarines Sur, Philippines</div>'
+        . '<div class="office-line">Office of the Punong Barangay</div></div>'
+        . '<img class="seal" src="' . esc($municipalitySeal, 'attr') . '" alt="Municipal seal" width="72" height="72">'
+        . '</div>';
     ?>
+
+    <?php if ($isPdf): ?>
+    <style>.letter { margin-top: 0 !important; }</style>
+    <?php endif; ?>
+
+    <?php if (! $isPdf): ?>
+    <div class="toolbar">
+        <a class="tb-btn tb-btn--back" href="/<?= esc($role ?? 'secretary') ?>/blotter/<?= (int) ($r['id'] ?? 0) ?>">&#8592; Back</a>
+        <span>Summons · <?= esc($caseNo) ?></span>
+        <button class="tb-btn tb-btn--primary" type="button" onclick="window.print()">Print</button>
+        <a class="tb-btn tb-btn--download" href="<?= esc($downloadUrl) ?>">Download</a>
+    </div>
+    <?php endif; ?>
 
     <!-- ── COMPLAINANT COPY ── -->
     <div class="letter">
 
         <!-- Header -->
         <div class="letter-header">
-            <div class="republic">Republic of the Philippines</div>
-            <div class="brgy-name">Barangay Bacolod</div>
-            <div class="brgy-address">Bato, Camarines Sur, Philippines</div>
-            <div class="office-line">Office of the Punong Barangay</div>
+            <?= $letterHeader ?>
         </div>
         <!-- Title -->
         <div class="letter-title">Summons</div>
@@ -407,10 +445,7 @@
 
         <!-- Header -->
         <div class="letter-header">
-            <div class="republic">Republic of the Philippines</div>
-            <div class="brgy-name">Barangay Bacolod</div>
-            <div class="brgy-address">Bato, Camarines Sur, Philippines</div>
-            <div class="office-line">Office of the Punong Barangay</div>
+            <?= $letterHeader ?>
         </div>
         <!-- Title -->
         <div class="letter-title">Summons</div>
@@ -491,18 +526,6 @@
 
     </div>
 
-    <script>
-        function printLetter() {
-            document.querySelector('.tb-tip').style.display = 'flex';
-            setTimeout(function() {
-                window.print();
-            }, 300);
-        }
-        // Auto-open print on load
-        window.addEventListener('load', function() {
-            setTimeout(printLetter, 700);
-        });
-    </script>
 </body>
 
 </html>

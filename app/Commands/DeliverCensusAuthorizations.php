@@ -2,9 +2,7 @@
 
 namespace App\Commands;
 
-use App\Libraries\EmailService;
-use App\Models\CensusUpdateAuthorizationModel;
-use App\Models\UserModel;
+use App\Libraries\CensusAuthorizationMailer;
 use CodeIgniter\CLI\BaseCommand;
 
 /**
@@ -42,36 +40,6 @@ class DeliverCensusAuthorizations extends BaseCommand
         }
 
         @set_time_limit(0);
-        $authModel = new CensusUpdateAuthorizationModel();
-        $userModel = new UserModel();
-        $rows = $authModel->whereIn('id', $ids)->where('status', 'pending')->findAll();
-
-        foreach ($rows as $auth) {
-            $user = $userModel->find((int) ($auth['user_id'] ?? 0));
-            $email = trim((string) ($user['email'] ?? ''));
-            if (! is_array($user) || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                continue;
-            }
-
-            $deadline = ! empty($auth['expires_at'])
-                ? date('F j, Y', strtotime((string) $auth['expires_at']))
-                : date('F j, Y', strtotime('+7 days'));
-            $name = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Resident';
-            $link = site_url('census/update/' . $auth['token']);
-
-            try {
-                $sent = (new EmailService())->sendCensusUpdateAuthorization($email, $name, $link, $deadline);
-            } catch (\Throwable $e) {
-                log_message('error', 'Census authorization email failed: ' . $e->getMessage());
-                $sent = false;
-            }
-
-            if ($sent) {
-                $authModel->update((int) $auth['id'], [
-                    'status'  => 'sent',
-                    'sent_at' => date('Y-m-d H:i:s'),
-                ]);
-            }
-        }
+        (new CensusAuthorizationMailer())->sendPending($ids);
     }
 }

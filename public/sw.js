@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bis-app-shell-v16';
+const CACHE_NAME = 'bis-app-shell-v18';
 let networkOnline = true;
 
 readMetaSafe('online').then((value) => {
@@ -23,10 +23,23 @@ function isBlotterNavigationPath(path) {
   return /^\/(admin|secretary)\/blotter(?:\/|$)/.test(path || '');
 }
 
+function censusHome(path) {
+  const match = String(path || '').match(/^\/(admin|secretary|captain|council)\//);
+  return '/' + (match ? match[1] : 'secretary') + '/census';
+}
+
+function isCensusNavigationPath(path) {
+  return /^\/(admin|secretary|captain|council)\/(?:census|household)(?:\/|$)/.test(path || '');
+}
+
 function offlineBlockedResponse(path) {
   const blotterPath = isBlotterNavigationPath(path);
+  const censusPath = isCensusNavigationPath(path);
   const listUrl = blotterHome(path);
-  const recovery = blotterPath ? `
+  const censusUrl = censusHome(path);
+  const recovery = censusPath ? `
+    <p style="margin-top:14px;">Saving a census record needs a connection. Open Census Records again when you are back online.</p>
+    <p style="margin-top:16px;"><a href="${censusUrl}" style="display:inline-block;border-radius:8px;background:#16325c;color:#fff;padding:10px 14px;font-weight:700;text-decoration:none;">Back to Census Records</a></p>` : blotterPath ? `
     <p style="margin-top:14px;">Returning to the previous blotter page saved on this device.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;">
       <button id="bisOfflineBack" type="button" style="border:0;border-radius:8px;background:#16325c;color:#fff;padding:10px 14px;font-weight:700;cursor:pointer;">Back to previous page</button>
@@ -96,8 +109,10 @@ function offlineBlockedResponse(path) {
   <body>
     <div class="box">
       <div class="badge">OFFLINE MODE</div>
-      <h1>Page not available while offline</h1>
-      <p>Login and other modules stay online-only. Blotter cases and clearance requests opened while signed in on this device stay available offline. New reports and case updates are saved here and sent when the internet returns.</p>
+      <h1>${censusPath ? 'Census page needs a connection' : 'Page not available while offline'}</h1>
+      <p>${censusPath
+        ? 'Go back to Census Records and save again when the connection returns.'
+        : 'Login and other modules stay online-only. Blotter cases and clearance requests opened while signed in on this device stay available offline. New reports and case updates are saved here and sent when the internet returns.'}</p>
       ${recovery}
     </div>
   </body>
@@ -203,6 +218,7 @@ function isSessionRequest(request) {
 function isOfflineModulePath(path) {
   return /^\/resident\/clearance\/?$/.test(path)
     || /^\/(admin|secretary)\/clearance\/?$/.test(path)
+    || /^\/(admin|secretary)\/clearance\/request\/\d+\/?$/.test(path)
     || /^\/(admin|secretary)\/blotter\/?$/.test(path)
     || /^\/(admin|secretary)\/blotter\/new\/?$/.test(path)
     || /^\/(admin|secretary)\/blotter\/\d+\/?$/.test(path)

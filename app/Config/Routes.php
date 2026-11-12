@@ -114,6 +114,7 @@ $routes->group('/captain', ['filter' => ['auth', 'role:captain']], function ($ro
     $routes->post('blotter/summons/(:num)',       'BlotterController::sendSummons/$1');
     $routes->post('blotter/reschedule/(:num)',    'BlotterController::reschedule/$1');
     $routes->get('blotter/evidence/(:num)/(:num)', 'BlotterController::evidence/$1/$2');
+    $routes->get('blotter/letter/(:num)/download', 'BlotterController::downloadLetter/$1');
     $routes->get('blotter/letter/(:num)',         'BlotterController::viewLetter/$1');
     $routes->get('blotter/certificate/(:num)/download', 'BlotterController::downloadCertificate/$1');
     $routes->get('blotter/certificate/(:num)',    'BlotterController::viewCertificate/$1');
@@ -285,6 +286,7 @@ $routes->group('/secretary', ['filter' => ['auth', 'role:secretary']], function 
     $routes->post('blotter/summons/(:num)', 'BlotterController::sendSummons/$1');
     $routes->post('blotter/reschedule/(:num)', 'BlotterController::reschedule/$1');
     $routes->get('blotter/evidence/(:num)/(:num)', 'BlotterController::evidence/$1/$2');
+    $routes->get('blotter/letter/(:num)/download', 'BlotterController::downloadLetter/$1');
     $routes->get('blotter/letter/(:num)',   'BlotterController::viewLetter/$1');
     $routes->get('blotter/certificate/(:num)/download', 'BlotterController::downloadCertificate/$1');
     $routes->get('blotter/certificate/(:num)', 'BlotterController::viewCertificate/$1');
@@ -492,6 +494,7 @@ $routes->group('/admin', ['filter' => ['auth', 'role:admin']], function ($routes
     $routes->post('blotter/summons/(:num)', 'BlotterController::sendSummons/$1');
     $routes->post('blotter/reschedule/(:num)', 'BlotterController::reschedule/$1');
     $routes->get('blotter/evidence/(:num)/(:num)', 'BlotterController::evidence/$1/$2');
+    $routes->get('blotter/letter/(:num)/download', 'BlotterController::downloadLetter/$1');
     $routes->get('blotter/letter/(:num)',   'BlotterController::viewLetter/$1');
     $routes->get('blotter/certificate/(:num)/download', 'BlotterController::downloadCertificate/$1');
     $routes->get('blotter/certificate/(:num)', 'BlotterController::viewCertificate/$1');

@@ -8318,13 +8318,20 @@ PROMPT;
             $builder->select('*');
 
             if (is_array($fields) && in_array('support_mode', $fields, true)) {
-                $builder->whereIn(
-                    'support_mode',
-                    [
+                $cutoff = date('Y-m-d H:i:s', strtotime('-30 days'));
+                $builder->groupStart()
+                    ->whereIn('support_mode', [
                         self::SUPPORT_WAITING_HUMAN,
-                        self::SUPPORT_HUMAN
-                    ]
-                );
+                        self::SUPPORT_HUMAN,
+                    ])
+                    ->orGroupStart()
+                        ->where('support_mode', self::SUPPORT_CLOSED)
+                        ->where(
+                            in_array('closed_at', $fields, true) ? 'closed_at >=' : 'updated_at >=',
+                            $cutoff
+                        )
+                    ->groupEnd()
+                    ->groupEnd();
                 if (in_array('assigned_role', $fields, true) && $role === 'admin') {
                     $builder->where('assigned_role', 'admin');
                 } elseif (in_array('assigned_role', $fields, true) && in_array($role, ['secretary', 'captain'], true)) {
@@ -8454,6 +8461,19 @@ PROMPT;
 
             $conversation =
                 $this->decorateConversationWithSupportState($conversation);
+
+            $openedMode = strtolower((string) ($conversation['support_mode'] ?? ''));
+            if ($openedMode === self::SUPPORT_CLOSED) {
+                $closedAt = strtotime((string) ($conversation['closed_at'] ?? $conversation['updated_at'] ?? ''));
+                if ($closedAt !== false && $closedAt < strtotime('-30 days')) {
+                    return $this->response
+                        ->setStatusCode(403)
+                        ->setJSON([
+                            'success' => false,
+                            'response' => 'This closed conversation is older than 30 days and is no longer available.',
+                        ]);
+                }
+            }
 
             $messages = $db->table('chat_messages')
                 ->where('conversation_id', $id)
@@ -8854,6 +8874,14 @@ PROMPT;
             }
 
             $mode = $this->getConversationSupportMode($conversationId);
+            if ($mode === self::SUPPORT_CLOSED) {
+                return $this->response
+                    ->setStatusCode(403)
+                    ->setJSON([
+                        'success' => false,
+                        'response' => 'This conversation is closed. You can read the history, but you cannot reply.',
+                    ]);
+            }
             $assignedRole = strtolower((string) ($conversation['assigned_role'] ?? ''));
             if ($assignedRole !== '' && $assignedRole !== strtolower((string) $role)) {
                 return $this->response
@@ -9138,7 +9166,7 @@ PROMPT;
 
             $updated = $this->updateConversationSupportMode(
                 $conversationId,
-                self::SUPPORT_AI,
+                self::SUPPORT_CLOSED,
                 null
             );
 
@@ -9151,16 +9179,8 @@ PROMPT;
                     ]);
             }
 
-            $fields = $db->getFieldNames('chat_conversations');
-            if (is_array($fields) && in_array('assigned_role', $fields, true)) {
-                $db->table('chat_conversations')
-                    ->where('id', $conversationId)
-                    ->update(['assigned_role' => null]);
-            }
-
             $message =
-                'The conversation has been returned to the BIS Assistant. ' .
-                'I can continue helping you with BIS information and services.';
+                'This support conversation is closed. You can review the chat history, and you can start a new conversation if you need more help.';
 
             $this->saveSupportMessage(
                 $conversationId,

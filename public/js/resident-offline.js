@@ -653,6 +653,8 @@
                     if (errorHtml) {
                         sawRejection = true;
                         showStatus(plainMessage(errorHtml[0]) || 'The saved submission was rejected. Please review it and submit again.', 'wait');
+                    } else if (entry.operation === 'blotter_submission') {
+                        clearBlotterStash();
                     }
                 }
             } catch (error) {
@@ -675,6 +677,96 @@
         }
     }
 
+    function formActionUrl(form) {
+        var action = form.getAttribute('action') || '';
+        try {
+            return new URL(action, window.location.href).href;
+        } catch (error) {
+            return window.location.href;
+        }
+    }
+
+    function blotterStashKey() {
+        return 'bis_blotter_offline_stash_' + (userId || 'guest');
+    }
+
+    function readBlotterStash() {
+        try {
+            var raw = localStorage.getItem(blotterStashKey());
+            var stash = raw ? JSON.parse(raw) : null;
+            return stash && Array.isArray(stash.fields) ? stash : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function clearBlotterStash() {
+        try {
+            localStorage.removeItem(blotterStashKey());
+        } catch (error) {
+            // The queued copy is the record that gets sent.
+        }
+    }
+
+    function stashBlotterForm(form) {
+        if (operationForForm(form) !== 'blotter_submission') {
+            return;
+        }
+        var fields = [];
+        Array.prototype.forEach.call(form.elements, function (field) {
+            if (!field.name || field.type === 'file' || field.type === 'submit' || field.type === 'button') {
+                return;
+            }
+            if ((field.type === 'checkbox' || field.type === 'radio') && !field.checked) {
+                return;
+            }
+            fields.push({ key: field.name, value: field.value });
+        });
+        try {
+            localStorage.setItem(blotterStashKey(), JSON.stringify({
+                id: 'stash-' + Date.now().toString(16),
+                url: formActionUrl(form),
+                operation: 'blotter_submission',
+                fields: fields,
+                summary: entrySummary('blotter_submission', fields),
+                createdAt: Date.now(),
+                attempts: 0
+            }));
+        } catch (error) {
+            // IndexedDB still stores the full report, including photos.
+        }
+    }
+
+    function submitBlotterOnlineOrSave(form) {
+        if (!validateForm(form)) {
+            return;
+        }
+        form.dataset.bisSaving = '1';
+        var controller = typeof AbortController === 'function' ? new AbortController() : null;
+        var timeout = window.setTimeout(function () {
+            if (controller) {
+                controller.abort();
+            }
+        }, 20000);
+        var options = {
+            method: 'POST',
+            body: new FormData(form),
+            credentials: 'same-origin'
+        };
+        if (controller) {
+            options.signal = controller.signal;
+        }
+        nativeFetch(formActionUrl(form), options).then(function (response) {
+            window.clearTimeout(timeout);
+            form.dataset.bisSaving = '';
+            window.location.href = response.url || window.location.href;
+        }).catch(function () {
+            window.clearTimeout(timeout);
+            form.dataset.bisSaving = '';
+            queueForm(form);
+        });
+    }
+
     function queueForm(form) {
         if (form.dataset.bisSaving === '1') {
             return Promise.resolve();
@@ -682,12 +774,13 @@
         if (!validateForm(form)) {
             return Promise.resolve();
         }
+        stashBlotterForm(form);
         form.dataset.bisSaving = '1';
         var operation = operationForForm(form);
         return serializeForm(form).then(function (fields) {
             return remember({
                 id: Date.now().toString(16) + Math.random().toString(16).slice(2),
-                url: form.action || window.location.href,
+                url: formActionUrl(form),
                 operation: operation,
                 fields: fields,
                 summary: entrySummary(operation, fields),
@@ -728,6 +821,16 @@
             event.stopImmediatePropagation();
             return;
         }
+        if (operationForForm(form) === 'blotter_submission') {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            if (!navigator.onLine) {
+                queueForm(form);
+                return;
+            }
+            submitBlotterOnlineOrSave(form);
+            return;
+        }
         if (navigator.onLine) {
             form.dataset.bisSaving = '1';
             window.setTimeout(function () {
@@ -757,6 +860,9 @@
             return;
         }
         var form = button.form;
+        if (operationForForm(form) === 'blotter_submission') {
+            return;
+        }
         if (!shouldQueueForm(form) || navigator.onLine) {
             return;
         }
@@ -929,9 +1035,12 @@
                 if (/^\/(?:admin|secretary)\/blotter\/(?:new|\d+)\/?$/.test(path)) {
                     pages.push(path.replace(/\/+$/, ''));
                 }
+                if (/^\/(?:admin|secretary)\/clearance\/request\/\d+\/?$/.test(path)) {
+                    pages.push(path.replace(/\/+$/, ''));
+                }
             });
             var here = window.location.pathname.replace(/\/index\.php/, '').replace(/\/+$/, '');
-            if (/^\/(?:admin|secretary)\/blotter\/\d+$/.test(here)) {
+            if (/^\/(?:admin|secretary)\/blotter\/\d+$/.test(here) || /^\/(?:admin|secretary)\/clearance\/request\/\d+$/.test(here)) {
                 pages.push(here);
             }
             if (/\/blotter(?:\/|$)/.test(window.location.pathname)) {
@@ -1211,6 +1320,16 @@
         restoreBlotterDraft();
         tellServiceWorker();
         readQueue().then(function (queue) {
+            var stash = readBlotterStash();
+            if (stash) {
+                var alreadyQueued = queue.some(function (item) {
+                    return item && item.operation === 'blotter_submission' && item.createdAt === stash.createdAt;
+                });
+                if (!alreadyQueued) {
+                    queue.push(stash);
+                    writeQueue(queue);
+                }
+            }
             queue.forEach(function (entry) {
                 if (!entry || !entry.summary) {
                     return;

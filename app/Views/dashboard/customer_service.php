@@ -1510,7 +1510,7 @@ $roleLabel =
             }
         })();
     </script>
-    <script src="<?= base_url('js/customer_service.js?v=7') ?>"></script>
+    <script src="<?= base_url('js/customer_service.js?v=8') ?>"></script>
 
 </body>
 

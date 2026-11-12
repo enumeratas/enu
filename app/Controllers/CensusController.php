@@ -692,8 +692,33 @@ class CensusController extends BaseController
     private function censusFormError(string $message)
     {
         $this->stashCensusUploads();
+        $role = session_role();
+        if (! in_array($role, ['admin', 'secretary', 'captain', 'council'], true)) {
+            $role = 'secretary';
+        }
 
-        return redirect()->back()->with('error', $message)->withInput();
+        return redirect()->to('/' . $role . '/census/new')->with('error', $message)->withInput();
+    }
+
+    private function householdRedirect(string $householdNo, string $type = 'error', string $message = '', bool $withInput = false)
+    {
+        $role = session_role();
+        if (! in_array($role, ['admin', 'secretary', 'captain', 'council'], true)) {
+            $role = 'secretary';
+        }
+        $householdNo = trim($householdNo);
+        $path = $householdNo !== ''
+            ? '/' . $role . '/household/' . rawurlencode($householdNo)
+            : '/' . $role . '/census';
+        $redirect = redirect()->to($path);
+        if ($message !== '') {
+            $redirect = $redirect->with($type, $message);
+        }
+        if ($withInput) {
+            $redirect = $redirect->withInput();
+        }
+
+        return $redirect;
     }
 
     private function stashCensusUploads(): void
@@ -1282,7 +1307,7 @@ class CensusController extends BaseController
                 'monthly_income'         => $post['spouse_income']                 ?? 0,
                 'philhealth_no'          => $post['spouse_philhealth']             ?? null,
                 'educational_attainment' => $post['spouse_educational_attainment'] ?? null,
-                'grade_level'            => null,
+                'grade_level'            => trim((string) ($post['spouse_grade'] ?? '')) !== '' ? trim((string) $post['spouse_grade']) : null,
                 'is_pwd'                 => $spousePwd,
                 'pwd_type'               => $spousePwd ? ($post['spouse_pwd_type'] ?? null) : null,
                 'id_pwd_path'            => null,
@@ -1371,19 +1396,20 @@ class CensusController extends BaseController
             foreach ($post['other_last_name'] as $i => $lastName) {
                 if (empty($lastName)) continue;
                 $otherPwd = ($post['other_pwd'][$i] ?? '0') === '1' ? 1 : 0;
+                $otherRelationship = strtolower(trim((string) ($post['other_relationship'][$i] ?? '')));
                 $members[] = [
-                    'relationship'           => $post['other_relationship'][$i] ?? 'other_relative',
+                    'relationship'           => $otherRelationship !== '' ? $otherRelationship : 'other_relative',
                     'last_name'              => $lastName,
                     'first_name'             => $post['other_first_name'][$i]  ?? '',
                     'middle_name'            => $post['other_middle_name'][$i] ?? null,
                     'suffix'                 => $post['other_suffix'][$i]      ?? null,
                     'date_of_birth'          => $post['other_dob'][$i]         ?? null,
                     'gender'                 => $post['other_gender'][$i]      ?? null,
-                    'occupation'             => null,
+                    'occupation'             => strtoupper(trim((string) ($post['other_occupation'][$i] ?? ''))) ?: null,
                     'monthly_income'         => 0,
                     'philhealth_no'          => null,
-                    'educational_attainment' => null,
-                    'grade_level'            => null,
+                    'educational_attainment' => ($post['other_education'][$i] ?? '') !== '' ? $post['other_education'][$i] : null,
+                    'grade_level'            => trim((string) ($post['other_grade'][$i] ?? '')) !== '' ? trim((string) $post['other_grade'][$i]) : null,
                     'is_pwd'                 => $otherPwd,
                     'pwd_type'               => $otherPwd ? ($post['other_pwd_type'][$i] ?? null) : null,
                     'id_pwd_path'            => null,
@@ -1554,116 +1580,112 @@ class CensusController extends BaseController
             return redirect()->to($residentsUrl)->with('error', 'Only the secretary can send census update authorizations.');
         }
 
-        $selected = $this->request->getPost('user_ids');
-        $sendAll = $this->request->getPost('send_all') === '1';
+        try {
+            $selected = $this->request->getPost('user_ids');
+            $sendAll = $this->request->getPost('send_all') === '1';
 
-        $userModel = new UserModel();
-        $query = $userModel->where('role', 'resident')->where('status', 'active');
+            $userModel = new UserModel();
+            $query = $userModel->where('role', 'resident')->where('status', 'active');
 
-        if (! $sendAll && ! empty($selected)) {
-            $ids = array_map('intval', (array) $selected);
-            $query->whereIn('id', $ids);
-        } elseif (! $sendAll && empty($selected)) {
-            return redirect()->to($residentsUrl)->with('error', 'Please select at least one resident to receive the update authorization.');
-        }
-
-        $residents = $query->findAll();
-        if (empty($residents)) {
-            return redirect()->to($residentsUrl)->with('error', 'No active resident accounts were found to notify.');
-        }
-
-        $queued = 0;
-        $skipped = 0;
-        $authIds = [];
-        $authModel = new CensusUpdateAuthorizationModel();
-        $now = date('Y-m-d H:i:s');
-        foreach ($residents as $resident) {
-            $email = trim((string) ($resident['email'] ?? ''));
-            if (! \App\Libraries\TransactionMailer::isDeliverableAddress($email)) {
-                $skipped++;
-                continue;
+            if (! $sendAll && ! empty($selected)) {
+                $ids = array_values(array_filter(array_map('intval', (array) $selected), static fn (int $id): bool => $id > 0));
+                if ($ids === []) {
+                    return redirect()->to($residentsUrl)->with('error', 'Please select at least one resident to receive the update authorization.');
+                }
+                $query->whereIn('id', $ids);
+            } elseif (! $sendAll && empty($selected)) {
+                return redirect()->to($residentsUrl)->with('error', 'Please select at least one resident to receive the update authorization.');
             }
 
-            $existing = $authModel->where('user_id', (int) $resident['id'])
-                ->where('status', 'pending')
-                ->where('sent_at', null)
-                ->where('expires_at >', $now)
-                ->orderBy('id', 'DESC')
-                ->first();
-            if (is_array($existing)) {
-                $authIds[] = (int) $existing['id'];
+            $residents = $query->findAll();
+            if (empty($residents)) {
+                return redirect()->to($residentsUrl)->with('error', 'No active resident accounts were found to notify.');
+            }
+
+            $queued = 0;
+            $skipped = 0;
+            $authIds = [];
+            $authModel = new CensusUpdateAuthorizationModel();
+            $now = date('Y-m-d H:i:s');
+            foreach ($residents as $resident) {
+                if (! is_array($resident)) {
+                    $skipped++;
+                    continue;
+                }
+                $email = trim((string) ($resident['email'] ?? ''));
+                if (! \App\Libraries\TransactionMailer::isDeliverableAddress($email)) {
+                    $skipped++;
+                    continue;
+                }
+
+                $existing = $authModel->where('user_id', (int) $resident['id'])
+                    ->where('status', 'pending')
+                    ->where('sent_at IS NULL', null, false)
+                    ->where('expires_at >', $now)
+                    ->orderBy('id', 'DESC')
+                    ->first();
+                if (is_array($existing)) {
+                    $authIds[] = (int) $existing['id'];
+                    $queued++;
+                    continue;
+                }
+
+                $auth = $authModel->createForUser((int) $resident['id'], $resident['household_no'] ?? null, 7);
+                if (! is_array($auth) || empty($auth['id'])) {
+                    $skipped++;
+                    continue;
+                }
+
+                $authIds[] = (int) $auth['id'];
                 $queued++;
-                continue;
             }
 
-            $auth = $authModel->createForUser((int) $resident['id'], $resident['household_no'] ?? null, 7);
-            if (! $auth) {
-                $skipped++;
-                continue;
+            if ($queued === 0) {
+                return redirect()->to($residentsUrl)->with('error', 'No active residents with a valid email address were found.');
             }
 
-            $authIds[] = (int) $auth['id'];
-            $queued++;
-        }
+            $result = $this->dispatchAuthorizationEmails($authIds);
+            $noun = $queued === 1 ? 'resident' : 'residents';
+            if ($result['sent'] > 0) {
+                $message = 'Update authorization sent to ' . $result['sent'] . ' ' . ($result['sent'] === 1 ? 'resident' : 'residents') . '.';
+            } elseif ($result['queued']) {
+                $message = 'Update authorization is being sent to ' . $queued . ' ' . $noun . '.';
+            } else {
+                return redirect()->to($residentsUrl)->with(
+                    'error',
+                    'The authorization was saved, but the email could not be sent. Check the mail settings and try again.'
+                );
+            }
+            if ($skipped > 0) {
+                $message .= ' ' . $skipped . ' account' . ($skipped === 1 ? '' : 's') . ' had no valid email address.';
+            }
+            if ($result['failed'] > 0 && $result['sent'] > 0) {
+                $message .= ' ' . $result['failed'] . ' email' . ($result['failed'] === 1 ? '' : 's') . ' could not be delivered.';
+            }
 
-        if ($queued === 0) {
-            return redirect()->to($residentsUrl)->with('error', 'No active residents with a valid email address were found.');
-        }
+            return redirect()->to($residentsUrl)->with('success', $message);
+        } catch (\Throwable $e) {
+            log_message('error', 'Send update authorization failed: ' . $e->getMessage());
 
-        $started = $this->queueAuthorizationEmails($authIds);
-        $noun = $queued === 1 ? 'resident' : 'residents';
-        if (! $started) {
-            return redirect()->to($residentsUrl)->with(
-                'error',
-                'The authorization was saved for ' . $queued . ' ' . $noun . ', but email sending could not start. Stay on this page and try again.'
-            );
+            return redirect()->to($residentsUrl)->with('error', 'The update authorization could not be sent. Please try again.');
         }
-
-        $message = 'Update authorization is being sent to ' . $queued . ' ' . $noun . '. This page stays open while the emails go out.';
-        if ($skipped > 0) {
-            $message .= ' ' . $skipped . ' account' . ($skipped === 1 ? '' : 's') . ' had no valid email address.';
-        }
-
-        return redirect()->to($residentsUrl)->with('success', $message);
     }
 
     /**
      * @param list<int> $authIds
+     * @return array{queued: bool, sent: int, failed: int}
      */
-    private function queueAuthorizationEmails(array $authIds): bool
+    private function dispatchAuthorizationEmails(array $authIds): array
     {
-        $authIds = array_values(array_unique(array_filter(array_map('intval', $authIds), static fn(int $id): bool => $id > 0)));
+        $authIds = array_values(array_unique(array_filter(array_map('intval', $authIds), static fn (int $id): bool => $id > 0)));
         if ($authIds === []) {
-            return false;
+            return ['queued' => false, 'sent' => 0, 'failed' => 0];
         }
 
-        $dir = WRITEPATH . 'census-auth-queue';
-        if (! is_dir($dir) && ! mkdir($dir, 0775, true) && ! is_dir($dir)) {
-            return false;
-        }
+        @set_time_limit(0);
+        $result = (new \App\Libraries\CensusAuthorizationMailer())->sendPending($authIds);
 
-        $file = $dir . DIRECTORY_SEPARATOR . bin2hex(random_bytes(8)) . '.json';
-        if (file_put_contents($file, json_encode($authIds)) === false) {
-            return false;
-        }
-
-        $php = PHP_BINARY;
-        $spark = ROOTPATH . 'spark';
-        $quotedFile = escapeshellarg($file);
-        if (DIRECTORY_SEPARATOR === '\\') {
-            $command = 'cmd /C start /B "" ' . escapeshellarg($php) . ' ' . escapeshellarg($spark) . ' census:deliver-auth ' . $quotedFile;
-            $handle = @popen($command, 'r');
-            if (! is_resource($handle)) {
-                return false;
-            }
-            pclose($handle);
-
-            return true;
-        }
-
-        exec(escapeshellarg($php) . ' ' . escapeshellarg($spark) . ' census:deliver-auth ' . $quotedFile . ' > /dev/null 2>&1 &');
-
-        return true;
+        return ['queued' => false, 'sent' => $result['sent'], 'failed' => $result['failed']];
     }
 
     private function residentsListUrl(): string
@@ -2453,19 +2475,22 @@ class CensusController extends BaseController
     {
         $post = $this->request->getPost();
         $saveAsDraft = false;
-        $role = session()->get('role');
+        $role = session_role();
         $db   = \Config\Database::connect();
 
         // ── Fetch current record for audit comparison ─────────────────────────
         $current = $this->householdModel->find($householdNo);
         if (! $current) {
-            return redirect()->back()->with('error', 'Household not found.');
+            return $this->householdRedirect($householdNo, 'error', 'Household not found.');
         }
 
         if (($age = $this->ageFromDate($post['date_of_birth'] ?? null)) !== null && $age < 18) {
-            return redirect()->back()
-                ->with('error', 'A minor cannot be registered as the household head. The household head must be at least 18 years old.')
-                ->withInput();
+            return $this->householdRedirect(
+                $householdNo,
+                'error',
+                'A minor cannot be registered as the household head. The household head must be at least 18 years old.',
+                true
+            );
         }
 
         $existingSpouse = $this->memberModel
@@ -2482,11 +2507,11 @@ class CensusController extends BaseController
             array_column($existingChildren, 'date_of_birth')
         );
         if ($ageError !== null) {
-            return redirect()->back()->with('error', $ageError)->withInput();
+            return $this->householdRedirect($householdNo, 'error', $ageError, true);
         }
 
         if (trim((string) ($post['last_name'] ?? '')) === '' || trim((string) ($post['first_name'] ?? '')) === '') {
-            return redirect()->back()->with('error', 'Last name and first name are required.')->withInput();
+            return $this->householdRedirect($householdNo, 'error', 'Last name and first name are required.', true);
         }
 
         // ── ID upload validation: REQUIRED for 4PS, Senior, Solo Parent, PWD ─
@@ -2512,9 +2537,7 @@ class CensusController extends BaseController
             $idErrors[] = 'PWD ID upload is required (no existing ID on file).';
         }
         if (! $saveAsDraft && ! empty($idErrors)) {
-            return redirect()->back()
-                ->with('error', implode(' ', $idErrors))
-                ->withInput();
+            return $this->householdRedirect($householdNo, 'error', implode(' ', $idErrors), true);
         }
 
         // ── Handle optional ownership proof document upload ───────────────────
@@ -2529,9 +2552,7 @@ class CensusController extends BaseController
                     @mkdir($uploadDir, 0755, true);
                 }
                 if (! $file->move($uploadDir, $fileName)) {
-                    return redirect()->back()
-                        ->with('error', 'The ownership document could not be uploaded.')
-                        ->withInput();
+                    return $this->householdRedirect($householdNo, 'error', 'The ownership document could not be uploaded.', true);
                 }
                 $docPath = 'uploads/ownership/' . $fileName;
                 (new HouseholdUploadStorage())->store(WRITEPATH . $docPath, $docPath);
@@ -2601,7 +2622,7 @@ class CensusController extends BaseController
         if ($newOwnership === 'Shared' && $linkedPosted !== '' && $linkedPosted !== (string) ($current['linked_household_no'] ?? '')) {
             $editSharedPlan = $this->planSharedHousehold($linkedPosted, (string) $householdNo);
             if (is_string($editSharedPlan)) {
-                return redirect()->back()->with('error', $editSharedPlan)->withInput();
+                return $this->householdRedirect($householdNo, 'error', $editSharedPlan, true);
             }
         }
 
@@ -2669,19 +2690,24 @@ class CensusController extends BaseController
             'sanitation_basic'        => array_key_exists('sanitation_basic', $post) ? ($post['sanitation_basic'] !== '' ? $post['sanitation_basic'] : null) : ($current['sanitation_basic'] ?? null),
             'sanitation_managed'      => array_key_exists('sanitation_managed', $post) ? ($post['sanitation_managed'] !== '' ? $post['sanitation_managed'] : null) : ($current['sanitation_managed'] ?? null),
         ];
+        if ($db->fieldExists('grade_level', 'households') && array_key_exists('grade_level', $post)) {
+            $postedGrade = trim((string) $post['grade_level']);
+            $data['grade_level'] = $postedGrade !== '' ? $postedGrade : null;
+        }
 
         try {
             if (! $this->householdModel->update($householdNo, $data)) {
                 $errors = implode(' ', $this->householdModel->errors());
-                return redirect()->back()
-                    ->with('error', $errors !== '' ? 'Household was not saved: ' . $errors : 'Household was not saved. Please try again.')
-                    ->withInput();
+                return $this->householdRedirect(
+                    $householdNo,
+                    'error',
+                    $errors !== '' ? 'Household was not saved: ' . $errors : 'Household was not saved. Please try again.',
+                    true
+                );
             }
         } catch (\Throwable $e) {
             log_message('error', 'Household update failed for ' . $householdNo . ': ' . $e->getMessage());
-            return redirect()->back()
-                ->with('error', 'Household was not saved because of a database error. Please try again.')
-                ->withInput();
+            return $this->householdRedirect($householdNo, 'error', 'Household was not saved because of a database error. Please try again.', true);
         }
 
         if ($editSharedPlan) {
@@ -2712,8 +2738,11 @@ class CensusController extends BaseController
             ]);
 
             if ($status === 'pending') {
-                return redirect()->to('/' . $role . '/household/' . $householdNo)
-                    ->with('success', 'Household record updated. The ownership change from <strong>' . esc($oldOwnership) . '</strong> to <strong>' . esc($newOwnership) . '</strong> is pending secretary approval.');
+                return $this->householdRedirect(
+                    $householdNo,
+                    'success',
+                    'Household record updated. The ownership change from <strong>' . esc($oldOwnership) . '</strong> to <strong>' . esc($newOwnership) . '</strong> is pending secretary approval.'
+                );
             }
         } elseif ($docPath !== ($current['ownership_document_path'] ?? null) || $notes !== ($current['ownership_notes'] ?? '')) {
             // Document or notes changed but ownership itself did not — log as auto_approved
@@ -2733,8 +2762,7 @@ class CensusController extends BaseController
             ]);
         }
 
-        return redirect()->to('/' . $role . '/household/' . $householdNo)
-            ->with('success', 'Household record updated successfully.');
+        return $this->householdRedirect($householdNo, 'success', 'Household record updated successfully.');
     }
 
     // ── Add a single member ───────────────────────────────────────────────────
@@ -2742,7 +2770,6 @@ class CensusController extends BaseController
     public function addMember(string $householdNo)
     {
         $post = $this->request->getPost();
-        $role = session()->get('role');
 
         $isPwd = ($post['is_pwd'] ?? '0') === '1' ? 1 : 0;
         $isSenior = ($post['is_senior_citizen'] ?? '0') === '1' ? 1 : 0;
@@ -2754,18 +2781,14 @@ class CensusController extends BaseController
             ->where('relationship', 'spouse')
             ->countAllResults() > 0
         ) {
-            return redirect()->back()
-                ->with('error', 'This household already has a spouse. Only one spouse may be recorded.')
-                ->withInput();
+            return $this->householdRedirect($householdNo, 'error', 'This household already has a spouse. Only one spouse may be recorded.', true);
         }
 
         // ── PWD ID upload validation ─────────────────────────────────────
         if ($isPwd) {
             $f = $this->request->getFile('id_pwd');
             if (! $f || ! $f->isValid()) {
-                return redirect()->back()
-                    ->with('error', 'PWD ID upload is required when marking a member as PWD.')
-                    ->withInput();
+                return $this->householdRedirect($householdNo, 'error', 'PWD ID upload is required when marking a member as PWD.', true);
             }
         }
 
@@ -2775,9 +2798,7 @@ class CensusController extends BaseController
                 (string) ($post['first_name'] ?? ''),
                 $post['date_of_birth'] ?? null
             )) {
-                return redirect()->back()
-                    ->with('error', 'This member is already recorded in another household. Duplicate census information was not saved.')
-                    ->withInput();
+                return $this->householdRedirect($householdNo, 'error', 'This member is already recorded in another household. Duplicate census information was not saved.', true);
             }
 
             $memberId = $this->memberModel->insert([
@@ -2802,10 +2823,10 @@ class CensusController extends BaseController
         } catch (\CodeIgniter\Database\Exceptions\DatabaseException $e) {
             $msg = $e->getMessage();
             if (str_contains($msg, 'uq_members_philhealth') || str_contains($msg, 'philhealth_no')) {
-                return redirect()->back()->with('error', 'That PhilHealth number is already registered to another member.')->withInput();
+                return $this->householdRedirect($householdNo, 'error', 'That PhilHealth number is already registered to another member.', true);
             }
             if (str_contains($msg, 'uq_members_person')) {
-                return redirect()->back()->with('error', 'A member with the same name and date of birth already exists in this household.')->withInput();
+                return $this->householdRedirect($householdNo, 'error', 'A member with the same name and date of birth already exists in this household.', true);
             }
             throw $e;
         }
@@ -2820,8 +2841,7 @@ class CensusController extends BaseController
             $this->memberModel->update($memberId, ['id_senior_path' => $seniorPath]);
         }
 
-        return redirect()->to('/' . $role . '/household/' . $householdNo)
-            ->with('success', 'Member added successfully.');
+        return $this->householdRedirect($householdNo, 'success', 'Member added successfully.');
     }
 
     // ── Add spouse + children + others for existing household (family form) ──
@@ -2829,7 +2849,6 @@ class CensusController extends BaseController
     public function addFamilyMembers(string $householdNo)
     {
         $post = $this->request->getPost();
-        $role = session()->get('role');
 
         $hasExistingSpouse = $this->memberModel
             ->where('household_no', $householdNo)
@@ -2837,9 +2856,7 @@ class CensusController extends BaseController
             ->countAllResults() > 0;
 
         if ($hasExistingSpouse && trim((string) ($post['spouse_last_name'] ?? '')) !== '') {
-            return redirect()->back()
-                ->with('error', 'This household already has a spouse. Add a child or another household member instead.')
-                ->withInput();
+            return $this->householdRedirect($householdNo, 'error', 'This household already has a spouse. Add a child or another household member instead.', true);
         }
 
         $members = [];
@@ -2859,7 +2876,7 @@ class CensusController extends BaseController
                 'monthly_income'         => $post['spouse_income']                 ?? 0,
                 'philhealth_no'          => $post['spouse_philhealth']             ?? null,
                 'educational_attainment' => $post['spouse_educational_attainment'] ?? null,
-                'grade_level'            => null,
+                'grade_level'            => trim((string) ($post['spouse_grade'] ?? '')) !== '' ? trim((string) $post['spouse_grade']) : null,
                 'is_pwd'                 => $spousePwd,
                 'pwd_type'               => $spousePwd ? ($post['spouse_pwd_type'] ?? null) : null,
             ];
@@ -2942,19 +2959,20 @@ class CensusController extends BaseController
             foreach ($post['other_last_name'] as $i => $lastName) {
                 if (empty(trim($lastName))) continue;
                 $otherPwd = ($post['other_pwd'][$i] ?? '0') === '1' ? 1 : 0;
+                $otherRelationship = strtolower(trim((string) ($post['other_relationship'][$i] ?? '')));
                 $members[] = [
-                    'relationship'           => strtolower($post['other_relationship'][$i] ?? 'other_relative'),
+                    'relationship'           => $otherRelationship !== '' ? $otherRelationship : 'other_relative',
                     'last_name'              => strtoupper(trim($lastName)),
                     'first_name'             => strtoupper(trim($post['other_first_name'][$i]  ?? '')),
                     'middle_name'            => strtoupper(trim($post['other_middle_name'][$i] ?? '')) ?: null,
                     'suffix'                 => $post['other_suffix'][$i]      ?? null,
                     'date_of_birth'          => $post['other_dob'][$i]         ?? null,
                     'gender'                 => $post['other_gender'][$i]      ?? null,
-                    'occupation'             => null,
+                    'occupation'             => strtoupper(trim((string) ($post['other_occupation'][$i] ?? ''))) ?: null,
                     'monthly_income'         => 0,
                     'philhealth_no'          => null,
-                    'educational_attainment' => null,
-                    'grade_level'            => null,
+                    'educational_attainment' => ($post['other_education'][$i] ?? '') !== '' ? $post['other_education'][$i] : null,
+                    'grade_level'            => trim((string) ($post['other_grade'][$i] ?? '')) !== '' ? trim((string) $post['other_grade'][$i]) : null,
                     'is_pwd'                 => $otherPwd,
                     'pwd_type'               => $otherPwd ? ($post['other_pwd_type'][$i] ?? null) : null,
                 ];
@@ -2963,12 +2981,11 @@ class CensusController extends BaseController
 
         $minorCivilStatusError = $this->validateMinorCivilStatuses($members);
         if ($minorCivilStatusError !== null) {
-            return redirect()->back()->with('error', $minorCivilStatusError)->withInput();
+            return $this->householdRedirect($householdNo, 'error', $minorCivilStatusError, true);
         }
 
         if (empty($members)) {
-            return redirect()->to('/' . $role . '/household/' . $householdNo)
-                ->with('error', 'No members were provided. Please fill in at least one name.');
+            return $this->householdRedirect($householdNo, 'error', 'No members were provided. Please fill in at least one name.');
         }
 
         $head = $this->householdModel->find($householdNo);
@@ -2985,7 +3002,7 @@ class CensusController extends BaseController
         }
         $ageError = $this->validateFamilyAges($head['date_of_birth'] ?? null, $spouseDob, $childDobs);
         if ($ageError !== null) {
-            return redirect()->back()->with('error', $ageError)->withInput();
+            return $this->householdRedirect($householdNo, 'error', $ageError, true);
         }
 
         $seenMembers = [];
@@ -2995,9 +3012,7 @@ class CensusController extends BaseController
                 . strtoupper(trim((string) ($member['first_name'] ?? ''))) . '|'
                 . $memberDate;
             if ($memberDate !== '' && isset($seenMembers[$memberKey])) {
-                return redirect()->back()
-                    ->with('error', 'The same member information was entered more than once. Duplicate information was not saved.')
-                    ->withInput();
+                return $this->householdRedirect($householdNo, 'error', 'The same member information was entered more than once. Duplicate information was not saved.', true);
             }
             if ($memberDate !== '') {
                 $seenMembers[$memberKey] = true;
@@ -3007,9 +3022,7 @@ class CensusController extends BaseController
                 (string) ($member['first_name'] ?? ''),
                 $member['date_of_birth'] ?? null
             )) {
-                return redirect()->back()
-                    ->with('error', 'One or more members are already recorded in the census. Duplicate information was not saved.')
-                    ->withInput();
+                return $this->householdRedirect($householdNo, 'error', 'One or more members are already recorded in the census. Duplicate information was not saved.', true);
             }
         }
 
@@ -3025,22 +3038,25 @@ class CensusController extends BaseController
             }
         }
 
-        return redirect()->to('/' . $role . '/household/' . $householdNo)
-            ->with('success', $added . ' member' . ($added !== 1 ? 's' : '') . ' added successfully.');
+        return $this->householdRedirect($householdNo, 'success', $added . ' member' . ($added !== 1 ? 's' : '') . ' added successfully.');
     }
 
     // ── Update a single member ────────────────────────────────────────────────
 
     public function updateMember(int $memberId)
     {
-        $post        = $this->request->getPost();
-        $role        = session()->get('role');
-        $householdNo = $post['household_no'] ?? '';
+        $post = $this->request->getPost();
+        if ($memberId <= 0) {
+            $memberId = (int) ($post['member_id'] ?? 0);
+        }
+        $householdNo = trim((string) ($post['household_no'] ?? ''));
 
         $current = $this->memberModel->find($memberId);
         if (! $current) {
-            return redirect()->to('/' . $role . '/household/' . $householdNo)
-                ->with('error', 'Member not found.');
+            return $this->householdRedirect($householdNo, 'error', 'Member not found.');
+        }
+        if ($householdNo === '') {
+            $householdNo = (string) ($current['household_no'] ?? '');
         }
 
         $relationship = strtolower(trim((string) ($post['relationship'] ?? 'other_relative')));
@@ -3050,9 +3066,7 @@ class CensusController extends BaseController
             $post['date_of_birth'] ?? null,
             (string) ($current['household_no'] ?? '')
         )) {
-            return redirect()->back()
-                ->with('error', 'This person is already recorded elsewhere in the census. Duplicate information was not saved.')
-                ->withInput();
+            return $this->householdRedirect($householdNo, 'error', 'This person is already recorded elsewhere in the census. Duplicate information was not saved.', true);
         }
         if (
             $relationship === 'spouse' && strtolower((string) ($current['relationship'] ?? '')) !== 'spouse'
@@ -3062,9 +3076,7 @@ class CensusController extends BaseController
             ->where('id !=', $memberId)
             ->countAllResults() > 0
         ) {
-            return redirect()->back()
-                ->with('error', 'This household already has a spouse. Only one spouse may be recorded.')
-                ->withInput();
+            return $this->householdRedirect($householdNo, 'error', 'This household already has a spouse. Only one spouse may be recorded.', true);
         }
 
         $civilStatus = array_key_exists('marital_status', $post)
@@ -3072,9 +3084,7 @@ class CensusController extends BaseController
             : normalize_civil_status($current['marital_status'] ?? null);
         $memberAge = $this->ageFromDate($post['date_of_birth'] ?? null);
         if ($relationship === 'child' && $memberAge !== null && $memberAge < 18 && $civilStatus !== 'Single') {
-            return redirect()->back()
-                ->with('error', 'A child under 18 must have Civil Status set to Single.')
-                ->withInput();
+            return $this->householdRedirect($householdNo, 'error', 'A child under 18 must have Civil Status set to Single.', true);
         }
 
         $isPwd = ($post['is_pwd'] ?? '0') === '1' ? 1 : 0;
@@ -3084,9 +3094,7 @@ class CensusController extends BaseController
 
         // ── PWD ID upload validation ─────────────────────────────────────
         if ($isPwd && ! $hasExistingPwdId && ! $hasNewPwdFile) {
-            return redirect()->back()
-                ->with('error', 'PWD ID upload is required (no existing ID on file for this member).')
-                ->withInput();
+            return $this->householdRedirect($householdNo, 'error', 'PWD ID upload is required (no existing ID on file for this member).', true);
         }
 
         // ── Process PWD ID upload ────────────────────────────────────────
@@ -3110,7 +3118,7 @@ class CensusController extends BaseController
             'middle_name'            => strtoupper($post['middle_name'] ?? ''),
             'suffix'                 => $post['suffix']                 ?? null,
             'date_of_birth'          => $post['date_of_birth']          ?? null,
-            'gender'                 => array_key_exists('gender', $post) ? ($post['gender'] ?: null) : ($current['gender'] ?? null),
+            'gender'                 => array_key_exists('gender', $post) ? (($post['gender'] ?? '') !== '' ? $post['gender'] : null) : ($current['gender'] ?? null),
             'marital_status'         => $civilStatus,
             'occupation'             => strtoupper($post['occupation']  ?? ''),
             'work_detail'            => strtoupper(trim((string) ($post['occupation'] ?? ''))) === 'WORKING STUDENT'
@@ -3120,16 +3128,19 @@ class CensusController extends BaseController
                 : null,
             'monthly_income'         => $post['monthly_income']         ?? 0,
             'philhealth_no'          => $post['philhealth_no']          ?? null,
-            'educational_attainment' => $post['educational_attainment'] ?? null,
-            'grade_level'            => $post['grade_level']            ?? null,
+            'educational_attainment' => array_key_exists('educational_attainment', $post)
+                ? (($post['educational_attainment'] ?? '') !== '' ? $post['educational_attainment'] : null)
+                : ($current['educational_attainment'] ?? null),
+            'grade_level'            => array_key_exists('grade_level', $post)
+                ? (trim((string) $post['grade_level']) !== '' ? trim((string) $post['grade_level']) : null)
+                : ($current['grade_level'] ?? null),
             'is_pwd'                 => $isPwd,
             'pwd_type'               => $isPwd ? ($post['pwd_type'] ?? null) : null,
             'id_pwd_path'            => $isPwd ? $idPwdPath : null,
             'id_senior_path'         => $isSenior ? $idSeniorPath : null,
         ]);
 
-        return redirect()->to('/' . $role . '/household/' . $householdNo)
-            ->with('success', 'Member updated successfully.');
+        return $this->householdRedirect($householdNo, 'success', 'Member updated successfully.');
     }
 
     // ── Delete a single member ────────────────────────────────────────────────

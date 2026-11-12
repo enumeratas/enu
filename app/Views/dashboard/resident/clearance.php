@@ -821,7 +821,7 @@
                 </button>
             </div>
 
-            <form action="/<?= $requestRole ?>/clearance/store" method="post" id="clearanceForm" data-offline-sync="clearance_request" data-offline-verified="1" novalidate>
+            <form action="<?= esc(site_url($requestRole . '/clearance/store')) ?>" method="post" id="clearanceForm" data-offline-sync="clearance_request" data-offline-verified="1" novalidate>
                 <p data-offline-sync-status aria-live="polite" style="font-size:12px;color:#667085;margin:0 0 12px;display:block;"></p>
                 <?= csrf_field() ?>
                 <div class="clr-form-body" style="max-height:72vh;overflow-y:auto;">

@@ -454,9 +454,17 @@ class UIController extends BaseController
         \App\Libraries\PendingRequestExpiry::sweep();
         $db = \Config\Database::connect();
 
-        $totalHouseholds  = (int) $db->table('households')->countAllResults();
-        $totalMembers     = (int) $db->table('household_members')->countAllResults();
-        $totalPopulation  = $totalHouseholds + $totalMembers;
+        // Match Census Records with no filters: approved households, plus every
+        // member who belongs to an approved household.
+        $approvedHouseholds = static function () use ($db) {
+            return $db->table('households')->where('approval_status', 'approved');
+        };
+        $totalHouseholds = (int) $approvedHouseholds()->countAllResults();
+        $totalMembers = (int) $db->table('household_members m')
+            ->join('households h', 'h.household_no = m.household_no', 'inner')
+            ->where('h.approval_status', 'approved')
+            ->countAllResults();
+        $totalPopulation = $totalHouseholds + $totalMembers;
 
         $pendingClearances  = (int) $db->table('clearance_requests')->where('status', 'pending')->countAllResults();
         $approvedClearances = (int) $db->table('clearance_requests')->where('status', 'approved')->countAllResults();
@@ -468,10 +476,10 @@ class UIController extends BaseController
 
         $pendingAccounts  = (int) $db->table('users')->where('status', 'pending')->whereIn('role', ['resident', 'sk'])->countAllResults();
 
-        $pwds        = (int) $db->table('households')->where('is_pwd', 1)->countAllResults();
-        $seniors     = (int) $db->table('households')->where('is_senior_citizen', 1)->countAllResults();
-        $soloParents = (int) $db->table('households')->where('is_solo_parent', 1)->countAllResults();
-        $fourPs      = (int) $db->table('households')->where('is_4ps', 1)->countAllResults();
+        $pwds        = (int) $approvedHouseholds()->where('is_pwd', 1)->countAllResults();
+        $seniors     = (int) $approvedHouseholds()->where('is_senior_citizen', 1)->countAllResults();
+        $soloParents = (int) $approvedHouseholds()->where('is_solo_parent', 1)->countAllResults();
+        $fourPs      = (int) $approvedHouseholds()->where('is_4ps', 1)->countAllResults();
 
         // Recent clearance requests (last 5)
         $recentClearances = $db->table('clearance_requests cr')

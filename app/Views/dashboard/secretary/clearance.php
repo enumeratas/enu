@@ -219,6 +219,7 @@
             </div>
 
             <!-- Document Templates Section -->
+            <div id="clearancePrintSettings"></div>
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:28px;margin-bottom:12px;">
                 <h3 class="db-section-title" style="margin:0;"><i class="fas fa-file-alt" style="color:#5b6fd6;margin-right:8px;"></i>Document Templates</h3>
             </div>
@@ -326,7 +327,7 @@
                 </button>
             </div>
             <?php $formRole = session()->get('role') === 'admin' ? 'admin' : 'secretary'; ?>
-            <form action="/<?= esc($formRole) ?>/clearance/store-secretary" method="post" id="secretaryClearanceForm" data-offline-sync="clearance_request" data-offline-verified="1" novalidate>
+            <form action="<?= esc(site_url($formRole . '/clearance/store-secretary')) ?>" method="post" id="secretaryClearanceForm" data-offline-sync="clearance_request" data-offline-verified="1" novalidate>
                 <?= csrf_field() ?>
                 <p data-offline-sync-status aria-live="polite" style="font-size:12px;color:#667085;margin:0 22px;display:block;"></p>
                 <div class="db-modal-body" style="padding:22px 24px;display:flex;flex-direction:column;gap:16px;">
@@ -754,7 +755,7 @@
         }
     </style>
 
-    <script src="/js/doc-templates.js"></script>
+    <script src="/js/doc-templates.js?v=2"></script>
     <script>
         document.querySelectorAll('.db-nav-item').forEach(i =>
             i.addEventListener('click', () => document.getElementById('sidebar').classList.remove('open'))
@@ -965,6 +966,7 @@
             BisDoc.setBarangay(pageVars);
             BisDoc.setCaptain(pageVars.captain_name || '');
             BisDoc.setCensus({ name: 'Juan Dela Cruz', civil: 'Single', zone: 'Zone 1' });
+            BisDoc.mountPrintSettings(document.getElementById('clearancePrintSettings'));
         }
         function normalizeDocKey(type) {
             return type === 'business' ? 'business_permit' : type;

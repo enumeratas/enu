@@ -25,6 +25,7 @@ class HouseholdModel extends Model
         'nationality',
         'religion',
         'occupation',
+        'grade_level',
         'monthly_income',
         'contact_number',
         'educational_attainment',

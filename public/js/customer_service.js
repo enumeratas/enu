@@ -1658,6 +1658,12 @@
 
         }
 
+        const closedNote = el('supportNotice');
+        if (closedNote && mode === 'closed') {
+            closedNote.textContent = 'This conversation is closed. You can read the chat history for 30 days, but replies are turned off.';
+            closedNote.style.display = 'block';
+        }
+
 
         if (input) {
 
@@ -2911,6 +2917,10 @@
 
             await loadSupportConversations();
 
+            const requestedConversation = Number(new URLSearchParams(window.location.search).get('conversation_id') || 0);
+            if (requestedConversation > 0) {
+                await selectConversation(requestedConversation);
+            }
 
             startPolling();
 

@@ -79,7 +79,7 @@
                 </div>
 
                 <!-- ── Form ── -->
-                <form action="/<?= esc(session()->get('role')) ?>/census/store" method="post" id="censusForm" enctype="multipart/form-data">
+                <form action="/<?= esc(session()->get('role')) ?>/census/store" method="post" id="censusForm" enctype="multipart/form-data" data-offline-sync="off">
                     <?= csrf_field() ?>
                     <input type="hidden" name="save_mode" id="saveModeField" value="complete">
 
@@ -475,6 +475,17 @@
                                         <div class="pf-label">Occupation</div><input type="text" class="pf-ctrl pf-upper pf-alpha" name="spouse_occupation" placeholder="E.G. HOUSEWIFE">
                                     </div>
                                     <div>
+                                        <div class="pf-label">Grade Level</div>
+                                        <select class="pf-ctrl" name="spouse_grade">
+                                            <option value="">— Select Grade / Year —</option>
+                                            <optgroup label="Elementary"><option>Grade 1</option><option>Grade 2</option><option>Grade 3</option><option>Grade 4</option><option>Grade 5</option><option>Grade 6</option></optgroup>
+                                            <optgroup label="Junior High School"><option>Grade 7</option><option>Grade 8</option><option>Grade 9</option><option>Grade 10</option></optgroup>
+                                            <optgroup label="Senior High School"><option>Grade 11</option><option>Grade 12</option></optgroup>
+                                            <optgroup label="College / University"><option>1st Year College</option><option>2nd Year College</option><option>3rd Year College</option><option>4th Year College</option><option>5th Year College</option></optgroup>
+                                            <optgroup label="Vocational / Technical"><option>1st Year Tech-Voc</option><option>2nd Year Tech-Voc</option></optgroup>
+                                        </select>
+                                    </div>
+                                    <div>
                                         <div class="pf-label">Monthly Income (₱)</div><input type="number" class="pf-ctrl" name="spouse_income" placeholder="0.00" min="0" step="0.01">
                                     </div>
                                 </div>
@@ -692,20 +703,19 @@
                 <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="other_dob[]"><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
                 <div class="pf-field-xs"><div class="pf-label">Gender</div><select class="pf-ctrl" name="other_gender[]"><option value="">—Select—</option><option>Male</option><option>Female</option></select></div>
                 <div class="pf-field-sm"><div class="pf-label">Relationship</div>
-                    <select class="pf-ctrl" name="other_relationship[]">
-                        <option value="">— Select —</option>
-                        <option>Father</option>
-                        <option>Mother</option>
-                        <option>Sibling</option>
-                        <option>Grandparent</option>
-                        <option>Grandchild</option>
-                        <option>Aunt</option>
-                        <option>Uncle</option>
-                        <option>Father-in-Law</option>
-                        <option>Mother-in-Law</option>
-                        <option>Cousin</option>
-                        <option>Other Relative</option>
-                        <option>Non-relative</option>
+                    ' . other_relationship_select('pf-ctrl') . '
+                </div>
+                <div class="pf-field-wrap"><div class="pf-label">Educational Attainment</div>
+                    ' . education_attainment_select('other_education[]', 'pf-ctrl') . '
+                </div>
+                <div class="pf-field-wrap"><div class="pf-label">Grade Level</div>
+                    <select class="pf-ctrl" name="other_grade[]">
+                        <option value="">— Select Grade / Year —</option>
+                        <optgroup label="Elementary"><option>Grade 1</option><option>Grade 2</option><option>Grade 3</option><option>Grade 4</option><option>Grade 5</option><option>Grade 6</option></optgroup>
+                        <optgroup label="Junior High School"><option>Grade 7</option><option>Grade 8</option><option>Grade 9</option><option>Grade 10</option></optgroup>
+                        <optgroup label="Senior High School"><option>Grade 11</option><option>Grade 12</option></optgroup>
+                        <optgroup label="College / University"><option>1st Year College</option><option>2nd Year College</option><option>3rd Year College</option><option>4th Year College</option><option>5th Year College</option></optgroup>
+                        <optgroup label="Vocational / Technical"><option>1st Year Tech-Voc</option><option>2nd Year Tech-Voc</option></optgroup>
                     </select>
                 </div>
                 <div class="pf-field-sm"><div class="pf-label">Voter?</div>
@@ -1362,12 +1372,13 @@
                         <div class="pf-field-sm"><div class="pf-label">Date of Birth</div><div class="pf-date-wrap"><input type="date" class="pf-ctrl" name="other_dob[]"><i class="fas fa-calendar-alt pf-date-icon"></i></div></div>
                         <div class="pf-field-xs"><div class="pf-label">Gender</div><select class="pf-ctrl" name="other_gender[]"><option value="">—Select—</option><option>Male</option><option>Female</option></select></div>
                         <div class="pf-field-sm"><div class="pf-label">Relationship</div>
-                            <select class="pf-ctrl" name="other_relationship[]">
-                                <option value="">— Select —</option>
-                                <option>Father</option><option>Mother</option><option>Sibling</option>
-                                <option>Grandparent</option><option>Grandchild</option><option>Aunt/Uncle</option>
-                                <option>Cousin</option><option>Other Relative</option><option>Non-relative</option>
-                            </select>
+                            <?= other_relationship_select('pf-ctrl') ?>
+                        </div>
+                        <div class="pf-field-wrap"><div class="pf-label">Educational Attainment</div>
+                            <?= education_attainment_select('other_education[]', 'pf-ctrl') ?>
+                        </div>
+                        <div class="pf-field-wrap"><div class="pf-label">Grade Level</div>
+                            <select class="pf-ctrl" name="other_grade[]">${gradeOptions()}</select>
                         </div>
                         <div class="pf-field-sm"><div class="pf-label">Voter?</div>
                             <div style="display:flex;gap:12px;padding:7px 0;">

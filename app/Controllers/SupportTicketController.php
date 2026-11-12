@@ -162,10 +162,19 @@ class SupportTicketController extends BaseController
 
         $db = \Config\Database::connect();
         $search = \App\Libraries\RecordSearch::term();
+        $conversationFields = $db->tableExists('chat_conversations') ? $db->getFieldNames('chat_conversations') : [];
+        $select = 't.*, u.first_name, u.last_name, u.username';
         $ticketQuery = $db->table('support_tickets t')
-            ->select('t.*, u.first_name, u.last_name, u.username')
             ->join('users u', 'u.id = t.user_id', 'left')
             ->where('t.target_role', $role);
+        if (is_array($conversationFields) && in_array('support_mode', $conversationFields, true)) {
+            $select .= ', c.support_mode AS chat_mode, c.updated_at AS chat_updated_at';
+            if (in_array('closed_at', $conversationFields, true)) {
+                $select .= ', c.closed_at AS chat_closed_at';
+            }
+            $ticketQuery->join('chat_conversations c', 'c.id = t.conversation_id', 'left');
+        }
+        $ticketQuery->select($select, false);
         if ($search !== '') {
             $ticketQuery->where(\App\Libraries\RecordSearch::clause([
                 'u.first_name',
