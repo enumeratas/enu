@@ -116,6 +116,38 @@
             font-size: 13px;
         }
 
+        .cud-member-details {
+            margin-top: 8px;
+            font-size: 12px;
+        }
+
+        .cud-member-details summary {
+            color: #1d2448;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .cud-member-details dl {
+            display: grid;
+            grid-template-columns: minmax(100px, auto) 1fr;
+            gap: 3px 8px;
+            margin: 8px 0 0;
+            padding: 8px 10px;
+            background: #f8f9fc;
+            border: 1px solid #e2e6ee;
+        }
+
+        .cud-member-details dt {
+            color: #6b7689;
+            font-weight: 700;
+        }
+
+        .cud-member-details dd {
+            margin: 0;
+            color: #1c2b45;
+            overflow-wrap: anywhere;
+        }
+
         .cud-card {
             background: #fff;
             border: 1px solid #e2e6ee;
@@ -158,7 +190,7 @@
             box-sizing: border-box;
             padding: 10px 12px;
             border: 1px solid #d7dce6;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             font-size: 13px;
         }
 
@@ -313,11 +345,76 @@
                                     if (! empty($request['reason'])) {
                                         $detail .= ' — ' . $request['reason'];
                                     }
+                                    $information = [];
+                                    if (($request['request_type'] ?? '') === 'add') {
+                                        foreach ([
+                                            'first_name' => 'First name',
+                                            'middle_name' => 'Middle name',
+                                            'last_name' => 'Last name',
+                                            'suffix' => 'Suffix',
+                                            'date_of_birth' => 'Date of birth',
+                                            'gender' => 'Gender',
+                                            'relationship' => 'Relationship',
+                                            'occupation' => 'Occupation',
+                                            'monthly_income' => 'Monthly income',
+                                            'educational_attainment' => 'Education',
+                                        ] as $field => $label) {
+                                            $value = trim((string) ($addPayload[$field] ?? ''));
+                                            if ($value !== '') {
+                                                $information[$label] = $value;
+                                            }
+                                        }
+                                    } elseif ($memName !== '') {
+                                        $information['Member'] = $memName;
+                                        if (! empty($request['mem_middle'])) {
+                                            $information['Middle name'] = $request['mem_middle'];
+                                        }
+                                        if (! empty($request['mem_suffix'])) {
+                                            $information['Suffix'] = $request['mem_suffix'];
+                                        }
+                                        if (! empty($request['mem_birth_date'])) {
+                                            $information['Date of birth'] = $request['mem_birth_date'];
+                                        }
+                                        if (! empty($request['mem_gender'])) {
+                                            $information['Gender'] = $request['mem_gender'];
+                                        }
+                                        if (! empty($request['mem_relationship'])) {
+                                            $information['Relationship'] = $request['mem_relationship'];
+                                        }
+                                        if (! empty($request['mem_occupation'])) {
+                                            $information['Occupation'] = $request['mem_occupation'];
+                                        }
+                                        if (array_key_exists('mem_monthly_income', $request) && $request['mem_monthly_income'] !== null && $request['mem_monthly_income'] !== '') {
+                                            $information['Monthly income'] = $request['mem_monthly_income'];
+                                        }
+                                        if (! empty($request['mem_education'])) {
+                                            $information['Education'] = $request['mem_education'];
+                                        }
+                                    }
+                                    if (($request['request_type'] ?? '') === 'move' && ! empty($request['destination_household_no'])) {
+                                        $information['Destination household'] = '#' . $request['destination_household_no'];
+                                    }
+                                    if (! empty($request['reason'])) {
+                                        $information['Reason'] = $request['reason'];
+                                    }
                                     ?>
                                     <tr>
                                         <td><span class="dbadge dbadge--pending"><?= esc(ucfirst((string) ($request['request_type'] ?? 'change'))) ?></span></td>
                                         <td>#<?= esc($request['household_no'] ?? '—') ?></td>
-                                        <td><?= esc($detail) ?></td>
+                                        <td>
+                                            <?= esc($detail) ?>
+                                            <?php if ($information !== []): ?>
+                                                <details class="cud-member-details">
+                                                    <summary>View information</summary>
+                                                    <dl>
+                                                        <?php foreach ($information as $label => $value): ?>
+                                                            <dt><?= esc($label) ?></dt>
+                                                            <dd><?= esc($value) ?></dd>
+                                                        <?php endforeach; ?>
+                                                    </dl>
+                                                </details>
+                                            <?php endif; ?>
+                                        </td>
                                         <td><?= esc($reqName) ?></td>
                                         <td style="white-space:nowrap;">
                                             <form method="post" action="/<?= esc($role) ?>/member-request/approve/<?= (int) $request['id'] ?>" style="display:inline-flex;align-items:center;gap:6px;" onsubmit="return this.information_verified.checked;">
@@ -455,7 +552,7 @@
                     I have reviewed and verified this information.
                 </label>
                 <input type="text" id="cudRejectReason" placeholder="Rejection reason (optional)"
-                    style="flex:1;min-width:160px;padding:8px 10px;border:1px solid #d7dce6;border-radius:8px;font-family:'Poppins',sans-serif;font-size:12px;">
+                    style="flex:1;min-width:160px;padding:8px 10px;border:1px solid #d7dce6;border-radius:8px;font-family: Arial, sans-serif;font-size:12px;">
                 <button class="db-btn db-btn--outline db-btn--sm" onclick="submitCudAction('reject')">
                     <i class="fas fa-times"></i> Reject
                 </button>

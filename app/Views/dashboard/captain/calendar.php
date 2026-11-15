@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -253,16 +253,16 @@
                 <?= csrf_field() ?>
                 <div style="margin-bottom:14px;">
                     <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">Title <span style="color:#c0392b;">*</span></label>
-                    <input type="text" name="title" id="addTitle" class="db-input" placeholder="e.g. Barangay Meeting" required style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13.5px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;">
+                    <input type="text" name="title" id="addTitle" class="db-input" placeholder="e.g. Barangay Meeting" required style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13.5px;font-family: Arial, sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;">
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
                     <div>
                         <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">Date <span style="color:#c0392b;">*</span></label>
-                        <input type="text" name="event_date" id="addDate" class="db-input" required autocomplete="off" placeholder="YYYY-MM-DD" style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;">
+                        <input type="text" name="event_date" id="addDate" class="db-input" required autocomplete="off" placeholder="YYYY-MM-DD" style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family: Arial, sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;">
                     </div>
                     <div>
                         <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">Type</label>
-                        <select name="event_type" style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;background:#fff;">
+                        <select name="event_type" style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family: Arial, sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;background:#fff;">
                             <option value="appointment">Appointment</option>
                             <option value="meeting">Meeting</option>
                             <option value="hearing">Hearing</option>
@@ -274,13 +274,13 @@
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
                     <div>
                         <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">Start Time</label>
-                        <select name="start_time" id="addStartTime" style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;background:#fff;" disabled>
+                        <select name="start_time" id="addStartTime" style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family: Arial, sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;background:#fff;" disabled>
                             <option value="">Select a date first</option>
                         </select>
                     </div>
                     <div>
                         <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">End Time</label>
-                        <select name="end_time" id="addEndTime" style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;background:#fff;" disabled>
+                        <select name="end_time" id="addEndTime" style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family: Arial, sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;background:#fff;" disabled>
                             <option value="">Select a start time</option>
                         </select>
                     </div>
@@ -288,11 +288,11 @@
                 <p id="addSlotNote" style="margin:-6px 0 14px;font-size:12px;color:#9aa0b4;"></p>
                 <div style="margin-bottom:14px;">
                     <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">Location</label>
-                    <input type="text" name="location" placeholder="e.g. Barangay Hall" style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13.5px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;">
+                    <input type="text" name="location" placeholder="e.g. Barangay Hall" style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13.5px;font-family: Arial, sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;">
                 </div>
                 <div style="margin-bottom:14px;">
                     <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">Description</label>
-                    <textarea name="description" rows="2" placeholder="Optional notes..." style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;resize:vertical;box-sizing:border-box;text-transform:none !important;"></textarea>
+                    <textarea name="description" rows="2" placeholder="Optional notes..." style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family: Arial, sans-serif;color:#1a1d2e;outline:none;resize:vertical;box-sizing:border-box;text-transform:none !important;"></textarea>
                 </div>
                 <?php if (in_array($role, ['secretary', 'admin'], true)): ?>
                     <div style="background:#f0f4ff;border:1px solid #d0d8f5;border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;">
@@ -304,8 +304,8 @@
                     </div>
                 <?php endif; ?>
                 <div style="display:flex;gap:10px;">
-                    <button type="button" onclick="closeModal('addModal')" style="flex:1;padding:11px;background:#f0f2f8;color:#4a5068;border:none;border-radius:9px;font-size:13.5px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;">Cancel</button>
-                    <button type="submit" style="flex:2;padding:11px;background:#1d2448;color:#fff;border:none;border-radius:9px;font-size:13.5px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;"><i class="fas fa-save"></i> Save Event</button>
+                    <button type="button" onclick="closeModal('addModal')" style="flex:1;padding:11px;background:#f0f2f8;color:#4a5068;border:none;border-radius:9px;font-size:13.5px;font-weight:600;font-family: Arial, sans-serif;cursor:pointer;">Cancel</button>
+                    <button type="submit" style="flex:2;padding:11px;background:#1d2448;color:#fff;border:none;border-radius:9px;font-size:13.5px;font-weight:600;font-family: Arial, sans-serif;cursor:pointer;"><i class="fas fa-save"></i> Save Event</button>
                 </div>
             </form>
         </div>
@@ -398,17 +398,17 @@
 
             document.getElementById('viewModalBody').innerHTML = body;
 
-            let actions = '<button onclick="closeModal(\'viewModal\')" style="flex:1;padding:10px;background:#f0f2f8;color:#4a5068;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:\'Poppins\',sans-serif;cursor:pointer;">Close</button>';
+            let actions = '<button onclick="closeModal(\'viewModal\')" style="flex:1;padding:10px;background:#f0f2f8;color:#4a5068;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:Arial,sans-serif;cursor:pointer;">Close</button>';
             if (!isBlotter && ev.id) {
                 const role = '<?= $role ?>';
-                actions += '<a href="/' + role + '/calendar/view/' + ev.id + '" style="flex:1;padding:10px;background:#1d2448;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:\'Poppins\',sans-serif;cursor:pointer;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-edit"></i> Edit</a>';
+                actions += '<a href="/' + role + '/calendar/view/' + ev.id + '" style="flex:1;padding:10px;background:#1d2448;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:Arial,sans-serif;cursor:pointer;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-edit"></i> Edit</a>';
                 actions += '<form action="/' + role + '/calendar/delete/' + ev.id + '" method="post" style="flex:1;" onsubmit="return confirm(\'Delete this event? This cannot be undone.\')">' +
                     '<?= csrf_field() ?>' +
-                    '<button type="submit" style="width:100%;padding:10px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:\'Poppins\',sans-serif;cursor:pointer;"><i class="fas fa-trash"></i> Delete</button>' +
+                    '<button type="submit" style="width:100%;padding:10px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:Arial,sans-serif;cursor:pointer;"><i class="fas fa-trash"></i> Delete</button>' +
                     '</form>';
             }
             if (isBlotter && ev.blotter_id) {
-                actions += '<a href="/<?= $role ?>/blotter/' + ev.blotter_id + '" style="flex:1;padding:10px;background:#1d2448;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:\'Poppins\',sans-serif;cursor:pointer;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-eye"></i> View Case</a>';
+                actions += '<a href="/<?= $role ?>/blotter/' + ev.blotter_id + '" style="flex:1;padding:10px;background:#1d2448;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:Arial,sans-serif;cursor:pointer;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-eye"></i> View Case</a>';
             }
             document.getElementById('viewModalActions').innerHTML = '<div style="display:flex;gap:10px;width:100%;">' + actions + '</div>';
 

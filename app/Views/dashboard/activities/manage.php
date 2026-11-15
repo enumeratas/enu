@@ -61,7 +61,7 @@
             box-sizing: border-box;
             padding: 10px 12px;
             border: 1px solid #d7dce6;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             font-size: 13px;
             color: #1a1d2e;
             background: #fff;
@@ -149,7 +149,7 @@
             width: 100%;
             padding: 10px 12px;
             border: 1.5px solid #e5e7eb;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             font-size: 13px;
             color: #1d2448;
             background: #fff;

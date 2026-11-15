@@ -160,7 +160,7 @@
             border-radius: 9px;
             font-size: 13.5px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             cursor: pointer;
             border: none;
             display: flex;

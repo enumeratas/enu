@@ -199,7 +199,7 @@
                         </div>
                         <div id="narrativeContent" style="margin-top:14px;">
                             <?php if ($role === 'secretary'): ?>
-                                <form action="/secretary/blotter/narrative/<?= $r['id'] ?>" method="post" data-offline-sync="blotter_narrative">
+                                <form action="/<?= esc($role) ?>/blotter/narrative/<?= $r['id'] ?>" method="post" data-offline-sync="blotter_narrative">
                                     <?= csrf_field() ?>
                                     <p data-offline-sync-status aria-live="polite" style="font-size:12px;color:#667085;margin:0 0 10px;"></p>
                                     <div class="bl-form-group">
@@ -232,7 +232,7 @@
                         </div>
                         <div id="hearingNarrativeContent" style="margin-top:14px;">
                             <?php if ($role === 'secretary'): ?>
-                                <form action="/secretary/blotter/hearing-narrative/<?= $r['id'] ?>" method="post" data-offline-sync="blotter_hearing">
+                                <form action="/<?= esc($role) ?>/blotter/hearing-narrative/<?= $r['id'] ?>" method="post" data-offline-sync="blotter_hearing">
                                     <?= csrf_field() ?>
                                     <p data-offline-sync-status aria-live="polite" style="font-size:12px;color:#667085;margin:0 0 10px;"></p>
                                     <div class="bl-form-group">
@@ -496,14 +496,14 @@
                             <!-- Issue button -->
                             <a href="/<?= esc($role) ?>/blotter/certificate/<?= (int)$r['id'] ?>"
                                 target="_blank" rel="noopener"
-                                style="display:flex;align-items:center;justify-content:center;gap:9px;width:100%;padding:12px 16px;background:linear-gradient(135deg,#e67e22,#ca6f1e);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;text-decoration:none;transition:opacity .18s;"
+                                style="display:flex;align-items:center;justify-content:center;gap:9px;width:100%;padding:12px 16px;background:linear-gradient(135deg,#e67e22,#ca6f1e);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;font-family: Arial, sans-serif;cursor:pointer;text-decoration:none;transition:opacity .18s;"
                                 onmouseover="this.style.opacity='.88'"
                                 onmouseout="this.style.opacity='1'">
                                 <i class="fas fa-file-alt"></i>
                                 View / Print Certificate to File Action
                             </a>
                             <a href="/<?= esc($role) ?>/blotter/certificate/<?= (int)$r['id'] ?>/download"
-                                style="display:flex;align-items:center;justify-content:center;gap:9px;width:100%;margin-top:8px;padding:11px 16px;background:#16325c;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;text-decoration:none;">
+                                style="display:flex;align-items:center;justify-content:center;gap:9px;width:100%;margin-top:8px;padding:11px 16px;background:#16325c;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:600;font-family: Arial, sans-serif;cursor:pointer;text-decoration:none;">
                                 <i class="fas fa-download"></i>
                                 Download Certificate (PDF)
                             </a>

@@ -150,7 +150,7 @@
             border-radius: 8px;
             font-size: 12px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             cursor: pointer;
             text-decoration: none;
             transition: opacity .15s;

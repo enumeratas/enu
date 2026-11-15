@@ -203,8 +203,6 @@ class ClearanceController extends BaseController
             $head       = $hm->find($user['household_no']);
             $memModel   = new HouseholdMemberModel();
             $rawMembers = $memModel->where('household_no', $user['household_no'])->findAll();
-            $cutoff     = (new \DateTime('today'))->modify('-18 years')->format('Y-m-d');
-
             $ownerName     = strtolower(trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')));
             $headName      = $head ? strtolower(trim(($head['first_name'] ?? '') . ' ' . ($head['last_name'] ?? ''))) : '';
             $ownerIsHead   = $head && ($ownerName === $headName);
@@ -218,22 +216,17 @@ class ClearanceController extends BaseController
                 }
             }
 
-            // Build the allowed name list: owner + all minor household members (only if head/spouse)
+            // Build the allowed name list: owner + all household members (only if head/spouse)
             $allowedNames = [$ownerName];
             if ($ownerIsHead || $ownerIsSpouse) {
                 foreach ($rawMembers as $m) {
-                    $rel     = strtolower(trim($m['relationship'] ?? ''));
-                    $dob     = $m['date_of_birth'] ?? null;
-                    $isMinor = $dob && $dob > $cutoff;
-                    if ($isMinor) {
-                        $allowedNames[] = strtolower(trim($m['first_name'] . ' ' . $m['last_name']));
-                    }
+                    $allowedNames[] = strtolower(trim($m['first_name'] . ' ' . $m['last_name']));
                 }
             }
 
             if (! in_array(strtolower(trim($forMember)), $allowedNames, true)) {
                 return redirect()->back()
-                    ->with('error', 'Document requests can only be made for yourself' . ($ownerIsHead || $ownerIsSpouse ? ' or any minor household member' : '') . '.')
+                    ->with('error', 'Document requests can only be made for yourself' . ($ownerIsHead || $ownerIsSpouse ? ' or a household member' : '') . '.')
                     ->withInput();
             }
 
@@ -1225,16 +1218,12 @@ class ClearanceController extends BaseController
 
                 $dob     = $member['date_of_birth'] ?? null;
                 $isMinor = is_string($dob) && $dob !== '' && $dob > $cutoff;
-                if (! $isMinor) {
-                    continue;
-                }
-
                 $rel = strtolower(trim((string) ($member['relationship'] ?? '')));
                 $members[] = [
                     'name'          => $memberName,
-                    'relationship'  => ucfirst($rel !== '' ? $rel : 'Member') . ' (Minor)',
+                    'relationship'  => ucfirst($rel !== '' ? $rel : 'Member') . ($isMinor ? ' (Minor)' : ''),
                     'date_of_birth' => $dob,
-                    'is_minor'      => true,
+                    'is_minor'      => $isMinor,
                 ];
             }
         }

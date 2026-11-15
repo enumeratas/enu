@@ -10,7 +10,7 @@
         * { box-sizing: border-box; }
         html, body { margin: 0; height: 100%; }
         body {
-            font-family: Poppins, sans-serif;
+            font-family: Arial, sans-serif;
             color: #1c2b45;
             background: #fff;
         }

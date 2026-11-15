@@ -83,8 +83,22 @@
             return (category && category.value === 'Clean-up Drive') || /clean[\s-]*up\s+drive/i.test(name);
         }
 
+        function hasRequirements() {
+            if (!requirements || requirements.hidden) {
+                return false;
+            }
+
+            return Array.prototype.some.call(
+                requirements.querySelectorAll('input[name="req_label[]"]'),
+                function (input) {
+                    return String(input.value || '').trim() !== '';
+                }
+            );
+        }
+
         function syncCleanup() {
             const cleanup = isCleanup();
+            const submissionWindow = !cleanup && hasRequirements();
             if (requirements) {
                 requirements.hidden = cleanup;
                 requirements.querySelectorAll('input, select, button, textarea').forEach(function (input) {
@@ -98,7 +112,7 @@
                 });
             }
             if (start) {
-                start.required = !cleanup;
+                start.required = submissionWindow;
                 start.disabled = cleanup;
             }
             if (end) {
@@ -111,6 +125,8 @@
 
         category && category.addEventListener('change', syncCleanup);
         title && title.addEventListener('input', syncCleanup);
+        requirements && requirements.addEventListener('input', syncCleanup);
+        requirements && requirements.addEventListener('change', syncCleanup);
         syncCleanup();
     }
 

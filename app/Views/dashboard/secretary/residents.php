@@ -331,7 +331,7 @@
             border: 1.5px solid #e2e5ef;
             border-radius: 9px;
             font-size: 13.5px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             color: #1a1d2e;
             background: #fff;
             outline: none;
@@ -422,7 +422,7 @@
             border-radius: 9px;
             font-size: 13.5px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             cursor: pointer;
             border: none;
             display: flex;
@@ -702,7 +702,7 @@
             border-radius: 9px;
             font-size: 13.5px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             cursor: pointer;
             border: none;
             display: flex;
@@ -1246,7 +1246,7 @@
                     <div class="form-group" id="cuDiffRejectGroup" style="display:none;">
                         <label for="cuDiffRejectReason">Rejection reason (optional)</label>
                         <textarea id="cuDiffRejectReason" name="remarks"
-                            style="width:100%;border:1.5px solid #dde4f0;border-radius:10px;padding:10px 12px;font-size:13px;font-family:Poppins,sans-serif;min-height:70px;resize:vertical;box-sizing:border-box;"
+                            style="width:100%;border:1.5px solid #dde4f0;border-radius:10px;padding:10px 12px;font-size:13px;font-family:Arial,sans-serif;min-height:70px;resize:vertical;box-sizing:border-box;"
                             placeholder="Explain why the update is being rejected&hellip;"></textarea>
                     </div>
                 </div>

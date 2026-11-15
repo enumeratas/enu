@@ -50,7 +50,7 @@
             box-sizing: border-box;
             padding: 10px 12px;
             border: 1px solid #d7dce6;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             font-size: 13px;
             color: #1a1d2e;
             background: #fff;

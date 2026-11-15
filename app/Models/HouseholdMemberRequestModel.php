@@ -34,7 +34,7 @@ class HouseholdMemberRequestModel extends Model
     public function listByStatus(?string $status = null): array
     {
         $builder = $this->db->table($this->table . ' r')
-            ->select('r.*, u.first_name AS req_first, u.last_name AS req_last, m.first_name AS mem_first, m.last_name AS mem_last, m.relationship AS mem_relationship')
+            ->select('r.*, u.first_name AS req_first, u.last_name AS req_last, m.first_name AS mem_first, m.middle_name AS mem_middle, m.last_name AS mem_last, m.suffix AS mem_suffix, m.date_of_birth AS mem_birth_date, m.gender AS mem_gender, m.relationship AS mem_relationship, m.occupation AS mem_occupation, m.monthly_income AS mem_monthly_income, m.educational_attainment AS mem_education')
             ->join('users u', 'u.id = r.requested_by', 'left')
             ->join('household_members m', 'm.id = r.member_id', 'left')
             ->orderBy('r.created_at', 'DESC')

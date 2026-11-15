@@ -25,6 +25,11 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
             background: #f0f2f8;
         }
 
+        @page {
+            size: legal landscape;
+            margin: 0;
+        }
+
         /* ── Toolbar (screen only) ── */
         #toolbar {
             position: fixed;
@@ -108,12 +113,41 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
             overflow-x: auto;
         }
 
+        @media print {
+            body {
+                background: #fff;
+            }
+
+            #toolbar {
+                display: none;
+            }
+
+            #content-area {
+                margin: 0;
+                padding: 0;
+                overflow: visible;
+            }
+
+            .zone-page {
+                width: 100%;
+                min-height: 0;
+                margin: 0;
+                padding: 5mm;
+                box-shadow: none;
+                page-break-after: always;
+            }
+
+            .zone-page:last-child {
+                page-break-after: auto;
+            }
+        }
+
         .zone-page {
             background: #fff;
-            width: 420mm;
-            min-height: 185mm;
+            width: 330mm;
+            min-height: 215mm;
             margin: 0 auto 24px;
-            padding: 8mm 6mm;
+            padding: 5mm;
             box-shadow: 0 2px 12px rgba(0, 0, 0, .12);
         }
 
@@ -172,21 +206,22 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
 
         table.ct thead th {
             background: #d9d9d9;
-            font-size: 8.5pt;
+            font-size: 6.5pt;
             font-weight: 700;
             text-align: center;
-            line-height: 1.25;
+            line-height: 1.1;
         }
 
         table.ct tbody td {
-            font-size: 10pt;
+            font-size: 7.5pt;
             font-weight: 400;
-            line-height: 1.35;
+            line-height: 1.15;
+            padding: 2px 3px;
         }
 
         table.ct td.name-cell {
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 10.5pt;
+            font-size: 8pt;
             font-weight: 400;
             text-align: left;
             letter-spacing: 0;
@@ -480,7 +515,42 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
     </div><!-- end content-area -->
 
     <script>
+        function paginateCensusPages() {
+            document.querySelectorAll('.zone-page').forEach(function (page) {
+                const table = page.querySelector('table.ct');
+                const body = table && table.querySelector('tbody');
+                if (!table || !body) {
+                    return;
+                }
+
+                const rows = Array.from(body.querySelectorAll('tr:not(.hh-spacer)'));
+                if (rows.length <= 18) {
+                    body.querySelectorAll('tr.hh-spacer').forEach(function (spacer) { spacer.remove(); });
+                    return;
+                }
+
+                const chunks = [];
+                for (let index = 0; index < rows.length; index += 18) {
+                    chunks.push(rows.slice(index, index + 18));
+                }
+
+                const fragment = document.createDocumentFragment();
+                chunks.forEach(function (chunk, index) {
+                    const nextPage = index === 0 ? page : page.cloneNode(true);
+                    const nextBody = nextPage.querySelector('table.ct tbody');
+                    nextBody.innerHTML = '';
+                    chunk.forEach(function (row) { nextBody.appendChild(row.cloneNode(true)); });
+                    if (index > 0) {
+                        nextPage.removeAttribute('id');
+                    }
+                    fragment.appendChild(nextPage);
+                });
+                page.replaceWith(fragment);
+            });
+        }
+
         async function generatePdf() {
+            paginateCensusPages();
             const btn = document.getElementById('downloadBtn');
             const progWrap = document.getElementById('progress-wrap');
             const progFill = document.getElementById('progress-bar-fill');
@@ -496,9 +566,16 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
             const pdf = new jsPDF({
                 orientation: 'landscape',
                 unit: 'mm',
-                format: 'a3'
+                format: [330, 215]
             });
             const pages = document.querySelectorAll('.zone-page');
+            if (!pages.length) {
+                btn.disabled = false;
+                btn.textContent = '↓ Download PDF';
+                progWrap.style.display = 'none';
+                window.alert('No census records match the selected filters.');
+                return;
+            }
             const W = pdf.internal.pageSize.getWidth();
             const H = pdf.internal.pageSize.getHeight();
             const margin = 6;
@@ -518,7 +595,7 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
                 const imgW = W - margin * 2;
                 const imgH = (canvas.height * imgW) / canvas.width;
 
-                if (i > 0) pdf.addPage('a3', 'landscape');
+                if (i > 0) pdf.addPage([330, 215], 'landscape');
 
                 // If content taller than page, scale down to fit
                 const finalH = Math.min(imgH, H - margin * 2);
@@ -537,6 +614,8 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
             progWrap.style.display = 'none';
             progFill.style.width = '0%';
         }
+
+        window.addEventListener('DOMContentLoaded', paginateCensusPages);
     </script>
 </body>
 

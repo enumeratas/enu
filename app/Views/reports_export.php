@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -7,7 +7,7 @@
     <style>
         @page {
             size: legal portrait;
-            margin: 0.5in 0.6in 0.35in 0.6in;
+            margin: 0.35in 0.45in;
         }
 
         * {
@@ -16,8 +16,8 @@
         }
 
         html, body {
-            font-family: DejaVu Sans, Arial, sans-serif;
-            font-size: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 9px;
             color: #111;
             background: #fff;
         }
@@ -34,6 +34,14 @@
 
         .page.last {
             page-break-after: auto;
+        }
+
+        thead {
+            display: table-header-group;
+        }
+
+        tr, .section-head, .sub-head {
+            page-break-inside: avoid;
         }
 
         table {
@@ -277,8 +285,8 @@
         .sheet th,
         .sheet td {
             border: 1px solid #111;
-            padding: 4px 6px;
-            font-size: 10px;
+            padding: 3px 5px;
+            font-size: 9px;
         }
 
         .sheet th {
@@ -702,6 +710,40 @@ $fiscalDefinitions = trim((string) ($report['report_front_fiscal_definitions'] ?
 </div>
 
 <div class="page last">
+    <?php if (showSec('water', $sections, $showAll)): ?>
+        <div class="section-head">V. WATER SOURCE &amp; SANITATION</div>
+        <table class="grid-2">
+            <tr>
+                <td>
+                    <div class="sub-head">Water Source Level</div>
+                    <table class="sheet">
+                        <tbody>
+                            <?php foreach ($waterRows as $row): ?>
+                                <tr>
+                                    <td class="label"><?= esc($row['label']) ?></td>
+                                    <td class="tot"><?= number_format((int) ($row['total'] ?? 0)) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </td>
+                <td>
+                    <div class="sub-head">Sanitation</div>
+                    <table class="sheet">
+                        <tbody>
+                            <?php foreach ($sanitationRows as $row): ?>
+                                <tr>
+                                    <td class="label"><?= esc($row['label']) ?></td>
+                                    <td class="tot"><?= number_format((int) ($row['total'] ?? 0)) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    <?php endif; ?>
+
     <div class="sub-head">d. Others</div>
     <table class="kv" style="margin-bottom:14px;">
         <tr>

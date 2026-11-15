@@ -107,7 +107,7 @@
             border-radius: 10px;
             padding: 11px 12px;
             font-size: 14px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             color: #1a1d2e;
             background: #fff;
             box-sizing: border-box;

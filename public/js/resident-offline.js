@@ -11,7 +11,7 @@
     var dbReady = null;
 
     function canUseOffline() {
-        return userId > 0 && (role === 'resident' || role === 'admin' || role === 'secretary');
+        return userId > 0 && (role === 'resident' || role === 'admin' || role === 'secretary' || role === 'captain');
     }
 
     var BLOTTER_OPERATIONS = [
@@ -381,6 +381,20 @@
         return body;
     }
 
+    function offlineApiPayload(entry) {
+        var data = {};
+        (entry.fields || []).forEach(function (field) {
+            if (!field.file) {
+                data[field.key] = field.value == null ? '' : String(field.value);
+            }
+        });
+        return {
+            operation_id: entry.id,
+            operation: entry.operation,
+            data: data
+        };
+    }
+
     function plainMessage(html) {
         var box = document.createElement('div');
         box.innerHTML = html;
@@ -619,19 +633,40 @@
         while (remaining.length && navigator.onLine) {
             var entry = remaining[0];
             try {
-                var response = await nativeFetch(entry.url, {
-                    method: 'POST',
-                    body: buildBody(entry),
-                    credentials: 'same-origin',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
+                var useOfflineApi = entry.operation === 'clearance_request';
+                var response = await nativeFetch(
+                    useOfflineApi ? '/api/offline-sync' : entry.url,
+                    useOfflineApi ? {
+                        method: 'POST',
+                        body: JSON.stringify(offlineApiPayload(entry)),
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        }
+                    } : {
+                        method: 'POST',
+                        body: buildBody(entry),
+                        credentials: 'same-origin',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
                     }
-                });
+                );
+                var result = null;
                 var text = '';
-                try {
-                    text = await response.text();
-                } catch (readError) {
-                    text = '';
+                if (useOfflineApi) {
+                    try {
+                        result = await response.json();
+                    } catch (readError) {
+                        result = null;
+                    }
+                } else {
+                    try {
+                        text = await response.text();
+                    } catch (readError) {
+                        text = '';
+                    }
                 }
                 if (response.status === 401 || response.status === 419 || /\/login(?:$|[?#])/i.test(response.url || '')) {
                     showStatus('Sign in again so the saved submission can be sent.', 'wait');
@@ -646,10 +681,14 @@
                         showStatus('The office could not be reached. The submission stays on this device.', 'wait');
                         break;
                     }
+                } else if (useOfflineApi && (!response.ok || !result || result.success !== true)) {
+                    remaining.shift();
+                    showStatus((result && result.message) || 'A saved clearance request could not be sent. Please submit it again.', 'wait');
+                    sawRejection = true;
                 } else {
                     remaining.shift();
                     sentAny = true;
-                    var errorHtml = text.match(/db-alert--(?:error|danger)[\s\S]*?<\/div>/i);
+                    var errorHtml = useOfflineApi ? null : text.match(/db-alert--(?:error|danger)[\s\S]*?<\/div>/i);
                     if (errorHtml) {
                         sawRejection = true;
                         showStatus(plainMessage(errorHtml[0]) || 'The saved submission was rejected. Please review it and submit again.', 'wait');

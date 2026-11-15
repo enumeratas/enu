@@ -336,7 +336,7 @@
             border: 1.5px solid #e2e5ef;
             border-radius: 8px;
             font-size: 13.5px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             color: #1a1d2e;
             background: #fff;
             outline: none;
@@ -354,7 +354,7 @@
             border-radius: 8px;
             font-size: 13px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             cursor: pointer;
             display: inline-flex;
             align-items: center;

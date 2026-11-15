@@ -97,7 +97,7 @@
             padding: 10px 13px;
             border: 1.5px solid #e5e7eb;
             border-radius: 9px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             font-size: 13px;
             color: #1d2448;
             background: #fafbfc;

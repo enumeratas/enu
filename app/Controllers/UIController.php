@@ -17,7 +17,7 @@ class UIController extends BaseController
         return is_array($user) ? trim((string) ($user['council_zone'] ?? '')) : '';
     }
 
-    // ── Shared census view builder (captain + secretary) ──────────────────────
+    // ── Shared census view builder (captain + secretary + council) ────────────
     private function _censusView(string $role): \CodeIgniter\HTTP\ResponseInterface|string
     {
         $db = \Config\Database::connect();
@@ -1747,14 +1747,19 @@ class UIController extends BaseController
             INNER JOIN households h2 ON h2.household_no = m.household_no
             WHERE m.date_of_birth IS NOT NULL AND m.date_of_birth <= '{$youthMax}' AND m.date_of_birth >= '{$youthMin}'";
 
-        $allYouth = (new \App\Models\SkYouthModel())->overlayCensusYouth(
-            $db->query("({$headSql}) UNION ALL ({$memberSql})")->getResultArray()
-        );
+        $censusYouth = $db->query("({$headSql}) UNION ALL ({$memberSql})")->getResultArray();
+        $allYouth = (new \App\Models\SkYouthModel())->overlayCensusYouth($censusYouth);
 
         $total    = count($allYouth);
         $male     = count(array_filter($allYouth, fn($r) => strtolower(trim((string) ($r['gender'] ?? ''))) === 'male'));
         $female   = count(array_filter($allYouth, fn($r) => strtolower(trim((string) ($r['gender'] ?? ''))) === 'female'));
-        $oos      = count(array_filter($allYouth, fn($r) => stripos((string) ($r['economic_status'] ?? ''), 'out-of-school') !== false));
+        $oos      = count(array_filter($censusYouth, static function (array $row): bool {
+            $occupation = strtoupper((string) ($row['occupation'] ?? ''));
+
+            return str_contains($occupation, 'OUT-OF-SCHOOL')
+                || str_contains($occupation, 'OUT OF SCHOOL')
+                || str_contains($occupation, 'OSY');
+        }));
         $employed = count(array_filter($allYouth, fn($r) => in_array($r['economic_status'] ?? '', ['Employed', 'Self-Employed'], true)));
 
         usort($allYouth, static function (array $a, array $b): int {
@@ -1850,12 +1855,33 @@ class UIController extends BaseController
             'memberSource' => $memberSource,
             'memberId'    => $memberId,
             'role'        => 'sk',
-            'chairpersonName' => (new \App\Models\BarangaySettingsModel())->getValue(
-                'sk_chairperson_name',
-                \App\Models\BarangaySettingsModel::SK_CHAIRPERSON_DEFAULT
-            ),
+            'chairpersonName' => $this->skChairpersonName(),
             'chairpersonSaveUrl' => '/' . $chairPrefix . '/profiling/chairperson',
         ]);
+    }
+
+    private function skChairpersonName(): string
+    {
+        $account = (new \App\Models\UserModel())
+            ->where('role', 'sk')
+            ->where('status', 'active')
+            ->orderBy('id', 'ASC')
+            ->first();
+        $name = trim(preg_replace('/\s+/', ' ', implode(' ', array_filter([
+            $account['first_name'] ?? '',
+            $account['middle_name'] ?? '',
+            $account['last_name'] ?? '',
+            $account['suffix'] ?? '',
+        ]))));
+
+        if ($name !== '') {
+            return $name;
+        }
+
+        return (new \App\Models\BarangaySettingsModel())->getValue(
+            'sk_chairperson_name',
+            \App\Models\BarangaySettingsModel::SK_CHAIRPERSON_DEFAULT
+        );
     }
     public function sk_add_youth()
     {

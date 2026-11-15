@@ -104,7 +104,7 @@
             border: 1.5px solid #e2e5ef;
             border-radius: 8px;
             font-size: 13.5px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             color: #1a1d2e;
             outline: none;
             transition: border-color .2s;
@@ -152,7 +152,7 @@
             border-radius: 8px;
             font-size: 14px;
             font-weight: 700;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             cursor: pointer;
             transition: background .2s;
             display: flex;

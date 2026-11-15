@@ -389,7 +389,7 @@
                                                 <span class="sep-plain" data-pii-plain><?= esc($sr['member_last_name']) ?>, <?= esc($sr['member_first_name']) ?><?php if (! empty($sr['member_middle_name'])): ?> <?= esc(strtoupper($sr['member_middle_name'][0])) ?>.<?php endif; ?></span>
                                             </td>
                                             <td>
-                                                <a href="/secretary/household/<?= esc($sr['original_household_no']) ?>"
+                                                <a href="/<?= esc($role) ?>/household/<?= esc($sr['original_household_no']) ?>"
                                                     style="font-weight:700;color:#1d2448;text-decoration:none;">
                                                     #<?= esc($sr['original_household_no']) ?>
                                                 </a>
@@ -418,7 +418,7 @@
                                             <td>
                                                 <div class="db-action-group">
                                                     <!-- Approve -->
-                                                    <form action="/secretary/census/separation/approve/<?= (int)$sr['id'] ?>" method="post"
+                                                    <form action="/<?= esc($role) ?>/census/separation/approve/<?= (int)$sr['id'] ?>" method="post"
                                                         style="display:inline;"
                                                         onsubmit="return confirm('Approve this <?= esc($sr['separation_type'], 'js') ?> request?\n<?= ($sr['separation_type'] === 'Transfer Member') ? 'The member will be linked to Household #' . esc($sr['new_household_no'] ?? 'SELECTED', 'js') . '.' : 'A new household will be created and the member removed from Household #' . esc($sr['original_household_no'], 'js') . '.' ?>')">
                                                         <?= csrf_field() ?>
@@ -480,7 +480,7 @@
 
                 <style>
                     .sep-plain {
-                        font-family: 'Poppins', sans-serif;
+                        font-family: Arial, sans-serif;
                         font-style: normal;
                         font-variant: normal;
                         font-weight: 500;
@@ -502,7 +502,7 @@
                 <script>
                     function openRejectSepModal(id, name) {
                         document.getElementById('rejectSepName').textContent = name;
-                        document.getElementById('rejectSepForm').action = '/secretary/census/separation/reject/' + id;
+                        document.getElementById('rejectSepForm').action = '/<?= esc($role) ?>/census/separation/reject/' + id;
                         document.getElementById('rejectSepModal').classList.add('active');
                     }
 

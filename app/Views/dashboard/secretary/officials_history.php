@@ -26,7 +26,7 @@
             border: 1.5px solid #e2e5ef;
             background: #fff;
             color: #9aa0b4;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             transition: all .18s;
         }
 

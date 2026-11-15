@@ -571,7 +571,7 @@
                                             border-radius:9px;
                                             font-size:22px;font-weight:700;
                                             letter-spacing:8px;text-align:center;
-                                            font-family:'Poppins',sans-serif;
+                                            font-family: Arial, sans-serif;
                                             outline:none;
                                             transition:border-color .2s,box-shadow .2s;
                                         "
@@ -587,7 +587,7 @@
                                         background:linear-gradient(135deg,#e67e22,#ca6f1e);
                                         color:#fff;border:none;border-radius:9px;
                                         font-size:13px;font-weight:600;
-                                        font-family:'Poppins',sans-serif;
+                                        font-family: Arial, sans-serif;
                                         cursor:pointer;white-space:nowrap;
                                         transition:opacity .18s;
                                         flex-shrink:0;
@@ -1137,13 +1137,13 @@
             color: #fff;
             font-size: 14px;
             font-weight: 700;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
         }
 
         .cw-header-sub {
             color: rgba(255, 255, 255, .65);
             font-size: 11px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
         }
 
         .cw-header-actions {
@@ -1175,7 +1175,7 @@
             padding: 8px 0;
             font-size: 11px;
             color: #b0b6cc;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
         }
 
         .cw-date-divider span {
@@ -1235,7 +1235,7 @@
             color: #1a1d2e;
             line-height: 1.55;
             box-shadow: 0 1px 4px rgba(0, 0, 0, .07);
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
         }
 
         .cw-row--user .cw-bubble {
@@ -1248,7 +1248,7 @@
             font-size: 10px;
             color: #b0b6cc;
             margin-top: 3px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
         }
 
         .cw-typing span {
@@ -1300,7 +1300,7 @@
             font-weight: 600;
             color: #1d2448;
             cursor: pointer;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             transition: all .2s;
             display: flex;
             align-items: center;
@@ -1332,7 +1332,7 @@
             border: 1.5px solid #e2e5ef;
             border-radius: 100px;
             font-size: 13px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             color: #1a1d2e;
             outline: none;
             transition: border-color .2s;
@@ -1367,7 +1367,7 @@
             color: #b0b6cc;
             text-align: center;
             margin-top: 6px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
         }
 
         @media(max-width:400px) {

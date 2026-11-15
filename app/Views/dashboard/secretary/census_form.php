@@ -1635,6 +1635,8 @@
             }, 40);
         });
 
+        const censusDraftKey = 'bisCensusFormDraft:' + window.location.pathname + window.location.search;
+
         // ── Form submit validation ────────────────────────────────────────────
         document.getElementById('censusForm').addEventListener('submit', function(e) {
             const saveModeField = document.getElementById('saveModeField');
@@ -1805,7 +1807,7 @@
             document.querySelectorAll('#censusForm input[type="text"]').forEach(f => {
                 f.value = f.value.toUpperCase();
             });
-            try { localStorage.removeItem('bisCensusFormDraft'); } catch (_) {}
+            try { localStorage.removeItem(censusDraftKey); } catch (_) {}
         });
 
         // ── Live input: uppercase, philhealth digits, alpha-only ─────────────
@@ -1883,6 +1885,7 @@
             const stashNames = <?= json_encode($censusStashNames, JSON_UNESCAPED_UNICODE) ?> || {};
             const form = document.getElementById('censusForm');
             if (!form) return;
+            try { localStorage.removeItem('bisCensusFormDraft'); } catch (_) {}
 
             function asList(value) {
                 if (value === undefined || value === null || value === '') return [];
@@ -1990,7 +1993,7 @@
             let restored = applyValues(serverOld);
             if (!restored) {
                 try {
-                    const saved = JSON.parse(localStorage.getItem('bisCensusFormDraft') || 'null');
+                    const saved = JSON.parse(localStorage.getItem(censusDraftKey) || 'null');
                     restored = applyValues(saved);
                 } catch (_) {}
             }
@@ -2025,16 +2028,16 @@
             form.addEventListener('input', function () {
                 clearTimeout(saveTimer);
                 saveTimer = setTimeout(function () {
-                    try { localStorage.setItem('bisCensusFormDraft', JSON.stringify(serializeForm())); } catch (_) {}
+                    try { localStorage.setItem(censusDraftKey, JSON.stringify(serializeForm())); } catch (_) {}
                 }, 400);
             });
             form.addEventListener('change', function () {
-                try { localStorage.setItem('bisCensusFormDraft', JSON.stringify(serializeForm())); } catch (_) {}
+                try { localStorage.setItem(censusDraftKey, JSON.stringify(serializeForm())); } catch (_) {}
             });
 
             document.querySelectorAll('a[href$="/census"]').forEach(function (link) {
                 link.addEventListener('click', function () {
-                    try { localStorage.removeItem('bisCensusFormDraft'); } catch (_) {}
+                    try { localStorage.removeItem(censusDraftKey); } catch (_) {}
                 });
             });
         })();

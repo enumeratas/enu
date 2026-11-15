@@ -68,7 +68,7 @@
             background: #fff;
             color: #9aa0b4;
             transition: all .2s;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
         }
 
         .notif-tab.active {
@@ -231,7 +231,7 @@
             border-radius: 7px;
             font-size: 12px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             text-decoration: none;
             border: 1.5px solid #e2e5ef;
             background: #fff;

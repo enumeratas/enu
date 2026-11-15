@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -381,8 +381,10 @@
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <form action="/captain/clearance/store" method="post" id="captainClearanceForm">
+            <form action="/captain/clearance/store" method="post" id="captainClearanceForm"
+                data-offline-sync="clearance_request" data-offline-verified="1">
                 <?= csrf_field() ?>
+                <p data-offline-sync-status aria-live="polite" style="font-size:12px;color:#667085;margin:0 24px 12px;"></p>
 
                 <!-- Who is this for? (captain + minor children if any) -->
                 <?php
@@ -478,7 +480,7 @@
                             Purpose <span style="color:#c0392b;">*</span>
                         </label>
                         <select name="purpose" required
-                            style="width:100%;padding:10px 12px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13.5px;font-family:'Poppins',sans-serif;color:#1a1d2e;background:#fff;outline:none;box-sizing:border-box;">
+                            style="width:100%;padding:10px 12px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13.5px;font-family: Arial, sans-serif;color:#1a1d2e;background:#fff;outline:none;box-sizing:border-box;">
                             <option value="">— Select purpose —</option>
                             <optgroup label="Employment">
                                 <option>For employment requirements</option>
@@ -514,7 +516,7 @@
                             <input type="text" name="purpose_other" id="captainPurposeOther" maxlength="255"
                                 placeholder="Type the exact purpose of this request"
                                 value="<?= esc(old('purpose_other') ?? '') ?>"
-                                style="width:100%;padding:10px 12px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13.5px;font-family:'Poppins',sans-serif;color:#1a1d2e;background:#fff;outline:none;box-sizing:border-box;">
+                                style="width:100%;padding:10px 12px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13.5px;font-family: Arial, sans-serif;color:#1a1d2e;background:#fff;outline:none;box-sizing:border-box;">
                         </div>
                     </div>
 
@@ -525,7 +527,7 @@
                         </label>
                         <textarea name="notes" rows="2"
                             placeholder="Any additional information about your request..."
-                            style="width:100%;padding:10px 12px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;resize:vertical;box-sizing:border-box;"></textarea>
+                            style="width:100%;padding:10px 12px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family: Arial, sans-serif;color:#1a1d2e;outline:none;resize:vertical;box-sizing:border-box;"></textarea>
                     </div>
 
                     <!-- Info note -->
@@ -1059,7 +1061,7 @@
         }
     </style>
 
-    <script src="/js/doc-templates.js?v=2"></script>
+    <script src="/js/doc-templates.js?v=3"></script>
     <script>
         function filterTable() {
             const q = document.getElementById('searchInput').value.toLowerCase();

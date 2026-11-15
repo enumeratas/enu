@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -32,7 +32,7 @@
     }
 
     body {
-      font-family: 'Poppins', sans-serif;
+      font-family: Arial, sans-serif;
       color: var(--text-dark);
       overflow-x: hidden;
     }
@@ -231,7 +231,7 @@
       border: 2px solid var(--gray-mid);
       border-radius: 12px;
       font-size: 15px;
-      font-family: 'Poppins', sans-serif;
+      font-family: Arial, sans-serif;
       color: var(--text-dark);
       outline: none;
       transition: border-color .2s, box-shadow .2s;

@@ -572,7 +572,7 @@ foreach (
     window.BIS_USER_ID = <?= (int) (session()->get('user_id') ?? 0) ?>;
     window.BIS_USER_ROLE = <?= json_encode((string) (session()->get('role') ?? '')) ?>;
 </script>
-<script src="/js/resident-offline.js?v=12"></script>
+<script src="/js/resident-offline.js?v=13"></script>
 <script src="/js/pwa-install.js?v=1"></script>
 <script src="/js/live-search.js?v=2"></script>
 

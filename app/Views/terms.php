@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -10,7 +10,7 @@
 :root{--navy:#1d2448;--navy-mid:#2e3a6e;--navy-dark:#0f1117;--accent:#5b6fd6;--accent-light:#7b8fe8;--white:#ffffff;--gray-light:#f4f6fb;--gray-mid:#e8ecf4;--text-dark:#1a1d2e;--text-muted:#6b7280;}
 *{box-sizing:border-box;margin:0;padding:0;}
 html{scroll-behavior:smooth;}
-body{font-family:'Poppins',sans-serif;color:var(--text-dark);overflow-x:hidden;}
+body{font-family: Arial, sans-serif;color:var(--text-dark);overflow-x:hidden;}
 .navbar{position:fixed;top:0;left:0;right:0;z-index:1000;background:#fff;transition:box-shadow .3s;}
 .navbar.scrolled{box-shadow:0 2px 20px rgba(0,0,0,.10);}
 .nav-inner{max-width:1200px;margin:0 auto;padding:0 24px;height:68px;display:flex;align-items:center;justify-content:space-between;}

@@ -219,8 +219,14 @@
                                                 </span>
                                             </td>
                                             <td>
-                                                <a href="/sk/profiling?search=<?= urlencode(trim(($y['first_name'] ?? '') . ' ' . ($y['last_name'] ?? ''))) ?>"
-                                                    class="db-action-btn">View</a>
+                                                <?php
+                                                $viewYouthHref = ! empty($y['profile_id'])
+                                                    ? '/sk/profiling/edit/' . (int) $y['profile_id']
+                                                    : '/sk/profiling/add?household_no=' . rawurlencode((string) ($y['household_no'] ?? ''))
+                                                        . '&source=' . rawurlencode((string) ($y['source'] ?? ''))
+                                                        . '&member_id=' . (($y['source'] ?? '') === 'member' ? (int) ($y['rid'] ?? 0) : 0);
+                                                ?>
+                                                <a href="<?= esc($viewYouthHref) ?>" class="db-action-btn">View</a>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>

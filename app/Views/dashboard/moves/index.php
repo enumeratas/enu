@@ -60,7 +60,7 @@
         .mv-search input {
             padding: 8px 12px;
             border: 1px solid #d7dce6;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             font-size: 13px;
             min-width: 240px;
         }
@@ -91,7 +91,7 @@
             min-height: 110px;
             padding: 10px 12px;
             border: 1px solid #d7dce6;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             font-size: 13px;
             box-sizing: border-box;
         }

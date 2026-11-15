@@ -29,7 +29,7 @@
             border: 1px solid #d7dce6;
             background: #fff;
             color: #1c2b45;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             font-size: 13px;
         }
 
@@ -47,7 +47,7 @@
             border: 1px solid #d7dce6;
             background: #fff;
             color: #16325c;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             font-size: 13px;
             font-weight: 600;
             padding: 8px 12px;

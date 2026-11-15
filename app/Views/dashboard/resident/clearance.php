@@ -158,7 +158,7 @@
             cursor: pointer;
             background: #fff;
             transition: all .2s;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
         }
 
         .clr-member-pill:hover {
@@ -241,7 +241,7 @@
             cursor: pointer;
             background: #fff;
             transition: all .2s;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             position: relative;
         }
 
@@ -324,7 +324,7 @@
             border: 2px solid #e2e5ef;
             border-radius: 10px;
             font-size: 13.5px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             color: #1a1d2e;
             background: #fff;
             outline: none;
@@ -373,7 +373,7 @@
             border-radius: 10px;
             font-size: 14px;
             font-weight: 700;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             cursor: pointer;
             display: flex;
             align-items: center;

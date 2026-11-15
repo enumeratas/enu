@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -801,14 +801,14 @@
                         <button id="dlCancelBtn"
                             style="flex:1;padding:11px;border-radius:9px;border:1.5px solid #e2e5ef;
                                    background:#f0f2f8;font-size:13.5px;font-weight:600;
-                                   font-family:'Poppins',sans-serif;cursor:pointer;color:#4a5068;">
+                                   font-family: Arial, sans-serif;cursor:pointer;color:#4a5068;">
                             Close
                         </button>
                         <button id="dlConfirmBtn"
                             style="flex:2;padding:11px;border-radius:9px;border:none;
                                    background:linear-gradient(135deg,#1d2448,#2e3a6e);
                                    color:#fff;font-size:13.5px;font-weight:600;
-                                   font-family:'Poppins',sans-serif;cursor:pointer;">
+                                   font-family: Arial, sans-serif;cursor:pointer;">
                             <i class="fas fa-download" style="margin-right:7px;"></i>Yes, Download
                         </button>
                     </div>
@@ -841,7 +841,7 @@
                     'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);' +
                     'background:#1d2448;color:#fff;font-size:13px;font-weight:600;' +
                     'padding:11px 22px;border-radius:10px;z-index:9999;' +
-                    'font-family:\'Poppins\',sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.2);' +
+                    'font-family:Arial,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.2);' +
                     'display:flex;align-items:center;gap:9px;';
                 toast.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing report…';
                 document.body.appendChild(toast);

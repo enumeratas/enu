@@ -1501,12 +1501,12 @@
             flex-direction: column;
             max-height: 92vh;
             overflow: hidden;
-            font-family: 'Arial', sans-serif;
+            font-family: Arial, sans-serif;
         }
 
         #editHeadModal .pf-modal {
             max-width: 1100px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
         }
 
         #editHeadModal .pf-body {
@@ -1800,7 +1800,7 @@
             align-items: center;
             gap: 7px;
             transition: all .2s;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
         }
 
         .pf-btn--primary {

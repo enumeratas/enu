@@ -99,7 +99,7 @@
             border-radius: 10px;
             font-size: 13px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             cursor: pointer;
             text-decoration: none;
             transition: background .18s;
@@ -255,7 +255,7 @@
             border-radius: 8px;
             font-size: 12.5px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             cursor: pointer;
             text-decoration: none;
             border: none;
@@ -421,7 +421,7 @@
                     <i class="fas fa-calendar-day"></i>
                     <p>No events or activities scheduled for this day.</p>
                     <button onclick="openAddModal('<?= $dateStr ?>')"
-                        style="padding:11px 22px;background:#1d2448;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:8px;">
+                        style="padding:11px 22px;background:#1d2448;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:600;font-family: Arial, sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:8px;">
                         <i class="fas fa-plus"></i> Add Event
                     </button>
                 </div>
@@ -533,18 +533,18 @@
                     <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">Title <span style="color:#c0392b;">*</span></label>
                     <input type="text" name="title" id="addTitle" required
                         placeholder="e.g. Barangay Meeting"
-                        style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13.5px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;">
+                        style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13.5px;font-family: Arial, sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;">
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
                     <div>
                         <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">Date <span style="color:#c0392b;">*</span></label>
                         <input type="text" name="event_date" id="addDate" required autocomplete="off" placeholder="YYYY-MM-DD"
-                            style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;">
+                            style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family: Arial, sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;">
                     </div>
                     <div>
                         <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">Type</label>
                         <select name="event_type"
-                            style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;background:#fff;">
+                            style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family: Arial, sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;background:#fff;">
                             <option value="appointment">Appointment</option>
                             <option value="meeting">Meeting</option>
                             <option value="hearing">Hearing</option>
@@ -557,14 +557,14 @@
                     <div>
                         <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">Start Time</label>
                         <select name="start_time" id="addStartTime"
-                            style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;background:#fff;" disabled>
+                            style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family: Arial, sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;background:#fff;" disabled>
                             <option value="">Select a date first</option>
                         </select>
                     </div>
                     <div>
                         <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">End Time</label>
                         <select name="end_time" id="addEndTime"
-                            style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;background:#fff;" disabled>
+                            style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family: Arial, sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;background:#fff;" disabled>
                             <option value="">Select a start time</option>
                         </select>
                     </div>
@@ -573,12 +573,12 @@
                 <div style="margin-bottom:14px;">
                     <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">Location</label>
                     <input type="text" name="location" placeholder="e.g. Barangay Hall"
-                        style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13.5px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;">
+                        style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13.5px;font-family: Arial, sans-serif;color:#1a1d2e;outline:none;box-sizing:border-box;">
                 </div>
                 <div style="margin-bottom:14px;">
                     <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:5px;">Description</label>
                     <textarea name="description" rows="2" placeholder="Optional notes…"
-                        style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;outline:none;resize:vertical;box-sizing:border-box;text-transform:none !important;"></textarea>
+                        style="width:100%;padding:10px 14px;border:1.5px solid #e2e5ef;border-radius:8px;font-size:13px;font-family: Arial, sans-serif;color:#1a1d2e;outline:none;resize:vertical;box-sizing:border-box;text-transform:none !important;"></textarea>
                 </div>
                 <div style="margin-bottom:18px;">
                     <label style="display:block;font-size:12px;font-weight:600;color:#4a5068;margin-bottom:8px;">Color</label>
@@ -595,11 +595,11 @@
                 <div style="display:flex;gap:10px;">
                     <button type="button"
                         onclick="document.getElementById('addModal').style.display='none'"
-                        style="flex:1;padding:11px;background:#f0f2f8;color:#4a5068;border:none;border-radius:9px;font-size:13.5px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;">
+                        style="flex:1;padding:11px;background:#f0f2f8;color:#4a5068;border:none;border-radius:9px;font-size:13.5px;font-weight:600;font-family: Arial, sans-serif;cursor:pointer;">
                         Cancel
                     </button>
                     <button type="submit"
-                        style="flex:2;padding:11px;background:#1d2448;color:#fff;border:none;border-radius:9px;font-size:13.5px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;">
+                        style="flex:2;padding:11px;background:#1d2448;color:#fff;border:none;border-radius:9px;font-size:13.5px;font-weight:600;font-family: Arial, sans-serif;cursor:pointer;">
                         <i class="fas fa-save"></i> Save Event
                     </button>
                 </div>

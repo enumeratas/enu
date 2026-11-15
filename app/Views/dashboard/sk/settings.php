@@ -156,7 +156,7 @@
             border: 1.5px solid #e2e5ef;
             border-radius: 8px;
             font-size: 13.5px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             color: #1a1d2e;
             background: #fff;
             outline: none;
@@ -293,7 +293,7 @@
             font-weight: 700;
             text-align: center;
             color: #1d2448;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             outline: none;
             transition: border-color 0.2s, box-shadow 0.2s;
         }
@@ -642,7 +642,7 @@
                                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
                                     <form action="/sk/settings/change-password" method="post" style="display:inline;">
                                         <?= csrf_field() ?>
-                                        <button type="submit" style="background:none;border:none;color:#5b6fd6;font-size:13px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;padding:0;">
+                                        <button type="submit" style="background:none;border:none;color:#5b6fd6;font-size:13px;font-weight:600;cursor:pointer;font-family: Arial, sans-serif;padding:0;">
                                             <i class="fas fa-redo" style="font-size:11px;"></i> Resend code
                                         </button>
                                     </form>

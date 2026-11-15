@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -32,7 +32,7 @@
     }
 
     body {
-      font-family: 'Poppins', sans-serif;
+      font-family: Arial, sans-serif;
       color: var(--text-dark);
       overflow-x: hidden;
     }

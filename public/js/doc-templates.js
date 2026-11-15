@@ -451,7 +451,8 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
             .replace('</style>', '')
             .replace('@page { size: A4 portrait; margin: 0; }', '@page { size: ' + box.width + 'mm ' + box.height + 'mm; margin: ' + box.margin + 'mm; }')
             .replace('html, body { width: 210mm; height: 297mm; background: #fff; }', 'html, body { margin: 0; background: #fff; }')
-            .replace('.bc-wrap { width: 210mm; height: 297mm; padding: 7mm; display: block; overflow: hidden; }', '.bc-wrap { width: 100%; min-height: ' + innerHeight + 'mm; padding: 6mm; display: block; overflow: visible; box-sizing: border-box; zoom: ' + box.scale + '; }')
+            .replace('.bc-wrap { width: 210mm; height: 297mm; padding: 7mm; display: block; overflow: hidden; }', '.bc-wrap { width: 100%; min-height: ' + innerHeight + 'mm; padding: 0; display: block; overflow: visible; box-sizing: border-box; zoom: ' + box.scale + '; }')
+            .replace('  width: 100%; height: 100%;\n  border:', '  width: 100%; min-height: ' + innerHeight + 'mm; height: auto;\n  border:')
             .replace('  position: relative; overflow: hidden;\n  padding: 0;\n}', '  position: relative; overflow: visible;\n  padding: 0;\n}')
             + '.bc-seal,.bc-watermark img{-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
             + 'body.hide-seals .bc-seal{display:none !important;}'
@@ -507,7 +508,7 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
 
     function documentFileName(docKey, forMember) {
         const safeName = String(forMember || _census.name || 'document').replace(/[^\w\-]+/g, '_');
-        return (docKey || 'clearance') + '-' + safeName + '.html';
+        return (docKey || 'clearance') + '-' + safeName + '.pdf';
     }
 
     function triggerDownload(blob, filename) {
@@ -518,6 +519,89 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
         link.click();
         link.remove();
         setTimeout(function () { URL.revokeObjectURL(link.href); }, 1000);
+    }
+
+    let pdfLibraryPromise = null;
+    function loadPdfLibraries() {
+        if (window.html2canvas && window.jspdf) {
+            return Promise.resolve();
+        }
+        if (pdfLibraryPromise) {
+            return pdfLibraryPromise;
+        }
+
+        const loadScript = function (src) {
+            return new Promise(function (resolve, reject) {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = function () {
+                    reject(new Error('Unable to load PDF export library.'));
+                };
+                document.head.appendChild(script);
+            });
+        };
+        pdfLibraryPromise = Promise.all([
+            loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'),
+            loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+        ]).then(function () {
+            if (!window.html2canvas || !window.jspdf || !window.jspdf.jsPDF) {
+                throw new Error('PDF export libraries are unavailable.');
+            }
+        }).catch(function (error) {
+            pdfLibraryPromise = null;
+            throw error;
+        });
+        return pdfLibraryPromise;
+    }
+
+    function downloadPdf(docKey, forMember, purpose, logos, settings) {
+        const html = printDocumentHtml(docKey, forMember, purpose, { settings: settings, logos: logos });
+        const parsed = new DOMParser().parseFromString(html, 'text/html');
+        const styles = parsed.querySelectorAll('style');
+        const host = document.createElement('div');
+        const box = pageBox(settings);
+        host.style.cssText = 'position:fixed;left:-100000px;top:0;background:#fff;z-index:-1;width:' + box.width + 'mm;min-height:' + box.height + 'mm;';
+        Array.from(styles).forEach(function (style) {
+            host.appendChild(style.cloneNode(true));
+        });
+        const page = parsed.querySelector('.bc-wrap');
+        if (!page) {
+            throw new Error('Clearance document layout could not be rendered.');
+        }
+        host.appendChild(page);
+        document.body.appendChild(host);
+
+        const pdf = new window.jspdf.jsPDF({
+            orientation: settings.orientation,
+            unit: 'mm',
+            format: [box.width, box.height]
+        });
+        return window.html2canvas(page, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+            logging: false
+        }).then(function (canvas) {
+            const margin = box.margin;
+            const availableWidth = box.width - (margin * 2);
+            const availableHeight = box.height - (margin * 2);
+            const renderedHeight = (canvas.height * availableWidth) / canvas.width;
+            const scale = Math.min(1, availableHeight / renderedHeight);
+            const width = availableWidth * scale;
+            const height = renderedHeight * scale;
+            pdf.addImage(
+                canvas.toDataURL('image/png'),
+                'PNG',
+                margin + ((availableWidth - width) / 2),
+                margin,
+                width,
+                height
+            );
+            pdf.save(documentFileName(docKey, forMember));
+        }).finally(function () {
+            host.remove();
+        });
     }
 
     function bodyClassFor(settings) {
@@ -830,13 +914,13 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
             .replace('<body class="' + bodyClassFor(settings) + '">', '<body class="' + bodyClassFor(settings) + '">' + toolbar);
     }
 
-    function saveStudioCopy(win, docKey, forMember) {
-        const clone = win.document.documentElement.cloneNode(true);
-        const toolbar = clone.querySelector('.bis-print-toolbar');
-        const chrome = clone.querySelector('#bis-studio-chrome');
-        if (toolbar) toolbar.remove();
-        if (chrome) chrome.remove();
-        triggerDownload(new Blob(['<!DOCTYPE html>\n' + clone.outerHTML], { type: 'text/html;charset=utf-8' }), documentFileName(docKey, forMember));
+    function saveStudioCopy(win, docKey, forMember, purpose) {
+        if (!win.opener || !win.opener.BisDoc || typeof win.opener.BisDoc.download !== 'function') {
+            throw new Error('The clearance PDF generator is unavailable.');
+        }
+        return win.opener.BisDoc.download(docKey, forMember, purpose || '').then(function () {
+            win.close();
+        });
     }
 
     function bindStudio(win) {
@@ -858,7 +942,12 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
         root.getElementById('bisApplyPrint').addEventListener('click', function () { apply(true); });
         root.getElementById('bisDownloadDoc').addEventListener('click', function () {
             apply(false);
-            saveStudioCopy(win, root.body.getAttribute('data-doc-key'), root.body.getAttribute('data-doc-name'));
+            saveStudioCopy(
+                win,
+                root.body.getAttribute('data-doc-key'),
+                root.body.getAttribute('data-doc-name'),
+                root.body.getAttribute('data-doc-purpose')
+            );
         });
         toolbar.querySelectorAll('[data-print-setting]').forEach(function (field) {
             field.addEventListener('change', function () { apply(false); });
@@ -879,6 +968,7 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
             win.document.close();
             win.document.body.setAttribute('data-doc-key', String(docKey || 'clearance'));
             win.document.body.setAttribute('data-doc-name', String(forMember || _census.name || 'document'));
+            win.document.body.setAttribute('data-doc-purpose', String(purpose || ''));
             bindStudio(win);
             win.focus();
         });
@@ -886,8 +976,13 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
 
     function download(docKey, forMember, purpose) {
         return loadLogos().then(function (logos) {
-            const html = printDocumentHtml(docKey, forMember, purpose, { settings: readSettings(), logos: logos });
-            triggerDownload(new Blob([html], { type: 'text/html;charset=utf-8' }), documentFileName(docKey, forMember));
+            const settings = readSettings();
+            return loadPdfLibraries().then(function () {
+                return downloadPdf(docKey, forMember, purpose, logos, settings);
+            });
+        }).catch(function (error) {
+            console.error('Clearance PDF download failed.', error);
+            window.alert('The clearance PDF could not be generated. Please try again or use Print.');
         });
     }
 

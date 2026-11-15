@@ -20,6 +20,10 @@ class PiiOutputFilter implements FilterInterface
             return $response;
         }
 
+        $response->setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        $response->setHeader('Pragma', 'no-cache');
+        $response->setHeader('Expires', '0');
+
         $path = strtolower($request->getUri()->getPath());
         foreach (['/pii/', '/uploads/', '/household-files/', '/census-update-proof/', '/api/', '/login', '/signup', '/forgot-password', '/verify-email', '/export', '/download', '/print'] as $skip) {
             if (str_contains($path, $skip)) {

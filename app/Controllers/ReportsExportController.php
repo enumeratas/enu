@@ -44,7 +44,10 @@ class ReportsExportController extends BaseController
     {
         $year = $this->skReportYear();
         $orientation = $this->reportOrientation();
-        $dompdf = new Dompdf();
+        $options = new Options();
+        $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('isHtml5ParserEnabled', true);
+        $dompdf = new Dompdf($options);
         $dompdf->loadHtml($this->renderSkReport());
         $dompdf->setPaper('A4', $orientation);
         $dompdf->render();

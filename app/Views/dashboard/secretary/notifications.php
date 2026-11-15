@@ -149,7 +149,7 @@
             border-radius: 7px;
             font-size: 12px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             text-decoration: none;
             border: 1.5px solid #e2e5ef;
             background: #fff;
@@ -188,7 +188,7 @@
             border-radius: 7px;
             font-size: 12px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             border: 1.5px solid #e2e5ef;
             background: #fff;
             color: #667085;
@@ -214,7 +214,7 @@
             align-items: center;
             gap: 6px;
             transition: background .2s, color .2s;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
         }
 
         .notif-mark-all:hover {
@@ -290,7 +290,7 @@
             background: #fff;
             color: #9aa0b4;
             transition: all .2s;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
         }
 
         .notif-tab.active {

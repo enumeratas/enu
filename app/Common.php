@@ -158,7 +158,9 @@ if (! function_exists('notification_page_for_role')) {
         ) {
             $subject = $role === 'resident' ? '/resident/concerns' : null;
         } elseif ($type === 'census_update') {
-            $subject = '/' . $role . '/census-update';
+            $subject = in_array($role, ['admin', 'captain', 'secretary'], true)
+                ? '/' . $role . '/census-updates'
+                : '/' . $role . '/census-update';
         } elseif ($type === 'event_reminder') {
             $subject = notification_events_url($body, $role);
         } elseif ($type === 'household_approved' || $type === 'household_rejected') {

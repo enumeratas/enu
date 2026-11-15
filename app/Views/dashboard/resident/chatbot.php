@@ -44,7 +44,7 @@
             display: flex;
             flex-direction: row;
             background: #fff;
-            font-family: Poppins, sans-serif;
+            font-family: Arial, sans-serif;
             color: #1c2b45;
         }
 

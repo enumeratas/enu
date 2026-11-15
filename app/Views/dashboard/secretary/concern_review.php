@@ -315,7 +315,7 @@
             border: 1.5px solid #e2e5ef;
             border-radius: 11px;
             font-size: 13px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             color: #1a1d2e;
             background: #fff;
             outline: none;
@@ -346,7 +346,7 @@
             border-radius: 10px;
             font-size: 13.5px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             cursor: pointer;
             border: none;
             display: flex;
@@ -677,7 +677,7 @@
                                             width:100%;padding:11px 14px;
                                             background:#fff;color:#1d2448;
                                             border:1.5px solid #1d2448;border-radius:10px;
-                                            font-size:13px;font-weight:600;font-family:'Poppins',sans-serif;
+                                            font-size:13px;font-weight:600;font-family: Arial, sans-serif;
                                             cursor:pointer;display:flex;align-items:center;justify-content:center;
                                             gap:8px;transition:background .15s,color .15s;
                                         "
@@ -725,7 +725,7 @@
                                                     width:100%;padding:11px 14px;
                                                     background:linear-gradient(135deg,#1d2448,#2e3a6e);
                                                     color:#fff;border:none;border-radius:10px;
-                                                    font-size:13.5px;font-weight:600;font-family:'Poppins',sans-serif;
+                                                    font-size:13.5px;font-weight:600;font-family: Arial, sans-serif;
                                                     cursor:pointer;display:flex;align-items:center;
                                                     justify-content:center;gap:8px;
                                                     transition:opacity .15s;
@@ -784,7 +784,7 @@
                                             width:100%;padding:11px 14px;
                                             background:#fff;color:#1d2448;
                                             border:1.5px solid #1d2448;border-radius:10px;
-                                            font-size:13px;font-weight:600;font-family:'Poppins',sans-serif;
+                                            font-size:13px;font-weight:600;font-family: Arial, sans-serif;
                                             cursor:pointer;display:flex;align-items:center;justify-content:center;
                                             gap:8px;transition:background .15s,color .15s;
                                         "
@@ -834,7 +834,7 @@
                                                     width:100%;padding:11px 14px;
                                                     background:linear-gradient(135deg,#1d2448,#2e3a6e);
                                                     color:#fff;border:none;border-radius:10px;
-                                                    font-size:13.5px;font-weight:600;font-family:'Poppins',sans-serif;
+                                                    font-size:13.5px;font-weight:600;font-family: Arial, sans-serif;
                                                     cursor:pointer;display:flex;align-items:center;
                                                     justify-content:center;gap:8px;
                                                     transition:opacity .15s;
@@ -880,7 +880,7 @@
                             <div class="cr-action-section">
                                 <p class="cr-action-label">New Status <span style="color:#c0392b;">*</span></p>
                                 <select name="status"
-                                    style="width:100%;padding:10px 12px;border:1.5px solid #e2e5ef;border-radius:11px;font-size:13px;font-family:'Poppins',sans-serif;color:#1a1d2e;background:#fff;outline:none;"
+                                    style="width:100%;padding:10px 12px;border:1.5px solid #e2e5ef;border-radius:11px;font-size:13px;font-family: Arial, sans-serif;color:#1a1d2e;background:#fff;outline:none;"
                                     required>
                                     <option value="">— Select Status —</option>
                                     <?php
@@ -920,7 +920,7 @@
                                         width:100%;padding:12px 16px;
                                         background:linear-gradient(135deg,#1d2448,#2e3a6e);
                                         color:#fff;border:none;border-radius:10px;
-                                        font-size:13.5px;font-weight:600;font-family:'Poppins',sans-serif;
+                                        font-size:13.5px;font-weight:600;font-family: Arial, sans-serif;
                                         cursor:pointer;display:flex;align-items:center;
                                         justify-content:center;gap:8px;
                                         transition:opacity .15s;
@@ -952,11 +952,11 @@
             <p id="crConfirmBody" style="font-size:13px;color:#6b7280;text-align:center;line-height:1.65;margin:0 0 22px;"></p>
             <div style="display:flex;gap:10px;">
                 <button type="button" onclick="closeConfirm()"
-                    style="flex:1;padding:11px;border-radius:9px;border:1.5px solid #e2e5ef;background:#f0f2f8;font-size:13.5px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;color:#4a5068;">
+                    style="flex:1;padding:11px;border-radius:9px;border:1.5px solid #e2e5ef;background:#f0f2f8;font-size:13.5px;font-weight:600;font-family: Arial, sans-serif;cursor:pointer;color:#4a5068;">
                     Cancel
                 </button>
                 <button type="button" id="crConfirmOk"
-                    style="flex:1;padding:11px;border-radius:9px;border:none;font-size:13.5px;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;color:#fff;">
+                    style="flex:1;padding:11px;border-radius:9px;border:none;font-size:13.5px;font-weight:600;font-family: Arial, sans-serif;cursor:pointer;color:#fff;">
                     Confirm
                 </button>
             </div>

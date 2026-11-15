@@ -338,28 +338,24 @@ $volunteerOptions = ['Health', 'Education', 'Environment', 'Disaster Preparednes
                         <td colspan="4" class="lydo-lines">1. <?= esc($profile['issue_1'] ?? '') ?><br>2. <?= esc($profile['issue_2'] ?? '') ?><br>3. <?= esc($profile['issue_3'] ?? '') ?></td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="lydo-lines">
-                            <div class="lydo-suggest">
-                                <div class="lydo-suggest-text"><span class="lydo-label">WHAT PROGRAM/S, PROJECT/S, ACTIVITY/IES WOULD YOU SUGGEST TO THE SK OFFICIALS?</span><br><?= nl2br(esc($profile['suggestions'] ?? '')) ?></div>
-                                <div class="lydo-photo"><?php if ($photoUrl): ?><img src="<?= esc($photoUrl) ?>" alt="Youth profile photo"><?php else: ?>Photo<?php endif; ?></div>
-                            </div>
+                        <td colspan="3" class="lydo-lines">
+                            <div class="lydo-suggest-text"><span class="lydo-label">WHAT PROGRAM/S, PROJECT/S, ACTIVITY/IES WOULD YOU SUGGEST TO THE SK OFFICIALS?</span><br><?= nl2br(esc($profile['suggestions'] ?? '')) ?></div>
                         </td>
+                        <td rowspan="2" class="lydo-photo"><?php if ($photoUrl): ?><img src="<?= esc($photoUrl) ?>" alt="Youth profile photo"><?php else: ?>Photo<?php endif; ?></td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="lydo-certification">I hereby certify that all information stated above are all true and correct to the best of my knowledge and belief.</td>
+                        <td colspan="3" class="lydo-certification">I hereby certify that all information stated above are all true and correct to the best of my knowledge and belief.</td>
                     </tr>
                     <tr>
                         <td colspan="2" class="lydo-signature">
-                            <div class="lydo-sign-space"></div>
+                            <div class="lydo-sign-space"><?= esc($fullName) ?></div>
                             <div class="lydo-sign-caption">Name &amp; Signature Over Printed Name</div>
                             <div class="lydo-sign-space"></div>
                             <div class="lydo-sign-caption">Date</div>
                         </td>
                         <td colspan="2" class="lydo-signature">
-                            <div class="lydo-attested">Attested: <span id="skChairpersonStatus" class="lydo-chair-status"></span></div>
-                            <div class="lydo-sign-space">
-                                <input id="skChairpersonName" class="lydo-chair-name" type="text" maxlength="120" autocomplete="name" spellcheck="false" aria-label="Sangguniang Kabataan Chairperson" value="<?= esc($chairpersonName ?? \App\Models\BarangaySettingsModel::SK_CHAIRPERSON_DEFAULT) ?>">
-                            </div>
+                            <div class="lydo-attested">Attested:</div>
+                            <div class="lydo-sign-space"><?= esc($chairpersonName ?? \App\Models\BarangaySettingsModel::SK_CHAIRPERSON_DEFAULT) ?></div>
                             <div class="lydo-sign-caption">Name &amp; Signature Over Printed Name of<br>Sangguniang Kabataan Chairperson</div>
                         </td>
                     </tr>
@@ -388,64 +384,6 @@ $volunteerOptions = ['Health', 'Education', 'Environment', 'Disaster Preparednes
 
         setKkPrintOrientation(window.__skPrintOrientation || 'portrait');
 
-        (function () {
-            var input = document.getElementById('skChairpersonName');
-            var status = document.getElementById('skChairpersonStatus');
-            if (!input) {
-                return;
-            }
-            var saved = input.value.replace(/\s+/g, ' ').trim();
-            var timer = null;
-
-            function showStatus(text) {
-                if (status) {
-                    status.textContent = text;
-                }
-            }
-
-            function saveChairperson() {
-                var value = input.value.replace(/\s+/g, ' ').trim();
-                input.value = value;
-                if (value === saved) {
-                    return;
-                }
-                var body = new URLSearchParams();
-                body.set('sk_chairperson_name', value);
-                body.set(<?= json_encode(csrf_token()) ?>, <?= json_encode(csrf_hash()) ?>);
-                fetch(<?= json_encode($chairpersonSaveUrl ?? '/sk/profiling/chairperson') ?>, {
-                    method: 'POST',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: body.toString()
-                }).then(function (response) {
-                    return response.json().then(function (data) {
-                        return { ok: response.ok, data: data };
-                    });
-                }).then(function (result) {
-                    if (result.ok && result.data && result.data.success) {
-                        saved = typeof result.data.name === 'string' ? result.data.name : value;
-                        input.value = saved;
-                        showStatus('Saved');
-                        return;
-                    }
-                    showStatus('Not saved');
-                }).catch(function () {
-                    showStatus('Not saved');
-                });
-            }
-
-            input.addEventListener('input', function () {
-                showStatus('');
-                clearTimeout(timer);
-                timer = setTimeout(saveChairperson, 500);
-            });
-            input.addEventListener('change', saveChairperson);
-            input.addEventListener('blur', saveChairperson);
-            window.addEventListener('beforeprint', saveChairperson);
-        })();
     </script>
 </body>
 

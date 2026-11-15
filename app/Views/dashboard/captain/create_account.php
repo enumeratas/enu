@@ -118,7 +118,7 @@
             border: 1.5px solid #e2e5ef;
             border-radius: 9px;
             font-size: 13.5px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             color: #1a1d2e;
             background: #fff;
             outline: none;
@@ -268,7 +268,7 @@
             border-radius: 10px;
             font-size: 14px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -446,7 +446,7 @@
             border-radius: 6px;
             font-size: 12px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             cursor: pointer;
             transition: opacity .2s;
         }
@@ -553,7 +553,7 @@
             border-radius: 7px;
             font-size: 12px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             color: #c0392b;
             cursor: pointer;
             transition: all .2s;
@@ -605,7 +605,7 @@
             background: #fff;
             font-size: 12px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             color: #4a5068;
             cursor: pointer;
             transition: all .2s;
@@ -644,7 +644,7 @@
             border: 1.5px solid #e2e5ef;
             border-radius: 9px;
             font-size: 13px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             color: #1a1d2e;
             background: #fff;
             outline: none;
@@ -668,7 +668,7 @@
             border: 1.5px solid #e2e5ef;
             border-radius: 9px;
             font-size: 13px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             color: #1a1d2e;
             background: #fff;
             outline: none;
@@ -800,7 +800,7 @@
             border-radius: 9px;
             font-size: 13.5px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -942,7 +942,7 @@
             border-radius: 10px;
             font-size: 13.5px;
             font-weight: 600;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             cursor: pointer;
             border: none;
             transition: all .18s;

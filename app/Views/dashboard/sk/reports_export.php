@@ -30,6 +30,9 @@
         table.data td:first-child, table.data th:first-child { text-align: left; }
         table.data tfoot td { background: #f7f9fd; font-weight: 700; }
         .empty { text-align: center; color: #777; padding: 16px; border: 1px solid #eee; }
+        h2, table.data, .stats { break-inside: avoid; page-break-inside: avoid; }
+        thead { display: table-header-group; }
+        tr { break-inside: avoid; page-break-inside: avoid; }
     </style>
 </head>
 

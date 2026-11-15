@@ -87,7 +87,7 @@
             padding: 8px 10px;
             border: 1.5px solid #e2e5ef;
             border-radius: 8px;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             font-size: 12.5px;
             color: #1a1d2e;
             background: #fff;
@@ -153,7 +153,7 @@
             width: 100%;
             border: none;
             outline: none;
-            font-family: 'Poppins', sans-serif;
+            font-family: Arial, sans-serif;
             font-size: 12.5px;
             color: #1a1d2e;
             background: transparent;

@@ -472,7 +472,11 @@ class BarangayActivityController extends BaseController
         $venue         = trim((string) $this->request->getPost('venue'));
         $description   = trim((string) $this->request->getPost('description'));
 
-        if (! $cleanup && ($startDate === '' || ! $this->validDate($startDate))) {
+        $postedRequirements = $cleanup ? [] : BarangayActivityModel::collectPostedRequirements($this->request);
+        $requirements = $cleanup ? null : BarangayActivityModel::encodeRequirements($postedRequirements);
+        $requiresSubmissionWindow = $requirements !== null;
+
+        if ($requiresSubmissionWindow && ($startDate === '' || ! $this->validDate($startDate))) {
             session()->setFlashdata('error', 'A valid start date for submitting requirements is required.');
             return null;
         }
@@ -484,7 +488,7 @@ class BarangayActivityController extends BaseController
             session()->setFlashdata('error', 'The date the activity will be conducted is required.');
             return null;
         }
-        if (! $cleanup && $conductedDate < $startDate) {
+        if ($requiresSubmissionWindow && $conductedDate < $startDate) {
             session()->setFlashdata('error', 'The conducted date cannot be before the start date.');
             return null;
         }
@@ -507,10 +511,6 @@ class BarangayActivityController extends BaseController
             session()->setFlashdata('error', 'Minimum age cannot be greater than maximum age.');
             return null;
         }
-
-        $requirements = $cleanup
-            ? null
-            : BarangayActivityModel::encodeRequirements(BarangayActivityModel::collectPostedRequirements($this->request));
 
         $eligibilityError = null;
         $eligibility = BarangayActivityModel::collectPostedEligibility($this->request, $eligibilityError);

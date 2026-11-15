@@ -134,8 +134,8 @@
                     <p class="sk-section-divider">Schedule and venue</p>
                     <div class="sk-form-row<?= $cleanupSelected ? ' is-disabled' : '' ?>" id="activitySubmissionDates">
                         <div>
-                            <label class="sk-form-label" for="activityStart">Start date of submission of requirements <span class="sk-required">*</span></label>
-                            <input class="sk-form-input" id="activityStart" name="start_date" type="date" <?= $cleanupSelected ? 'disabled' : 'required' ?> value="<?= esc($dateValue('start_date')) ?>">
+                            <label class="sk-form-label" for="activityStart">Start date of submission of requirements</label>
+                            <input class="sk-form-input" id="activityStart" name="start_date" type="date" <?= $cleanupSelected ? 'disabled' : '' ?> value="<?= esc($dateValue('start_date')) ?>">
                         </div>
                         <div>
                             <label class="sk-form-label" for="activityEnd">End date of submission of requirements</label>

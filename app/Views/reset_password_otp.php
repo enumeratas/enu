@@ -15,7 +15,7 @@
         }
 
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: Arial, sans-serif;
             background: #f5f6fa;
             min-height: 100vh;
             display: flex;
@@ -101,7 +101,7 @@
             font-weight: 700;
             text-align: center;
             color: #1d2448;
-            font-family: 'Inter', sans-serif;
+            font-family: Arial, sans-serif;
             outline: none;
             transition: border-color .2s, box-shadow .2s;
         }
@@ -125,7 +125,7 @@
             border-radius: 8px;
             font-size: 14px;
             font-weight: 600;
-            font-family: 'Inter', sans-serif;
+            font-family: Arial, sans-serif;
             cursor: pointer;
             margin-top: 8px;
             transition: background .2s, transform .15s;
