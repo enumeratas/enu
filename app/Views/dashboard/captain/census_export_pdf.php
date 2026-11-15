@@ -113,6 +113,28 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
             overflow-x: auto;
         }
 
+        .export-empty-state {
+            max-width: 620px;
+            margin: 48px auto;
+            padding: 28px;
+            background: #fff;
+            border: 1px solid #dfe3ee;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, .08);
+            text-align: center;
+            color: #1d2448;
+        }
+
+        .export-empty-state strong,
+        .export-empty-state span {
+            display: block;
+        }
+
+        .export-empty-state span {
+            margin-top: 8px;
+            color: #5f6782;
+        }
+
         @media print {
             body {
                 background: #fff;
@@ -512,6 +534,12 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
 
             </div><!-- end zone-page -->
         <?php endforeach; ?>
+        <?php if ($byZone === []): ?>
+            <div class="export-empty-state">
+                <strong>No census records were found.</strong>
+                <span>Clear the filters or return to Census Records and try again.</span>
+            </div>
+        <?php endif; ?>
     </div><!-- end content-area -->
 
     <script>
@@ -550,69 +578,76 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
         }
 
         async function generatePdf() {
-            paginateCensusPages();
             const btn = document.getElementById('downloadBtn');
             const progWrap = document.getElementById('progress-wrap');
             const progFill = document.getElementById('progress-bar-fill');
             const progLbl = document.getElementById('progress-label');
+            const fallbackToPrint = () => {
+                window.alert('Automatic PDF download is unavailable. Use the print dialog and choose “Save as PDF”.');
+                window.print();
+            };
 
+            if (!window.html2canvas || !window.jspdf || !window.jspdf.jsPDF) {
+                fallbackToPrint();
+                return;
+            }
+
+            paginateCensusPages();
             btn.disabled = true;
             btn.textContent = 'Generating…';
             progWrap.style.display = 'flex';
 
-            const {
-                jsPDF
-            } = window.jspdf;
-            const pdf = new jsPDF({
-                orientation: 'landscape',
-                unit: 'mm',
-                format: [330, 215]
-            });
-            const pages = document.querySelectorAll('.zone-page');
-            if (!pages.length) {
+            try {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({
+                    orientation: 'landscape',
+                    unit: 'mm',
+                    format: [330, 215]
+                });
+                const pages = document.querySelectorAll('.zone-page');
+                if (!pages.length) {
+                    window.alert('No census records match the selected filters.');
+                    return;
+                }
+                const W = pdf.internal.pageSize.getWidth();
+                const H = pdf.internal.pageSize.getHeight();
+                const margin = 6;
+
+                for (let i = 0; i < pages.length; i++) {
+                    progFill.style.width = Math.round(((i) / pages.length) * 90) + '%';
+                    progLbl.textContent = `Rendering page ${i + 1} of ${pages.length}…`;
+
+                    const canvas = await html2canvas(pages[i], {
+                        scale: 2,
+                        useCORS: true,
+                        backgroundColor: '#ffffff',
+                        logging: false,
+                    });
+
+                    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+                    const imgW = W - margin * 2;
+                    const imgH = (canvas.height * imgW) / canvas.width;
+
+                    if (i > 0) pdf.addPage([330, 215], 'landscape');
+                    const finalH = Math.min(imgH, H - margin * 2);
+                    pdf.addImage(imgData, 'JPEG', margin, margin, imgW, finalH);
+                }
+
+                progFill.style.width = '100%';
+                progLbl.textContent = 'Saving…';
+
+                const zone = <?= json_encode($zone ?: 'all-zones') ?>;
+                const filename = 'census-' + zone.toLowerCase().replace(/\s+/g, '-') + '-<?= date('Y-m-d') ?>.pdf';
+                pdf.save(filename);
+            } catch (error) {
+                console.error('Census PDF generation failed.', error);
+                fallbackToPrint();
+            } finally {
                 btn.disabled = false;
                 btn.textContent = '↓ Download PDF';
                 progWrap.style.display = 'none';
-                window.alert('No census records match the selected filters.');
-                return;
+                progFill.style.width = '0%';
             }
-            const W = pdf.internal.pageSize.getWidth();
-            const H = pdf.internal.pageSize.getHeight();
-            const margin = 6;
-
-            for (let i = 0; i < pages.length; i++) {
-                progFill.style.width = Math.round(((i) / pages.length) * 90) + '%';
-                progLbl.textContent = `Rendering zone ${i + 1} of ${pages.length}…`;
-
-                const canvas = await html2canvas(pages[i], {
-                    scale: 2,
-                    useCORS: true,
-                    backgroundColor: '#ffffff',
-                    logging: false,
-                });
-
-                const imgData = canvas.toDataURL('image/jpeg', 0.92);
-                const imgW = W - margin * 2;
-                const imgH = (canvas.height * imgW) / canvas.width;
-
-                if (i > 0) pdf.addPage([330, 215], 'landscape');
-
-                // If content taller than page, scale down to fit
-                const finalH = Math.min(imgH, H - margin * 2);
-                pdf.addImage(imgData, 'JPEG', margin, margin, imgW, finalH);
-            }
-
-            progFill.style.width = '100%';
-            progLbl.textContent = 'Saving…';
-
-            const zone = <?= json_encode($zone ?: 'all-zones') ?>;
-            const filename = 'census-' + zone.toLowerCase().replace(/\s+/g, '-') + '-<?= date('Y-m-d') ?>.pdf';
-            pdf.save(filename);
-
-            btn.disabled = false;
-            btn.textContent = '↓ Download PDF';
-            progWrap.style.display = 'none';
-            progFill.style.width = '0%';
         }
 
         window.addEventListener('DOMContentLoaded', paginateCensusPages);
