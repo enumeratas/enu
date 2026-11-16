@@ -297,7 +297,8 @@
     $viewRole  = session()->get('role');
     $role      = in_array($viewRole, ['resident', 'council'], true) ? $viewRole : 'sk';
     $active    = $role === 'sk' ? 'profiling' : 'sk_profiling';
-    $pageTitle = ($editMode ?? false) ? 'Edit Youth Profile' : 'Add Youth Profile';
+    $viewMode = $viewMode ?? false;
+    $pageTitle = $viewMode ? 'View Youth Profile' : (($editMode ?? false) ? 'Edit Youth Profile' : 'Add Youth Profile');
     include(APPPATH . 'Views/dashboard/sidebar.php');
 
     $y       = $youth ?? [];
@@ -390,7 +391,7 @@
             <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px;">
                 <div>
                     <h2 style="font-size:16px;font-weight:700;color:#1d2448;margin:0;">
-                        <?= ($edit || $residentEdit) ? 'Edit Youth Profile' : ($residentMode ? 'SK Youth Profiling' : 'New Youth Profile') ?>
+                        <?= $viewMode ? 'View Youth Profile' : (($edit || $residentEdit) ? 'Edit Youth Profile' : ($residentMode ? 'SK Youth Profiling' : 'New Youth Profile')) ?>
                     </h2>
                     <p style="font-size:12px;color:#9aa0b4;margin:0;">
                         KK Profiling Form — LYDO Form 1 · Same fields for every youth age 15–30
@@ -423,7 +424,7 @@
                         </div>
                     </div>
                 </div>
-            <?php elseif (! $edit): ?>
+            <?php elseif (! $edit && ! $viewMode): ?>
                 <div class="kk-card" style="margin-bottom:18px;">
                     <div class="kk-card-header"><i class="fas fa-link"></i>
                         <h4>Link this profile to a youth account</h4>
@@ -727,12 +728,21 @@
                     </div>
                 </div>
 
-                <p class="kk-section-note" style="margin:0 0 12px;">Saving stores this profile on the youth’s SK account. A missing photo does not block the other fields.</p>
+                <?php if (! $viewMode): ?>
+                    <p class="kk-section-note" style="margin:0 0 12px;">Saving stores this profile on the youth’s SK account. A missing photo does not block the other fields.</p>
+                <?php endif; ?>
                 <div style="display:flex;justify-content:flex-end;gap:12px;margin-bottom:24px;">
-                    <a href="<?= esc($returnUrl) ?>" class="db-btn db-btn--outline" onclick="return goBack(event, '<?= esc($returnUrl) ?>');">Cancel</a>
-                    <button type="submit" class="db-btn db-btn--primary">
-                        <i class="fas fa-save"></i> <?= ($edit || $residentEdit) ? 'Save Changes' : 'Save Profile' ?>
-                    </button>
+                    <?php if ($viewMode): ?>
+                        <a href="/sk/profiling" class="db-btn db-btn--outline">Back to Profiling</a>
+                        <a href="/sk/profiling/edit/<?= (int) ($y['id'] ?? 0) ?>" class="db-btn db-btn--primary">
+                            <i class="fas fa-edit"></i> Edit Profile
+                        </a>
+                    <?php else: ?>
+                        <a href="<?= esc($returnUrl) ?>" class="db-btn db-btn--outline" onclick="return goBack(event, '<?= esc($returnUrl) ?>');">Cancel</a>
+                        <button type="submit" class="db-btn db-btn--primary">
+                            <i class="fas fa-save"></i> <?= ($edit || $residentEdit) ? 'Save Changes' : 'Save Profile' ?>
+                        </button>
+                    <?php endif; ?>
                 </div>
 
             </form>
@@ -755,6 +765,12 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            if (<?= $viewMode ? 'true' : 'false' ?>) {
+                document.querySelectorAll('#kkForm input, #kkForm select, #kkForm textarea, #kkForm button').forEach(function (field) {
+                    field.disabled = true;
+                });
+                return;
+            }
             const input = document.getElementById('profilePhotoInput');
             const previewImage = document.getElementById('photoPreviewImage');
             const previewLabel = document.getElementById('photoPreviewLabel');

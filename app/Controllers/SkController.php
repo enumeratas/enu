@@ -155,7 +155,10 @@ class SkController extends BaseController
             return redirect()->to('/sk/profiling')->with('error', 'Record not found.');
         }
         $youth['age'] = SkYouthModel::calcAge($youth['date_of_birth']);
-        return view('dashboard/sk/view_youth', ['youth' => $youth]);
+        return view('dashboard/sk/add_youth', [
+            'youth'    => $youth,
+            'viewMode' => true,
+        ]);
     }
 
     // ── Show add form ─────────────────────────────────────────────────────────

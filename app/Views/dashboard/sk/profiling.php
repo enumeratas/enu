@@ -286,9 +286,11 @@
                                     <td>
                                         <div class="db-action-group">
                                             <?php
-                                            $viewHref = ! empty($y['household_no'])
-                                                ? '/sk/household/' . rawurlencode((string) $y['household_no']) . '?source=' . rawurlencode((string) ($y['source'] ?? '')) . '&member_id=' . ($y['source'] === 'member' ? (int) $y['id'] : 0)
-                                                : (! empty($y['profile_id']) ? '/sk/profiling/edit/' . (int) $y['profile_id'] : '/sk/profiling');
+                                            $viewHref = ! empty($y['profile_id'])
+                                                ? '/sk/profiling/view/' . (int) $y['profile_id']
+                                                : (! empty($y['household_no'])
+                                                    ? '/sk/household/' . rawurlencode((string) $y['household_no']) . '?source=' . rawurlencode((string) ($y['source'] ?? '')) . '&member_id=' . ($y['source'] === 'member' ? (int) $y['id'] : 0)
+                                                    : '/sk/profiling');
                                             ?>
                                             <a href="<?= esc($viewHref) ?>"
                                                 class="db-icon-btn db-icon-btn--view" title="View Youth Profile">
