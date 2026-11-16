@@ -130,7 +130,7 @@ class CensusExportController extends BaseController
         if ($filters['search']) $activeFilters[] = 'Search: "' . $filters['search'] . '"';
         if ($filters['census_year'] !== '') $activeFilters[] = 'Year: ' . $filters['census_year'];
 
-        return view('dashboard/captain/census_export_pdf', [
+        $viewData = [
             'byZone'           => $byZone,
             'zone'             => $filters['zone'],
             'censusYear'       => $filters['census_year'] !== '' ? (int) $filters['census_year'] : null,
@@ -138,7 +138,25 @@ class CensusExportController extends BaseController
             'dateAccomplished' => date('m/d/Y'),
             'role'             => $role,
             'activeFilters'    => $activeFilters,
-        ]);
+        ];
+
+        if ($this->request->getGet('download') === '1') {
+            $options = new \Dompdf\Options();
+            $options->set('isRemoteEnabled', true);
+            $options->set('defaultFont', 'Arial');
+            $dompdf = new \Dompdf\Dompdf($options);
+            $dompdf->loadHtml(view('dashboard/captain/census_export_pdf', $viewData));
+            $dompdf->setPaper([0, 0, 935.43, 609.45], 'landscape');
+            $dompdf->render();
+
+            $filename = 'census-' . strtolower(preg_replace('/[^a-z0-9]+/i', '-', $filters['zone'] ?: 'all-zones')) . '-' . date('Y-m-d') . '.pdf';
+
+            return $this->response
+                ->download($filename, $dompdf->output())
+                ->setContentType('application/pdf');
+        }
+
+        return view('dashboard/captain/census_export_pdf', $viewData);
     }
 
     private function censusTextSearchSql(string $alias, string $raw): string

@@ -583,8 +583,9 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
             const progFill = document.getElementById('progress-bar-fill');
             const progLbl = document.getElementById('progress-label');
             const fallbackToPrint = () => {
-                window.alert('Automatic PDF download is unavailable. Use the print dialog and choose “Save as PDF”.');
-                window.print();
+                const url = new URL(window.location.href);
+                url.searchParams.set('download', '1');
+                window.location.href = url.toString();
             };
 
             if (!window.html2canvas || !window.jspdf || !window.jspdf.jsPDF) {
