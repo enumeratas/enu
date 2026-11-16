@@ -156,7 +156,8 @@
                             <select name="age" class="db-filter-select" style="width:100%;" onchange="this.form.submit()">
                                 <option value="">All Ages</option>
                                 <option value="15-17" <?= $ageFilter === '15-17' ? 'selected' : '' ?>>15–17 (Child Youth)</option>
-                                <option value="18-24" <?= $ageFilter === '18-24' ? 'selected' : '' ?>>18–24 (Core Youth)</option>
+                                <option value="18-21" <?= $ageFilter === '18-21' ? 'selected' : '' ?>>18–21 y/o</option>
+                                <option value="22-24" <?= $ageFilter === '22-24' ? 'selected' : '' ?>>22–24 y/o</option>
                                 <option value="25-30" <?= $ageFilter === '25-30' ? 'selected' : '' ?>>25–30 (Young Adult)</option>
                             </select>
                         </div>

@@ -1682,10 +1682,42 @@ class CensusController extends BaseController
             return ['queued' => false, 'sent' => 0, 'failed' => 0];
         }
 
-        @set_time_limit(0);
-        $result = (new \App\Libraries\CensusAuthorizationMailer())->sendPending($authIds);
+        $queueDirectory = WRITEPATH . 'census-auth-queue';
+        if (! is_dir($queueDirectory) && ! mkdir($queueDirectory, 0755, true) && ! is_dir($queueDirectory)) {
+            log_message('error', 'Could not create census authorization queue directory.');
 
-        return ['queued' => false, 'sent' => $result['sent'], 'failed' => $result['failed']];
+            return ['queued' => false, 'sent' => 0, 'failed' => count($authIds)];
+        }
+
+        $queueFile = tempnam($queueDirectory, 'auth-');
+        if ($queueFile === false || file_put_contents($queueFile, json_encode($authIds)) === false) {
+            if ($queueFile !== false && is_file($queueFile)) {
+                @unlink($queueFile);
+            }
+            log_message('error', 'Could not queue census authorization emails.');
+
+            return ['queued' => false, 'sent' => 0, 'failed' => count($authIds)];
+        }
+
+        $php = escapeshellarg(PHP_BINARY);
+        $spark = escapeshellarg(ROOTPATH . 'spark');
+        $file = escapeshellarg($queueFile);
+        if (DIRECTORY_SEPARATOR === '\\') {
+            $command = 'start /B "" ' . $php . ' ' . $spark . ' census:deliver-auth ' . $file;
+        } else {
+            $command = $php . ' ' . $spark . ' census:deliver-auth ' . $file . ' > /dev/null 2>&1 &';
+        }
+
+        $process = popen($command, 'r');
+        if ($process === false) {
+            @unlink($queueFile);
+            log_message('error', 'Could not start census authorization delivery process.');
+
+            return ['queued' => false, 'sent' => 0, 'failed' => count($authIds)];
+        }
+        pclose($process);
+
+        return ['queued' => true, 'sent' => 0, 'failed' => 0];
     }
 
     private function residentsListUrl(): string

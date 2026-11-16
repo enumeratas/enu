@@ -1029,7 +1029,9 @@ class SkController extends BaseController
                     $update['email'] = $email;
                 }
             }
-            $users->skipValidation(true)->update($userId, $update);
+            if ($users->skipValidation(true)->update($userId, $update) === false) {
+                throw new \RuntimeException('The linked youth account could not be updated.');
+            }
 
             if ((int) session()->get('user_id') === $userId) {
                 $display = trim(
@@ -1098,7 +1100,9 @@ class SkController extends BaseController
                 $head['contact_number'] = $contact;
             }
             if ($head !== []) {
-                $db->table('households')->where('household_no', $householdNo)->update($head);
+                if ($db->table('households')->where('household_no', $householdNo)->update($head) === false) {
+                    throw new \RuntimeException('The youth census record could not be updated.');
+                }
             }
 
             return;
@@ -1122,7 +1126,9 @@ class SkController extends BaseController
             $memberUpdate['marital_status'] = $civil;
         }
         if ($memberUpdate !== []) {
-            $db->table('household_members')->where('id', (int) $matches[0]['id'])->update($memberUpdate);
+            if ($db->table('household_members')->where('id', (int) $matches[0]['id'])->update($memberUpdate) === false) {
+                throw new \RuntimeException('The youth census record could not be updated.');
+            }
         }
     }
 
