@@ -431,11 +431,11 @@
                                     <td>
                                         <?php if (! empty($y['active_account'])): ?>
                                             <span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:100px;background:#e8f8ef;color:#187a43;border:1px solid #b9e8ca;">
-                                                <i class="fas fa-check-circle"></i> Active
+                                                Active
                                             </span>
                                         <?php else: ?>
                                             <span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:100px;background:#f0f2f8;color:#6b7280;border:1px solid #e2e5ef;">
-                                                <i class="fas fa-minus-circle"></i> No
+                                                No
                                             </span>
                                         <?php endif; ?>
                                     </td>
