@@ -100,7 +100,7 @@
                             <i class="fas fa-filter"></i> Filters
                             <?php
                             $activeCount = 0;
-                            foreach (['zone', 'gender', 'age_min', 'age_max', 'is_pwd', 'is_senior', 'is_solo', 'is_4ps', 'is_student', 'is_osy', 'is_indigent', 'census_year'] as $k) {
+                            foreach (['zone', 'gender', 'age_min', 'age_max', 'is_pwd', 'is_senior', 'is_solo', 'is_4ps', 'is_student', 'is_employed', 'is_osy', 'is_indigent', 'search', 'census_year'] as $k) {
                                 if (! empty($filters[$k])) $activeCount++;
                             }
                             ?>

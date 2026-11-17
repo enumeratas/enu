@@ -78,7 +78,9 @@ class UIController extends BaseController
             $filters['is_student'] !== '' ||
             $filters['is_employed'] !== '' ||
             $filters['is_osy']     !== '' ||
-            $filters['is_senior']  !== ''
+            $filters['is_senior']  !== '' ||
+            $filters['is_indigent'] !== '' ||
+            $filters['search']     !== ''
         );
 
         $hasAnyFilter = (

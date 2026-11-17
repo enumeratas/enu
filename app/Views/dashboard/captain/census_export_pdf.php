@@ -135,6 +135,62 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
             color: #5f6782;
         }
 
+        .export-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(15, 23, 42, .62);
+            z-index: 10000;
+        }
+
+        .export-modal.is-open {
+            display: flex;
+        }
+
+        .export-modal__box {
+            width: min(420px, 100%);
+            padding: 24px;
+            border-radius: 10px;
+            background: #fff;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, .25);
+            text-align: center;
+            color: #1d2448;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        .export-modal__icon {
+            margin-bottom: 12px;
+            color: #c0392b;
+            font-size: 30px;
+        }
+
+        .export-modal__title {
+            margin-bottom: 8px;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .export-modal__message {
+            margin-bottom: 20px;
+            color: #5f6782;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .export-modal__close {
+            padding: 9px 22px;
+            border: 0;
+            border-radius: 6px;
+            background: #1d2448;
+            color: #fff;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
         @media print {
             body {
                 background: #fff;
@@ -297,6 +353,15 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
         <button class="tb-btn tb-btn--primary" id="downloadBtn" onclick="generatePdf()">
             &#8595; Download PDF
         </button>
+    </div>
+
+    <div class="export-modal" id="exportMessageModal" role="dialog" aria-modal="true" aria-labelledby="exportMessageTitle">
+        <div class="export-modal__box">
+            <div class="export-modal__icon">&#9888;</div>
+            <div class="export-modal__title" id="exportMessageTitle">No matching records</div>
+            <div class="export-modal__message">No census records match the selected filters. Please clear a filter or choose different criteria.</div>
+            <button type="button" class="export-modal__close" onclick="closeExportModal()">OK</button>
+        </div>
     </div>
 
     <!-- Printable content -->
@@ -582,11 +647,17 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
             const progWrap = document.getElementById('progress-wrap');
             const progFill = document.getElementById('progress-bar-fill');
             const progLbl = document.getElementById('progress-label');
+            const pages = document.querySelectorAll('.zone-page');
             const fallbackToPrint = () => {
                 const url = new URL(window.location.href);
                 url.searchParams.set('download', '1');
                 window.location.href = url.toString();
             };
+
+            if (!pages.length) {
+                showExportModal();
+                return;
+            }
 
             if (!window.html2canvas || !window.jspdf || !window.jspdf.jsPDF) {
                 fallbackToPrint();
@@ -605,11 +676,6 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
                     unit: 'mm',
                     format: [330, 215]
                 });
-                const pages = document.querySelectorAll('.zone-page');
-                if (!pages.length) {
-                    window.alert('No census records match the selected filters.');
-                    return;
-                }
                 const W = pdf.internal.pageSize.getWidth();
                 const H = pdf.internal.pageSize.getHeight();
                 const margin = 6;
@@ -650,6 +716,28 @@ $activeFilters = (isset($activeFilters) && is_array($activeFilters)) ? $activeFi
                 progFill.style.width = '0%';
             }
         }
+
+        function showExportModal() {
+            const modal = document.getElementById('exportMessageModal');
+            modal.classList.add('is-open');
+            modal.querySelector('.export-modal__close').focus();
+        }
+
+        function closeExportModal() {
+            document.getElementById('exportMessageModal').classList.remove('is-open');
+        }
+
+        document.getElementById('exportMessageModal').addEventListener('click', function (event) {
+            if (event.target === this) {
+                closeExportModal();
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeExportModal();
+            }
+        });
 
         window.addEventListener('DOMContentLoaded', paginateCensusPages);
     </script>

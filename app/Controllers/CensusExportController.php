@@ -49,6 +49,8 @@ class CensusExportController extends BaseController
             || $filters['is_student'] === '1'
             || $filters['is_employed'] === '1'
             || $filters['is_osy'] === '1'
+            || $filters['is_indigent'] === '1'
+            || $filters['search'] !== ''
             || in_array($filters['is_senior'], ['1', 'with_id', 'without_id'], true);
 
         $memberModel = new HouseholdMemberModel();
@@ -140,7 +142,7 @@ class CensusExportController extends BaseController
             'activeFilters'    => $activeFilters,
         ];
 
-        if ($this->request->getGet('download') === '1') {
+        if ($this->request->getGet('download') === '1' && $byZone !== []) {
             $options = new \Dompdf\Options();
             $options->set('isRemoteEnabled', true);
             $options->set('defaultFont', 'Arial');

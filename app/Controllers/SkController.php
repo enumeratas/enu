@@ -154,10 +154,18 @@ class SkController extends BaseController
         if (! $youth) {
             return redirect()->to('/sk/profiling')->with('error', 'Record not found.');
         }
-        $youth['age'] = SkYouthModel::calcAge($youth['date_of_birth']);
-        return view('dashboard/sk/add_youth', [
-            'youth'    => $youth,
-            'viewMode' => true,
+
+        return view('dashboard/sk/print_profile', [
+            'householdId'     => $youth['household_no'] ?? '',
+            'household'       => [],
+            'members'         => [],
+            'youthMember'     => $youth,
+            'youthProfile'    => $youth,
+            'memberSource'    => 'profile',
+            'memberId'        => $id,
+            'role'            => 'sk',
+            'chairpersonName'    => $this->skChairpersonName(),
+            'chairpersonSaveUrl' => '/sk/profiling/chairperson',
         ]);
     }
 
