@@ -383,8 +383,10 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
 </style>`;
 
     const PRINT_SETTINGS_KEY = 'bis_clearance_print_settings';
+    const PRINT_SETTINGS_VERSION_KEY = 'bis_clearance_print_settings_version';
+    const PRINT_SETTINGS_VERSION = 'bond-v2';
     const DEFAULT_PRINT_SETTINGS = {
-        paper: 'a4',
+        paper: 'long',
         orientation: 'portrait',
         margin: 'narrow',
         scale: '100',
@@ -416,6 +418,10 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
 
     function readSettings() {
         try {
+            if (localStorage.getItem(PRINT_SETTINGS_VERSION_KEY) !== PRINT_SETTINGS_VERSION) {
+                localStorage.removeItem(PRINT_SETTINGS_KEY);
+                localStorage.setItem(PRINT_SETTINGS_VERSION_KEY, PRINT_SETTINGS_VERSION);
+            }
             return normalizeSettings(JSON.parse(localStorage.getItem(PRINT_SETTINGS_KEY) || '{}'));
         } catch (error) {
             return normalizeSettings(DEFAULT_PRINT_SETTINGS);

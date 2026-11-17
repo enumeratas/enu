@@ -755,7 +755,7 @@
         }
     </style>
 
-    <script src="/js/doc-templates.js?v=3"></script>
+    <script src="/js/doc-templates.js?v=4"></script>
     <script>
         document.querySelectorAll('.db-nav-item').forEach(i =>
             i.addEventListener('click', () => document.getElementById('sidebar').classList.remove('open'))

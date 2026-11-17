@@ -696,7 +696,7 @@
         }
     </style>
 
-    <script src="/js/doc-templates.js?v=3"></script>
+    <script src="/js/doc-templates.js?v=4"></script>
     <script src="/js/document-editor.js"></script>
     <script>
         // Per-request census map (request_id → census fields for the for_member person).
