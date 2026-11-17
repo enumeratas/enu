@@ -3776,6 +3776,14 @@ body.db-sidebar-collapsed .db-nav-section {
     font-weight: 400 !important;
 }
 
+#youthTable tbody td > div > div > div.resident-name:first-child {
+    font-family: "Inter", Arial, sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    letter-spacing: normal !important;
+    font-style: normal !important;
+}
+
 /* ── Resident name cell ── */
 .db-resident-name {
     display: flex;

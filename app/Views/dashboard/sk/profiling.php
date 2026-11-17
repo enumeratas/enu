@@ -90,6 +90,14 @@
             font-weight: 400 !important;
         }
 
+        #youthTable tbody td > div > div > div.resident-name:first-child {
+            font-family: 'Inter', Arial, sans-serif !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            letter-spacing: normal !important;
+            font-style: normal !important;
+        }
+
         #youthTable .resident-name {
             font-family: 'Inter', Arial, sans-serif !important;
             font-size: 13px !important;
