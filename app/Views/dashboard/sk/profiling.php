@@ -80,6 +80,32 @@
             font-family: "Segoe UI", Arial, sans-serif !important;
             font-weight: 400 !important;
         }
+
+        #youthTable .db-action-group .db-action-text {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: auto !important;
+            min-width: 52px !important;
+            height: 30px !important;
+            padding: 0 10px !important;
+            border: 1px solid currentColor !important;
+            border-radius: 5px !important;
+            background: #fff !important;
+            font-family: "Segoe UI", Arial, sans-serif !important;
+            font-size: 12px !important;
+            font-weight: 600 !important;
+            line-height: 1 !important;
+            text-decoration: none !important;
+        }
+
+        #youthTable .db-action-group .db-action-text--view {
+            color: #16325c !important;
+        }
+
+        #youthTable .db-action-group .db-action-text--edit {
+            color: #8a6a12 !important;
+        }
     </style>
     <?php
 
@@ -366,8 +392,8 @@
                                                     : '/sk/profiling');
                                             ?>
                                             <a href="<?= esc($viewHref) ?>"
-                                                class="db-icon-btn db-icon-btn--view" title="View Youth Profile">
-                                                <i class="fas fa-eye"></i>
+                                                class="db-action-text db-action-text--view" title="View Youth Profile">
+                                                View
                                             </a>
                                             <?php
                                             $editHref = ! empty($y['profile_id'])
@@ -377,8 +403,8 @@
                                                     . '&member_id=' . (($y['source'] ?? '') === 'member' ? (int) $y['id'] : 0);
                                             ?>
                                             <a href="<?= esc($editHref) ?>"
-                                                class="db-icon-btn db-icon-btn--edit" title="Edit Profile">
-                                                <i class="fas fa-edit"></i>
+                                                class="db-action-text db-action-text--edit" title="Edit Profile">
+                                                Edit
                                             </a>
                                         </div>
                                     </td>
