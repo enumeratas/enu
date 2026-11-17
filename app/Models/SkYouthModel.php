@@ -402,6 +402,7 @@ class SkYouthModel extends Model
     {
         $this->primeIndexes();
         $userMap = $this->householdNameUserMap();
+        $activeUserIds = $this->activeUserIds();
         $used    = [];
         $merged  = [];
 
@@ -416,7 +417,9 @@ class SkYouthModel extends Model
                     $used[$relatedId] = true;
                 }
             }
-            $merged[] = $this->applyToCensusRow($row, $profile);
+            $mergedRow = $this->applyToCensusRow($row, $profile);
+            $mergedRow['active_account'] = $userId !== null && isset($activeUserIds[$userId]);
+            $merged[] = $mergedRow;
         }
 
         foreach ($this->latestRows as $profile) {
@@ -431,7 +434,7 @@ class SkYouthModel extends Model
             foreach ($this->relatedProfileIds($profile) as $relatedId) {
                 $used[$relatedId] = true;
             }
-            $merged[] = $this->applyToCensusRow([
+            $mergedRow = $this->applyToCensusRow([
                 'source'         => 'profile',
                 'id'             => $id,
                 'household_no'   => '',
@@ -440,6 +443,9 @@ class SkYouthModel extends Model
                 'contact_number' => '',
                 'civil_status'   => '',
             ], $profile);
+            $profileUserId = (int) ($profile['user_id'] ?? 0);
+            $mergedRow['active_account'] = $profileUserId > 0 && isset($activeUserIds[$profileUserId]);
+            $merged[] = $mergedRow;
         }
 
         return $merged;
@@ -595,6 +601,33 @@ class SkYouthModel extends Model
         }
 
         return $map;
+    }
+
+    /**
+     * @return array<int, true>
+     */
+    private function activeUserIds(): array
+    {
+        if (! $this->db->tableExists('users')) {
+            return [];
+        }
+
+        $rows = $this->db->table('users')
+            ->select('id')
+            ->whereIn('role', ['resident', 'council'])
+            ->where('status', 'active')
+            ->get()
+            ->getResultArray();
+
+        $ids = [];
+        foreach ($rows as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            if ($id > 0) {
+                $ids[$id] = true;
+            }
+        }
+
+        return $ids;
     }
 
     /**
