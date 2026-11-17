@@ -135,22 +135,52 @@
     ];
     $plainName = static function ($value): string {
         $value = (string) $value;
-        if (! function_exists('mb_ord') || ! function_exists('mb_chr')) {
-            return $value;
-        }
-
         $ranges = [
             [0x1D400, 0x1D419, 0x41], [0x1D41A, 0x1D433, 0x61],
             [0x1D468, 0x1D481, 0x41], [0x1D482, 0x1D49B, 0x61],
             [0x1D5D4, 0x1D5ED, 0x41], [0x1D5EE, 0x1D607, 0x61],
             [0x1D670, 0x1D689, 0x41], [0x1D68A, 0x1D6A3, 0x61],
         ];
+        $utf8Codepoint = static function (string $character): int {
+            $bytes = array_values(unpack('C*', $character) ?: []);
+            $first = $bytes[0] ?? 0;
+            if ($first < 0x80) {
+                return $first;
+            }
+            if (count($bytes) === 2) {
+                return (($first & 0x1F) << 6) | (($bytes[1] ?? 0) & 0x3F);
+            }
+            if (count($bytes) === 3) {
+                return (($first & 0x0F) << 12) | (($bytes[1] ?? 0) & 0x3F) << 6 | (($bytes[2] ?? 0) & 0x3F);
+            }
 
-        return (string) preg_replace_callback('/[\x{1D400}-\x{1D7FF}]/u', static function (array $match) use ($ranges): string {
-            $code = mb_ord($match[0], 'UTF-8');
+            return (($first & 0x07) << 18) | (($bytes[1] ?? 0) & 0x3F) << 12 | (($bytes[2] ?? 0) & 0x3F) << 6 | (($bytes[3] ?? 0) & 0x3F);
+        };
+        $characterForCodepoint = static function (int $codepoint): string {
+            if ($codepoint < 0x80) {
+                return chr($codepoint);
+            }
+            if ($codepoint < 0x800) {
+                return chr(0xC0 | ($codepoint >> 6))
+                    . chr(0x80 | ($codepoint & 0x3F));
+            }
+            if ($codepoint < 0x10000) {
+                return chr(0xE0 | ($codepoint >> 12))
+                    . chr(0x80 | (($codepoint >> 6) & 0x3F))
+                    . chr(0x80 | ($codepoint & 0x3F));
+            }
+
+            return chr(0xF0 | ($codepoint >> 18))
+                . chr(0x80 | (($codepoint >> 12) & 0x3F))
+                . chr(0x80 | (($codepoint >> 6) & 0x3F))
+                . chr(0x80 | ($codepoint & 0x3F));
+        };
+
+        return (string) preg_replace_callback('/[\x{1D400}-\x{1D7FF}]/u', static function (array $match) use ($ranges, $utf8Codepoint, $characterForCodepoint): string {
+            $code = $utf8Codepoint($match[0]);
             foreach ($ranges as [$start, $end, $base]) {
                 if ($code >= $start && $code <= $end) {
-                    return mb_chr($base + ($code - $start), 'UTF-8');
+                    return $characterForCodepoint($base + ($code - $start));
                 }
             }
 
