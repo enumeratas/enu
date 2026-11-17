@@ -658,6 +658,36 @@
     $flashError   = session()->getFlashdata('error') ?: session()->getFlashdata('blotter_error');
     $flashMessage = $flashSuccess ?: $flashError;
     $flashClass   = $flashSuccess ? 'db-alert--success' : 'db-alert--error';
+    $plainName = static function ($value): string {
+        $ranges = [
+            [0x1D400, 0x1D419, 0x41], [0x1D41A, 0x1D433, 0x61],
+            [0x1D468, 0x1D481, 0x41], [0x1D482, 0x1D49B, 0x61],
+            [0x1D5D4, 0x1D5ED, 0x41], [0x1D5EE, 0x1D607, 0x61],
+            [0x1D670, 0x1D689, 0x41], [0x1D68A, 0x1D6A3, 0x61],
+        ];
+        $utf8Codepoint = static function (string $character): int {
+            $bytes = array_values(unpack('C*', $character) ?: []);
+            $first = $bytes[0] ?? 0;
+            if ($first < 0x80) return $first;
+            if (count($bytes) === 2) return (($first & 0x1F) << 6) | (($bytes[1] ?? 0) & 0x3F);
+            if (count($bytes) === 3) return (($first & 0x0F) << 12) | ((($bytes[1] ?? 0) & 0x3F) << 6) | (($bytes[2] ?? 0) & 0x3F);
+            return (($first & 0x07) << 18) | ((($bytes[1] ?? 0) & 0x3F) << 12) | ((($bytes[2] ?? 0) & 0x3F) << 6) | (($bytes[3] ?? 0) & 0x3F);
+        };
+        $characterForCodepoint = static function (int $codepoint): string {
+            if ($codepoint < 0x80) return chr($codepoint);
+            if ($codepoint < 0x800) return chr(0xC0 | ($codepoint >> 6)) . chr(0x80 | ($codepoint & 0x3F));
+            if ($codepoint < 0x10000) return chr(0xE0 | ($codepoint >> 12)) . chr(0x80 | (($codepoint >> 6) & 0x3F)) . chr(0x80 | ($codepoint & 0x3F));
+            return chr(0xF0 | ($codepoint >> 18)) . chr(0x80 | (($codepoint >> 12) & 0x3F)) . chr(0x80 | (($codepoint >> 6) & 0x3F)) . chr(0x80 | ($codepoint & 0x3F));
+        };
+
+        return (string) preg_replace_callback('/[\x{1D400}-\x{1D7FF}]/u', static function (array $match) use ($ranges, $utf8Codepoint, $characterForCodepoint): string {
+            $code = $utf8Codepoint($match[0]);
+            foreach ($ranges as [$start, $end, $base]) {
+                if ($code >= $start && $code <= $end) return $characterForCodepoint($base + ($code - $start));
+            }
+            return $match[0];
+        }, (string) $value);
+    };
     ?>
 
 
@@ -675,7 +705,7 @@
 
             <div class="db-welcome">
                 <div>
-                    <h2>Hello, <?= esc(session()->get('full_name') ?? session()->get('username') ?? 'Resident') ?> 👋</h2>
+                    <h2>Hello, <?= esc($plainName(session()->get('full_name') ?? session()->get('username') ?? 'Resident')) ?> 👋</h2>
                     <p>Barangay Bacolod, Bato, Camarines Sur — Barangay Information System</p>
                 </div>
                 <div class="db-welcome-icon"><i class="fas fa-users"></i></div>
@@ -742,7 +772,7 @@
                                 ?>
                                     <tr>
                                         <td>
-                                            <div class="clr-for-name"><?= esc($r['for_member']) ?></div>
+                                            <div class="clr-for-name"><?= esc($plainName($r['for_member'])) ?></div>
                                             <?php if (trim((string) ($r['member_relationship'] ?? '')) !== ''): ?>
                                                 <div class="clr-for-rel"><?= esc($r['member_relationship']) ?></div>
                                             <?php endif; ?>
@@ -846,11 +876,11 @@
                                 <?php foreach ($members as $i => $m): ?>
                                     <label class="clr-member-pill <?= $i === 0 ? 'selected' : '' ?>"
                                         data-minor="<?= ! empty($m['is_minor']) ? '1' : '0' ?>"
-                                        onclick="selectMember(this, '<?= esc($m['name']) ?>', '<?= esc($m['relationship']) ?>', <?= ! empty($m['is_minor']) ? 'true' : 'false' ?>)">
-                                        <input type="radio" name="_member_ui" value="<?= esc($m['name']) ?>" <?= $i === 0 ? 'checked' : '' ?>>
-                                        <div class="clr-member-avatar"><?= strtoupper($m['name'][0] ?? '?') ?></div>
+                                        onclick="selectMember(this, '<?= esc($plainName($m['name'])) ?>', '<?= esc($m['relationship']) ?>', <?= ! empty($m['is_minor']) ? 'true' : 'false' ?>)">
+                                        <input type="radio" name="_member_ui" value="<?= esc($plainName($m['name'])) ?>" <?= $i === 0 ? 'checked' : '' ?>>
+                                        <div class="clr-member-avatar"><?= strtoupper($plainName($m['name'])[0] ?? '?') ?></div>
                                         <div>
-                                            <div class="clr-member-name"><?= esc($m['name']) ?></div>
+                                            <div class="clr-member-name"><?= esc($plainName($m['name'])) ?></div>
                                             <div class="clr-member-rel">
                                                 <?= esc($m['relationship']) ?>
                                                 <?php if (! empty($m['is_minor'])): ?>
