@@ -16,11 +16,11 @@
         }
 
         .clr-for-name {
-            font-family: Arial, sans-serif;
+            font-family: Arial, sans-serif !important;
             font-size: 16px;
-            font-weight: 400;
+            font-weight: 400 !important;
             line-height: 1.25;
-            letter-spacing: normal;
+            letter-spacing: normal !important;
             color: #111827;
         }
 
@@ -891,7 +891,7 @@
                                     </label>
                                 <?php endforeach; ?>
                             </div>
-                            <input type="hidden" name="for_member" id="forMember" value="<?= esc($members[0]['name'] ?? '') ?>">
+                            <input type="hidden" name="for_member" id="forMember" value="<?= esc($plainName($members[0]['name'] ?? '')) ?>">
                             <input type="hidden" name="member_relationship" id="memberRel" value="<?= esc($members[0]['relationship'] ?? '') ?>">
                         <?php endif; ?>
                     </div>
