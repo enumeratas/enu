@@ -134,11 +134,25 @@ $volunteerOptions = ['Health', 'Education', 'Environment', 'Disaster Preparednes
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KK Profiling Form - Bacolod BIS</title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=20261117c">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style id="sk-print-page">
         @media print {
             @page { size: 21.59cm 33.02cm; margin: 6mm; }
+            .lydo-title {
+                page-break-after: avoid;
+                break-after: avoid;
+            }
+            .lydo-table {
+                page-break-before: auto;
+                page-break-inside: auto;
+                break-before: auto;
+                break-inside: auto;
+            }
+            .lydo-table tr {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
         }
     </style>
     <script>

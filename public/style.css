@@ -6729,6 +6729,23 @@ html.print-landscape .lydo-sheet {
         page-break-inside: auto;
     }
 
+    .lydo-title {
+        page-break-after: avoid;
+        break-after: avoid;
+    }
+
+    .lydo-table {
+        page-break-before: auto;
+        page-break-inside: auto;
+        break-before: auto;
+        break-inside: auto;
+    }
+
+    .lydo-table tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
     .lydo-header {
         padding-bottom: 4px;
     }
