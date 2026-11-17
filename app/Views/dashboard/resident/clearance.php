@@ -15,13 +15,24 @@
             pointer-events: none;
         }
 
-        .clr-for-name {
+        .clr-for-name,
+        .clr-for-name *,
+        .clr-member-name,
+        .clr-member-name * {
             font-family: Arial, sans-serif !important;
-            font-size: 16px;
             font-weight: 400 !important;
             line-height: 1.25;
             letter-spacing: normal !important;
             color: #111827;
+        }
+
+        .clr-for-name {
+            font-size: 16px;
+        }
+
+        .clr-member-name {
+            font-size: 13.5px;
+            color: #1a1d2e;
         }
 
         .clr-for-name .pii-text,
@@ -195,10 +206,6 @@
         }
 
         .clr-member-name {
-            font-family: Arial, sans-serif;
-            font-size: 13.5px;
-            font-weight: 400;
-            color: #1a1d2e;
             line-height: 1.3;
         }
 
