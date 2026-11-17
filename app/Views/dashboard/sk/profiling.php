@@ -28,6 +28,14 @@
             font-weight: 400 !important;
         }
 
+        .resident-name {
+            font-family: 'Inter', Arial, sans-serif !important;
+            font-size: 13px;
+            font-weight: 600 !important;
+            letter-spacing: normal !important;
+            font-style: normal !important;
+        }
+
         .db-table .db-icon-btn,
         .db-table .db-icon-btn:hover {
             width: 30px !important;
@@ -404,7 +412,7 @@
                                 $middleName = $plainName($y['middle_name'] ?? '');
                                 $name    = esc(ucwords(strtolower($lastName))) . ', ' . esc(ucwords(strtolower($firstName)));
                                 if ($middleName !== '') $name .= ' ' . esc(strtoupper(substr($middleName, 0, 1))) . '.';
-                                $initial = strtoupper($y['first_name'][0] ?? '?');
+                                $initial = strtoupper($firstName[0] ?? '?');
                                 $dob     = ! empty($y['date_of_birth']) ? date('M d, Y', strtotime($y['date_of_birth'])) : '—';
                                 $badge   = $statusBadge[$y['economic_status'] ?? ''] ?? 'background:#f0f2f8;color:#6b7280;border:1px solid #e2e5ef;';
                             ?>
@@ -413,7 +421,7 @@
                                         <div style="display:flex;align-items:center;gap:9px;">
                                             <div class="db-avatar-sm"><?= $initial ?></div>
                                             <div>
-                                                <div style="font-family:inherit;font-weight:400;"><?= $name ?></div>
+                                                <div class="resident-name"><?= $name ?></div>
                                                 <div style="font-size:11px;color:#9aa0b4;"><?= $y['source'] === 'head' ? 'Household Head' : esc(ucfirst($y['relationship'] ?? 'Member')) ?></div>
                                             </div>
                                         </div>
