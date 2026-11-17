@@ -90,6 +90,14 @@
             font-weight: 400 !important;
         }
 
+        #youthTable .resident-name {
+            font-family: 'Inter', Arial, sans-serif !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            letter-spacing: normal !important;
+            font-style: normal !important;
+        }
+
         #youthTable .db-action-group .db-action-text {
             display: inline-flex !important;
             align-items: center !important;
