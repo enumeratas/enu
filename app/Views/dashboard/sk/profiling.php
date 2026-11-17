@@ -18,6 +18,14 @@
             letter-spacing: normal;
         }
 
+        .db-table tbody td {
+            font-weight: 400;
+        }
+
+        .db-table tbody td > div > div > div:first-child {
+            font-weight: 400 !important;
+        }
+
         .db-stats.db-stats--five {
             grid-template-columns: repeat(5, minmax(0, 1fr));
         }
@@ -277,7 +285,7 @@
                                         <div style="display:flex;align-items:center;gap:9px;">
                                             <div class="db-avatar-sm"><?= $initial ?></div>
                                             <div>
-                                                <div style="font-weight:500;"><?= $name ?></div>
+                                                <div style="font-weight:400;"><?= $name ?></div>
                                                 <div style="font-size:11px;color:#9aa0b4;"><?= $y['source'] === 'head' ? 'Household Head' : esc(ucfirst($y['relationship'] ?? 'Member')) ?></div>
                                             </div>
                                         </div>
