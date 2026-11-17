@@ -3784,6 +3784,10 @@ body.db-sidebar-collapsed .db-nav-section {
     font-style: normal !important;
 }
 
+.resident-name {
+    font-size: 13px !important;
+}
+
 /* ── Resident name cell ── */
 .db-resident-name {
     display: flex;
