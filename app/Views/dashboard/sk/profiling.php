@@ -23,7 +23,7 @@
         }
 
         .db-table tbody td > div > div > div:first-child {
-            font-family: "Segoe UI", Arial, sans-serif !important;
+            font-family: inherit !important;
             font-weight: 400 !important;
         }
 
@@ -71,13 +71,13 @@
         }
 
         #youthTable tbody td {
-            font-family: "Segoe UI", Arial, sans-serif !important;
+            font-family: inherit !important;
             font-weight: 400 !important;
             letter-spacing: normal !important;
         }
 
         #youthTable tbody td > div > div > div:first-child {
-            font-family: "Segoe UI", Arial, sans-serif !important;
+            font-family: inherit !important;
             font-weight: 400 !important;
         }
 
@@ -355,7 +355,7 @@
                                         <div style="display:flex;align-items:center;gap:9px;">
                                             <div class="db-avatar-sm"><?= $initial ?></div>
                                             <div>
-                                                <div style="font-family:'Segoe UI',Arial,sans-serif;font-weight:400;"><?= $name ?></div>
+                                                <div style="font-family:inherit;font-weight:400;"><?= $name ?></div>
                                                 <div style="font-size:11px;color:#9aa0b4;"><?= $y['source'] === 'head' ? 'Household Head' : esc(ucfirst($y['relationship'] ?? 'Member')) ?></div>
                                             </div>
                                         </div>
