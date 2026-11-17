@@ -6716,7 +6716,7 @@ html.print-landscape .lydo-sheet {
 
     .lydo-sheet {
         padding-top: 0 !important;
-        margin-top: 0 !important;
+        margin-top: -80px !important;
     }
 
     .lydo-form-code {
