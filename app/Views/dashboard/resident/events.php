@@ -7,7 +7,7 @@
     <title>Barangay Events - Bacolod BIS</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= time() ?>">
     <style>
         .evt-hero h2 { margin: 0 0 6px; color: #1d2448; }
         .evt-hero p { margin: 0; color: #6b7280; font-size: 14px; }

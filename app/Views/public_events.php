@@ -7,7 +7,7 @@
     <title>Events Calendar - Barangay Bacolod BIS</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= time() ?>">
     <style>
         .events-page { padding: 108px 24px 64px; background: #f4f6fb; min-height: 100vh; }
         .events-wrap { max-width: 1100px; margin: 0 auto; }

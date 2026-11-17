@@ -6,7 +6,7 @@
     <title>Review Census Record - Bacolod BIS</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= time() ?>">
     <style>
         .cr-card { background:#fff; border:1px solid #e2e6ee; border-radius:14px; box-shadow:0 4px 20px rgba(29,36,72,.06); margin-bottom:18px; overflow:hidden; }
         .cr-head { padding:16px 22px; background:linear-gradient(135deg,#1d2448,#2e3a6e); color:#fff; font-size:14px; font-weight:700; display:flex; align-items:center; gap:10px; }

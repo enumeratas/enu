@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= empty($program) ? 'Add Program' : 'Edit Program' ?> - Bacolod BIS</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=<?= time() ?>">
     <style>
         .sk-form-panel { background: #fff; border: 1px solid #e8ecf4; padding: 22px; max-width: 760px; }
         .sk-form-label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 6px; }
