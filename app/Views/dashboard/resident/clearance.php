@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Clearances - Bacolod BIS</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="/style.css">
     <style>
@@ -17,10 +16,11 @@
         }
 
         .clr-for-name {
+            font-family: Arial, sans-serif;
             font-size: 16px;
-            font-weight: 800;
+            font-weight: 400;
             line-height: 1.25;
-            letter-spacing: .01em;
+            letter-spacing: normal;
             color: #111827;
         }
 
@@ -195,8 +195,9 @@
         }
 
         .clr-member-name {
+            font-family: Arial, sans-serif;
             font-size: 13.5px;
-            font-weight: 700;
+            font-weight: 400;
             color: #1a1d2e;
             line-height: 1.3;
         }
