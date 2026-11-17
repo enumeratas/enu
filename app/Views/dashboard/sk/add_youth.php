@@ -177,6 +177,10 @@
             width: 2in;
             height: 2in;
             flex: 0 0 2in;
+            min-width: 2in;
+            min-height: 2in;
+            max-width: 2in;
+            max-height: 2in;
             border: 1px solid #1d2448;
             background: #f7f8fc;
             overflow: hidden;
@@ -192,6 +196,8 @@
         .kk-photo-box img {
             width: 2in;
             height: 2in;
+            max-width: 2in;
+            max-height: 2in;
             object-fit: cover;
             object-position: center;
             display: block;
