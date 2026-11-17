@@ -23,7 +23,22 @@
         }
 
         .db-table tbody td > div > div > div:first-child {
+            font-family: "Segoe UI", Arial, sans-serif !important;
             font-weight: 400 !important;
+        }
+
+        .db-table .db-icon-btn,
+        .db-table .db-icon-btn:hover {
+            width: 30px !important;
+            height: 30px !important;
+            min-width: 30px !important;
+            min-height: 30px !important;
+            padding: 0 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 13px !important;
+            line-height: 1 !important;
         }
 
         .db-stats.db-stats--five {
@@ -274,8 +289,8 @@
                             </tr>
                         <?php else: ?>
                             <?php foreach ($youth as $y):
-                                $name    = esc($y['last_name']) . ', ' . esc($y['first_name']);
-                                if (! empty($y['middle_name'])) $name .= ' ' . esc(substr($y['middle_name'], 0, 1)) . '.';
+                                $name    = esc(ucwords(strtolower((string) ($y['last_name'] ?? '')))) . ', ' . esc(ucwords(strtolower((string) ($y['first_name'] ?? ''))));
+                                if (! empty($y['middle_name'])) $name .= ' ' . esc(strtoupper(substr((string) $y['middle_name'], 0, 1))) . '.';
                                 $initial = strtoupper($y['first_name'][0] ?? '?');
                                 $dob     = ! empty($y['date_of_birth']) ? date('M d, Y', strtotime($y['date_of_birth'])) : '—';
                                 $badge   = $statusBadge[$y['economic_status'] ?? ''] ?? 'background:#f0f2f8;color:#6b7280;border:1px solid #e2e5ef;';
@@ -285,7 +300,7 @@
                                         <div style="display:flex;align-items:center;gap:9px;">
                                             <div class="db-avatar-sm"><?= $initial ?></div>
                                             <div>
-                                                <div style="font-weight:400;"><?= $name ?></div>
+                                                <div style="font-family:'Segoe UI',Arial,sans-serif;font-weight:400;"><?= $name ?></div>
                                                 <div style="font-size:11px;color:#9aa0b4;"><?= $y['source'] === 'head' ? 'Household Head' : esc(ucfirst($y['relationship'] ?? 'Member')) ?></div>
                                             </div>
                                         </div>
