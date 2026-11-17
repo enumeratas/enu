@@ -15,29 +15,29 @@
             pointer-events: none;
         }
 
-        .clr-for-name,
-        .clr-for-name *,
-        .clr-member-name,
-        .clr-member-name * {
-            font-family: Arial, sans-serif !important;
-            font-weight: 400 !important;
+        .resident-name {
+            font-family: 'Inter', Arial, sans-serif !important;
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: normal;
+            font-style: normal;
             line-height: 1.25;
-            letter-spacing: normal !important;
             color: #111827;
         }
 
-        .clr-for-name {
-            font-size: 16px;
-        }
-
         .clr-member-name {
+            font-family: 'Inter', Arial, sans-serif !important;
             font-size: 13.5px;
+            font-weight: 400 !important;
+            letter-spacing: normal;
+            font-style: normal;
             color: #1a1d2e;
+            line-height: 1.3;
         }
 
-        .clr-for-name .pii-text,
-        .clr-for-name .pii-text--name,
-        .clr-for-name .pii-text--large {
+        .resident-name .pii-text,
+        .resident-name .pii-text--name,
+        .resident-name .pii-text--large {
             height: 20px;
         }
 
@@ -779,7 +779,7 @@
                                 ?>
                                     <tr>
                                         <td>
-                                            <div class="clr-for-name"><?= esc($plainName($r['for_member'])) ?></div>
+                                            <div class="resident-name clr-for-name"><?= esc($plainName($r['for_member'])) ?></div>
                                             <?php if (trim((string) ($r['member_relationship'] ?? '')) !== ''): ?>
                                                 <div class="clr-for-rel"><?= esc($r['member_relationship']) ?></div>
                                             <?php endif; ?>
