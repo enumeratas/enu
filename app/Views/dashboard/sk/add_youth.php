@@ -739,8 +739,11 @@
                         </a>
                     <?php else: ?>
                         <a href="<?= esc($returnUrl) ?>" class="db-btn db-btn--outline" onclick="return goBack(event, '<?= esc($returnUrl) ?>');">Cancel</a>
-                        <button type="submit" class="db-btn db-btn--primary">
+                        <button type="submit" class="db-btn db-btn--outline">
                             <i class="fas fa-save"></i> <?= ($edit || $residentEdit) ? 'Save Changes' : 'Save Profile' ?>
+                        </button>
+                        <button type="submit" name="complete_profiling" value="1" class="db-btn db-btn--primary">
+                            <i class="fas fa-check-circle"></i> Complete Profiling
                         </button>
                     <?php endif; ?>
                 </div>

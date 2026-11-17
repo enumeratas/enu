@@ -571,6 +571,10 @@ class SkController extends BaseController
         );
         $this->notifySkProfilingUpdate($skUser, $post, 'submitted');
         $saved = $this->model->find($recordId) ?: $saved;
+        if (($post['complete_profiling'] ?? '') === '1' && empty($saved['photo_path'])) {
+            session()->setFlashdata('error', 'Profile information saved, but profiling is not complete. Upload a profile photo and click Complete Profiling.');
+            $message = null;
+        }
         $post = array_merge($post, $saved, ['id' => $recordId]);
 
         return $this->residentProfilingForm($message, $post, $selectedProfile);
@@ -610,6 +614,13 @@ class SkController extends BaseController
             $this->buildYouthPayload($post, ! empty($post['user_id']) ? (int) $post['user_id'] : null),
             $saved['photo_path'] ?? null
         );
+        if (($post['complete_profiling'] ?? '') === '1') {
+            $saved = $this->model->find($recordId) ?: $saved;
+            if (empty($saved['photo_path'])) {
+                return redirect()->to('/sk/profiling/edit/' . $recordId)
+                    ->with('error', 'Profile saved, but profiling is not complete. Upload a profile photo and click Complete Profiling.');
+            }
+        }
 
         return redirect()->to('/sk/profiling/edit/' . $recordId)->with('success', $message);
     }
@@ -729,6 +740,11 @@ class SkController extends BaseController
         }
         $this->model->resetProfileIndexes();
         $message = $this->finishYouthSave($id, $payload, $existing['photo_path'] ?? null);
+        $saved = $this->model->find($id) ?: ['id' => $id];
+        if (($post['complete_profiling'] ?? '') === '1' && empty($saved['photo_path'])) {
+            session()->setFlashdata('error', 'Profile information saved, but profiling is not complete. Upload a profile photo and click Complete Profiling.');
+            $message = null;
+        }
 
         if (in_array($role, ['resident', 'council'], true)) {
             $skUser = (new \App\Models\UserModel())
@@ -740,7 +756,6 @@ class SkController extends BaseController
                 $this->notifySkProfilingUpdate($skUser, $post, 'updated');
             }
 
-            $saved = $this->model->find($id) ?: ['id' => $id];
             $post = array_merge($post, $saved, ['id' => $id]);
 
             return $this->residentProfilingForm($message, $post, $post['profile_option'] ?? 'self');
