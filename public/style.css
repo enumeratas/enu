@@ -6692,13 +6692,13 @@ html.print-landscape .lydo-sheet {
 
     .lydo-sheet {
         width: 100%;
-        height: 100%;
+        height: auto;
         box-shadow: none;
         margin: 0;
         max-width: none;
         padding: 0;
-        overflow: hidden;
-        page-break-inside: avoid;
+        overflow: visible;
+        page-break-inside: auto;
     }
 
     .lydo-header {
