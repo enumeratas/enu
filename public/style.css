@@ -6818,50 +6818,50 @@ html.print-landscape .lydo-sheet {
     }
 
     html.print-portrait .lydo-header img {
-        max-height: 44px;
+        max-height: 50px;
     }
 
     html.print-portrait .lydo-title {
-        font-size: 11px;
-        padding: 3px 0;
+        font-size: 12px;
+        padding: 4px 0;
     }
 
     html.print-portrait .lydo-table {
-        font-size: 8px;
+        font-size: 9px;
     }
 
     html.print-portrait .lydo-table td,
     html.print-portrait .lydo-table th {
-        height: 14px;
-        padding: 1px 3px;
+        height: 16px;
+        padding: 2px 4px;
     }
 
     html.print-portrait .lydo-value {
-        min-height: 8px;
-        font-size: 8px;
+        min-height: 10px;
+        font-size: 9px;
     }
 
     html.print-portrait .lydo-lines {
-        height: 34px !important;
+        height: 40px !important;
     }
 
     html.print-portrait .lydo-certification {
-        height: 34px;
-        padding: 5px 10px !important;
+        height: 40px;
+        padding: 6px 12px !important;
     }
 
     html.print-portrait .lydo-signature {
-        height: 48px !important;
-        padding: 4px 6px 6px !important;
+        height: 54px !important;
+        padding: 5px 8px 7px !important;
     }
 
     html.print-portrait .lydo-sign-space {
-        height: 22px;
-        margin-top: 3px;
+        height: 26px;
+        margin-top: 4px;
     }
 
     html.print-portrait .lydo-sign-caption {
-        font-size: 8px;
+        font-size: 9px;
         padding-top: 2px;
     }
 
