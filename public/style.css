@@ -6714,6 +6714,17 @@ html.print-landscape .lydo-sheet {
         padding: 0 !important;
     }
 
+    .lydo-sheet {
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+    }
+
+    .lydo-form-code {
+        line-height: 1;
+        margin-top: 0;
+        margin-bottom: 2px;
+    }
+
     .db-alert {
         display: none !important;
     }
