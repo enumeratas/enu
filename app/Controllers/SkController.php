@@ -424,6 +424,7 @@ class SkController extends BaseController
     {
         $accounts = [];
         $selectedAccountId = null;
+        $selectedYouth = null;
         $selectedHouseholdNo = trim((string) ($this->request->getGet('household_no') ?? ''));
         $selectedSource = $this->request->getGet('source') ?? '';
         $selectedMemberId = (int) ($this->request->getGet('member_id') ?? 0);
@@ -457,6 +458,12 @@ class SkController extends BaseController
                     ? (int) ($target['id'] ?? 0) === $selectedMemberId
                     : $isHead;
                 if ($matchesTarget) $selectedAccountId = (int) $account['id'];
+                if ($matchesTarget) {
+                    $selectedYouth = $this->withSavedYouthProfile(
+                        $this->buildResidentProfileData($target, $household, $members, $account, $isHead),
+                        (int) $account['id']
+                    );
+                }
             }
             $accounts[] = [
                 'id' => (int) $account['id'],
@@ -468,9 +475,40 @@ class SkController extends BaseController
             ];
         }
 
+        if ($selectedYouth === null && $selectedHouseholdNo !== '') {
+            $selectedHousehold = $db->table('households')
+                ->where('household_no', $selectedHouseholdNo)
+                ->get()
+                ->getRowArray();
+            $selectedMembers = $db->table('household_members')
+                ->where('household_no', $selectedHouseholdNo)
+                ->get()
+                ->getResultArray();
+            $selectedTarget = null;
+            $selectedIsHead = false;
+            if ($selectedSource === 'member') {
+                foreach ($selectedMembers as $member) {
+                    if ((int) ($member['id'] ?? 0) === $selectedMemberId) {
+                        $selectedTarget = $member;
+                        break;
+                    }
+                }
+            } elseif ($selectedHousehold) {
+                $selectedTarget = $selectedHousehold;
+                $selectedIsHead = true;
+            }
+            if ($selectedTarget && ! empty($selectedTarget['date_of_birth'])) {
+                $selectedYouth = $this->withSavedYouthProfile(
+                    $this->buildResidentProfileData($selectedTarget, $selectedHousehold, $selectedMembers, [], $selectedIsHead),
+                    null
+                );
+            }
+        }
+
         return view('dashboard/sk/add_youth', [
             'youthAccounts' => $accounts,
             'selectedAccountId' => $selectedAccountId,
+            'youth' => $selectedYouth ?? [],
         ]);
     }
 
