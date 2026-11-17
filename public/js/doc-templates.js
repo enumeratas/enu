@@ -461,6 +461,7 @@ html, body { width: 210mm; height: 297mm; background: #fff; }
             .replace('  width: 100%; height: 100%;\n  border:', '  width: 100%; min-height: ' + innerHeight + 'mm; height: auto;\n  border:')
             .replace('  position: relative; overflow: hidden;\n  padding: 0;\n}', '  position: relative; overflow: visible;\n  padding: 0;\n}')
             + '.bc-seal,.bc-watermark img{-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
+            + '.bc-page{overflow:hidden !important;}'
             + 'body.hide-seals .bc-seal{display:none !important;}'
             + 'body.hide-watermark .bc-watermark{display:none !important;}'
             + '@media print{.bis-print-toolbar{display:none !important;}}';
