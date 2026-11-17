@@ -53,6 +53,35 @@
     $active    = 'profiling';
     $pageTitle = 'SK Youth Profiling';
     include(APPPATH . 'Views/dashboard/sidebar.php');
+    ?>
+    <style>
+        #youthTable .db-icon-btn,
+        #youthTable .db-icon-btn:hover {
+            width: 30px !important;
+            height: 30px !important;
+            min-width: 30px !important;
+            min-height: 30px !important;
+            padding: 0 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-family: Arial, sans-serif !important;
+            font-size: 13px !important;
+            line-height: 1 !important;
+        }
+
+        #youthTable tbody td {
+            font-family: "Segoe UI", Arial, sans-serif !important;
+            font-weight: 400 !important;
+            letter-spacing: normal !important;
+        }
+
+        #youthTable tbody td > div > div > div:first-child {
+            font-family: "Segoe UI", Arial, sans-serif !important;
+            font-weight: 400 !important;
+        }
+    </style>
+    <?php
 
     $youth       = $youth       ?? [];
     $stats       = $stats       ?? ['total' => 0, 'male' => 0, 'female' => 0, 'students' => 0, 'oos' => 0];
