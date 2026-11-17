@@ -133,6 +133,30 @@
         'Unemployed'    => 'background:#fff8f0;color:#b7600a;border:1px solid #fde8c8;',
         'Out-of-School' => 'background:#fff0f1;color:#c0392b;border:1px solid #fad4d4;',
     ];
+    $plainName = static function ($value): string {
+        $value = (string) $value;
+        if (! function_exists('mb_ord') || ! function_exists('mb_chr')) {
+            return $value;
+        }
+
+        $ranges = [
+            [0x1D400, 0x1D419, 0x41], [0x1D41A, 0x1D433, 0x61],
+            [0x1D468, 0x1D481, 0x41], [0x1D482, 0x1D49B, 0x61],
+            [0x1D5D4, 0x1D5ED, 0x41], [0x1D5EE, 0x1D607, 0x61],
+            [0x1D670, 0x1D689, 0x41], [0x1D68A, 0x1D6A3, 0x61],
+        ];
+
+        return (string) preg_replace_callback('/[\x{1D400}-\x{1D7FF}]/u', static function (array $match) use ($ranges): string {
+            $code = mb_ord($match[0], 'UTF-8');
+            foreach ($ranges as [$start, $end, $base]) {
+                if ($code >= $start && $code <= $end) {
+                    return mb_chr($base + ($code - $start), 'UTF-8');
+                }
+            }
+
+            return $match[0];
+        }, $value);
+    };
     ?>
     <div class="db-main">
         <?php include(APPPATH . 'Views/dashboard/topbar.php'); ?>
@@ -344,8 +368,11 @@
                             </tr>
                         <?php else: ?>
                             <?php foreach ($youth as $y):
-                                $name    = esc(ucwords(strtolower((string) ($y['last_name'] ?? '')))) . ', ' . esc(ucwords(strtolower((string) ($y['first_name'] ?? ''))));
-                                if (! empty($y['middle_name'])) $name .= ' ' . esc(strtoupper(substr((string) $y['middle_name'], 0, 1))) . '.';
+                                $lastName = $plainName($y['last_name'] ?? '');
+                                $firstName = $plainName($y['first_name'] ?? '');
+                                $middleName = $plainName($y['middle_name'] ?? '');
+                                $name    = esc(ucwords(strtolower($lastName))) . ', ' . esc(ucwords(strtolower($firstName)));
+                                if ($middleName !== '') $name .= ' ' . esc(strtoupper(substr($middleName, 0, 1))) . '.';
                                 $initial = strtoupper($y['first_name'][0] ?? '?');
                                 $dob     = ! empty($y['date_of_birth']) ? date('M d, Y', strtotime($y['date_of_birth'])) : '—';
                                 $badge   = $statusBadge[$y['economic_status'] ?? ''] ?? 'background:#f0f2f8;color:#6b7280;border:1px solid #e2e5ef;';
